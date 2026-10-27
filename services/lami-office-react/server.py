@@ -169,6 +169,8 @@ class Hub:
         self.agents: dict[str, dict] = {}
         self.day = date.today().isoformat()
         self.stats = {"doneToday": 0, "coins": 0, "failedToday": 0}
+        self.last_event_ts = 0.0
+        self.events_total = 0
 
     def subscribe(self) -> queue.Queue:
         q: queue.Queue = queue.Queue(maxsize=500)
@@ -190,6 +192,8 @@ class Hub:
         if not ev:
             return
         with self.lock:
+            self.last_event_ts = time.time()
+            self.events_total += 1
             self._apply(ev)
             for q in list(self.subs):
                 try:
@@ -766,6 +770,37 @@ class Handler(BaseHTTPRequestHandler):
                 "color": "#C084FC", "type": "boss",
                 "sub_agents": len(HUB.agents), "tools": ["browser", "terminal", "code", "web", "memory", "vision"]
             })
+        if path == "/api/integration":
+            def age_of(target: Path):
+                try:
+                    return round(time.time() - target.stat().st_mtime, 1)
+                except OSError:
+                    return None
+
+            db_path = Path(str(CFG["sqlite_path"]))
+            sess_path = Path(str(CFG["hermes_home"])) / "sessions"
+            db_age = age_of(db_path)
+            out = {
+                "mode": self.mode_for_client(),
+                "public_mode": CFG["public_mode"],
+                "events_total": HUB.events_total,
+                "last_event_age_s": round(time.time() - HUB.last_event_ts, 1) if HUB.last_event_ts else None,
+                "agents_online": len(HUB.agents),
+                "clients": len(HUB.subs),
+                "ingest_token_required": bool(CFG["ingest_token"]),
+            }
+            # Detailed local filesystem info only for trusted (localhost) callers.
+            if self.is_local() or (CFG["ingest_token"] and self.headers.get("X-Office-Token") == CFG["ingest_token"]):
+                out["watcher"] = {
+                    "source": CFG["source"],
+                    "hermes_home": str(CFG["hermes_home"]),
+                    "state_db": str(db_path),
+                    "state_db_age_s": db_age,
+                    "sessions_dir": str(sess_path),
+                    "sessions_age_s": age_of(sess_path),
+                    "stale": (db_age is None or db_age > 600),
+                }
+            return self.send_json(200, out)
         if path == "/api/agents":
             snap = HUB.snapshot()
             return self.send_json(200, {

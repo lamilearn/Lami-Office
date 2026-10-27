@@ -59,3 +59,37 @@ To verify service health across all 7 endpoints:
 # Test remote host
 ./scripts/smoke_test.sh 192.168.3.33 8088 8090
 ```
+
+## Hermes Integration (Cross-Host)
+
+The container can watch a Hermes home only when that home is on the same host
+(`/home/rumi/.hermes` mounted read-only). When Hermes runs on another machine
+(e.g. `192.168.3.31`), run the bundled bridge **on the Hermes host**:
+
+```bash
+# 1. On the office host: pick a shared secret and start the stack
+export INGEST_TOKEN="$(openssl rand -hex 16)"
+docker compose --env-file .env.development up -d --build
+
+# 2. On the Hermes host (stdlib only, no install):
+python3 deploy/hermes_bridge.py \
+  --endpoint http://192.168.3.33:13579 \
+  --token "$INGEST_TOKEN" \
+  --boss-session <main-session-id>
+```
+
+What the bridge does: tails `~/.hermes/state.db` read-only, turns tool calls
+into `tool_start` / `tool_end` / `agent_spawn` / `message` / `agent_done`
+events and POSTs them to `/api/event` with `X-Office-Token`.
+
+Useful flags: `--probe` (show parsed events, send nothing), `--once`,
+`--include-cron`, `--dry-run`, `--poll 1.0`, `--timeout 90`.
+
+Check wiring at any time:
+
+```bash
+curl -s http://127.0.0.1:13579/api/integration | jq
+```
+
+`watcher.stale: true` means the mounted Hermes home has no fresh activity and
+the cross-host bridge (or `POST /api/event`) is the active path.
