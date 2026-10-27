@@ -1,6 +1,6 @@
 {
   "name": "lami-ai-office-suite",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "2D Top-Down / RPG AI Office Suite",
   "scripts": {
     "test": "node tests/run_all_e2e.js",
