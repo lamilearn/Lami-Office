@@ -8,7 +8,7 @@
 
 set -eo pipefail
 
-REPO_URL="git@github.com:lamilearn/Lami-AI-Office.git"
+REPO_URL="${1:-${GIT_REMOTE_URL:-git@github.com:lamilearn/Lami-Office.git}}"
 REMOTE_NAME="origin"
 
 GREEN='\033[0;32m'
@@ -34,8 +34,14 @@ if [ -z "${CURRENT_REMOTE}" ]; then
     echo -e "Adding remote ${REMOTE_NAME} -> ${REPO_URL}"
     git remote add "${REMOTE_NAME}" "${REPO_URL}"
 elif [ "${CURRENT_REMOTE}" != "${REPO_URL}" ]; then
-    echo -e "${YELLOW}Updating remote ${REMOTE_NAME}: ${CURRENT_REMOTE} -> ${REPO_URL}${NC}"
-    git remote set-url "${REMOTE_NAME}" "${REPO_URL}"
+    # Origin preservation guard: Do not overwrite an existing valid and reachable remote unless explicitly requested
+    if [ -z "${1:-}" ] && [ -z "${GIT_REMOTE_URL:-}" ] && git ls-remote "${CURRENT_REMOTE}" >/dev/null 2>&1; then
+        echo -e "${GREEN}Preserving currently reachable remote ${REMOTE_NAME}: ${CURRENT_REMOTE}${NC}"
+        REPO_URL="${CURRENT_REMOTE}"
+    else
+        echo -e "${YELLOW}Updating remote ${REMOTE_NAME}: ${CURRENT_REMOTE} -> ${REPO_URL}${NC}"
+        git remote set-url "${REMOTE_NAME}" "${REPO_URL}"
+    fi
 fi
 
 # Verify GitHub SSH Authentication
@@ -67,8 +73,8 @@ if git ls-remote "${REPO_URL}" >/dev/null 2>&1; then
 else
     echo -e "${RED}NOT FOUND${NC}"
     echo -e "${YELLOW}----------------------------------------------------------------${NC}"
-    echo -e "${YELLOW}Repository 'lamilearn/Lami-AI-Office' has not yet been created on GitHub.${NC}"
-    echo -e "Please create an empty repository named 'Lami-AI-Office' under the"
+    echo -e "${YELLOW}Repository 'lamilearn/Lami-Office' has not yet been created on GitHub.${NC}"
+    echo -e "Please create an empty repository named 'Lami-Office' under the"
     echo -e "'lamilearn' organization at:"
     echo -e "  👉 https://github.com/organizations/lamilearn/repositories/new"
     echo -e "(Do NOT initialize with README, .gitignore, or license)."

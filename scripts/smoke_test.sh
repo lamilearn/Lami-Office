@@ -76,12 +76,12 @@ probe_endpoint() {
 echo -e "\n${BLUE}--- Probing ai-office (Port ${AI_PORT}) ---${NC}"
 probe_endpoint 1 "ai-office" "/api/health" "http://${HOST}:${AI_PORT}/api/health" '"status"[[:space:]]*:[[:space:]]*"ok"'
 probe_endpoint 2 "ai-office" "/api/boss" "http://${HOST}:${AI_PORT}/api/boss" '"id"[[:space:]]*:[[:space:]]*"lami"'
-probe_endpoint 3 "ai-office" "/api/agents" "http://${HOST}:${AI_PORT}/api/agents" '"agents"'
+probe_endpoint 3 "ai-office" "/api/agents" "http://${HOST}:${AI_PORT}/api/agents" '"agents"[[:space:]]*:[[:space:]]*\['
 probe_endpoint 4 "ai-office" "GET / (HTML)" "http://${HOST}:${AI_PORT}/" '<title>|<html'
 
 echo -e "\n${BLUE}--- Probing lami-office-react (Port ${LAMI_PORT}) ---${NC}"
 probe_endpoint 5 "lami-office" "/healthz" "http://${HOST}:${LAMI_PORT}/healthz" '"ok"[[:space:]]*:[[:space:]]*true'
-probe_endpoint 6 "lami-office" "/api/config" "http://${HOST}:${LAMI_PORT}/api/config" '"mode"'
+probe_endpoint 6 "lami-office" "/api/config" "http://${HOST}:${LAMI_PORT}/api/config" '"mode"[[:space:]]*:[[:space:]]*"(live|demo)"'
 probe_endpoint 7 "lami-office" "GET / (HTML)" "http://${HOST}:${LAMI_PORT}/" '<title>|<html'
 
 echo -e "\n${BLUE}================================================================${NC}"
