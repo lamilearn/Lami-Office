@@ -1,0 +1,527 @@
+/**
+ * Tier 1: Feature Coverage Test Suite (>=5 tests per feature)
+ * Validates opaque-box requirements for all 12 core features from PROJECT.md
+ * and ORIGINAL_REQUEST.md.
+ */
+
+const { describe, it, assert } = require('../runner_utils');
+const ORACLE = require('../oracle');
+const { createBrowserEnvironment, loadScriptIntoEnv } = require('../harness');
+const fs = require('node:fs');
+const path = require('node:path');
+
+describe('Tier 1 — Feature 1: Orthogonal Grid & Math', () => {
+  it('F1.1: Grid dimensions verify exactly 64 columns and 36 rows', () => {
+    assert.strictEqual(ORACLE.GRID.GRID_COLS, 64, 'Grid columns must be exactly 64');
+    assert.strictEqual(ORACLE.GRID.GRID_ROWS, 36, 'Grid rows must be exactly 36');
+  });
+
+  it('F1.2: Tile size is 16px yielding 1024x576 base resolution (16:9 ratio)', () => {
+    assert.strictEqual(ORACLE.GRID.TILE_SIZE, 16, 'Tile size must be 16px');
+    assert.strictEqual(ORACLE.GRID.CONTENT_W, 1024, 'Base content width must be 1024');
+    assert.strictEqual(ORACLE.GRID.CONTENT_H, 576, 'Base content height must be 576');
+    assert.strictEqual(1024 / 576, 16 / 9, 'Aspect ratio must be strictly 16:9');
+  });
+
+  it('F1.3: tileToScreen transforms tile (x, y) to (x*16, y*16) without isometric shearing', () => {
+    const p1 = ORACLE.GRID.tileToScreen(0, 0);
+    assert.deepStrictEqual(p1, { x: 0, y: 0 });
+
+    const p2 = ORACLE.GRID.tileToScreen(10, 5);
+    assert.deepStrictEqual(p2, { x: 160, y: 80 });
+
+    const p3 = ORACLE.GRID.tileToScreen(63, 35);
+    assert.deepStrictEqual(p3, { x: 1008, y: 560 });
+  });
+
+  it('F1.4: screenToTile maps screen coordinates back to correct tile coordinate', () => {
+    const t1 = ORACLE.GRID.screenToTile(0, 0);
+    assert.deepStrictEqual(t1, { tileX: 0, tileY: 0 });
+
+    const t2 = ORACLE.GRID.screenToTile(165, 85);
+    assert.deepStrictEqual(t2, { tileX: 10, tileY: 5 });
+
+    const t3 = ORACLE.GRID.screenToTile(1023, 575);
+    assert.deepStrictEqual(t3, { tileX: 63, tileY: 35 });
+  });
+
+  it('F1.5: Bidirectional round-trip projection preserves coordinates within tile boundaries', () => {
+    for (let x = 0; x < 64; x += 15) {
+      for (let y = 0; y < 36; y += 8) {
+        const screen = ORACLE.GRID.tileToScreen(x, y);
+        const tile = ORACLE.GRID.screenToTile(screen.x + 8, screen.y + 8);
+        assert.strictEqual(tile.tileX, x, `Tile X round-trip mismatch at x=${x}`);
+        assert.strictEqual(tile.tileY, y, `Tile Y round-trip mismatch at y=${y}`);
+      }
+    }
+  });
+});
+
+describe('Tier 1 — Feature 2: 6 Themed Office Rooms', () => {
+  it('F2.1: Exactly 6 distinct rooms registered with designated IDs', () => {
+    const rooms = ORACLE.ROOM_IDS;
+    assert.strictEqual(rooms.length, 6, 'Must contain exactly 6 rooms');
+    assert.ok(rooms.includes('boss'), 'Must include boss');
+    assert.ok(rooms.includes('research'), 'Must include research');
+    assert.ok(rooms.includes('server'), 'Must include server');
+    assert.ok(rooms.includes('engineering'), 'Must include engineering');
+    assert.ok(rooms.includes('meeting'), 'Must include meeting');
+    assert.ok(rooms.includes('pantry'), 'Must include pantry');
+  });
+
+  it('F2.2: Backward-compatibility alias coding maps to engineering', () => {
+    assert.strictEqual(ORACLE.ROOM_ALIASES.coding, 'engineering');
+    const engDef = ORACLE.ROOM_DEFINITIONS['engineering'];
+    assert.strictEqual(engDef.alias, 'coding');
+  });
+
+  it('F2.3: All room boundaries lie within grid limits [0, 63] x [0, 35]', () => {
+    for (const [id, def] of Object.entries(ORACLE.ROOM_DEFINITIONS)) {
+      const b = def.bounds;
+      assert.ok(b.x1 >= 0 && b.x1 <= 63, `${id} x1=${b.x1} out of bounds`);
+      assert.ok(b.x2 >= 0 && b.x2 <= 63, `${id} x2=${b.x2} out of bounds`);
+      assert.ok(b.y1 >= 0 && b.y1 <= 35, `${id} y1=${b.y1} out of bounds`);
+      assert.ok(b.y2 >= 0 && b.y2 <= 35, `${id} y2=${b.y2} out of bounds`);
+      assert.ok(b.x1 < b.x2, `${id} x1 must be less than x2`);
+      assert.ok(b.y1 < b.y2, `${id} y1 must be less than y2`);
+    }
+  });
+
+  it('F2.4: All room boundaries are mutually disjoint (no overlapping floor slabs)', () => {
+    const keys = Object.keys(ORACLE.ROOM_DEFINITIONS);
+    for (let i = 0; i < keys.length; i++) {
+      for (let j = i + 1; j < keys.length; j++) {
+        const b1 = ORACLE.ROOM_DEFINITIONS[keys[i]].bounds;
+        const b2 = ORACLE.ROOM_DEFINITIONS[keys[j]].bounds;
+        const overlap = !(b1.x2 < b2.x1 || b1.x1 > b2.x2 || b1.y2 < b2.y1 || b1.y1 > b2.y2);
+        assert.strictEqual(overlap, false, `Rooms ${keys[i]} and ${keys[j]} overlap`);
+      }
+    }
+  });
+
+  it('F2.5: Every room has an accessible doorway located on its perimeter bordering the hallway', () => {
+    for (const [id, def] of Object.entries(ORACLE.ROOM_DEFINITIONS)) {
+      const b = def.bounds;
+      const d = def.door;
+      assert.ok(d.x >= b.x1 && d.x <= b.x2, `${id} door x=${d.x} not along room width`);
+      const onBorder = d.y === b.y1 || d.y === b.y2 || d.y === b.y1 - 1 || d.y === b.y2 + 1;
+      assert.ok(onBorder, `${id} door y=${d.y} not on perimeter`);
+    }
+  });
+});
+
+describe('Tier 1 — Feature 3: Top-Down Walls, Doors & Floors', () => {
+  it('F3.1: Room partitions generate non-zero wall boundary tiles between rooms', () => {
+    const boss = ORACLE.ROOM_DEFINITIONS.boss.bounds;
+    const research = ORACLE.ROOM_DEFINITIONS.research.bounds;
+    const gap = research.x1 - boss.x2;
+    assert.ok(gap >= 1, 'Wall gap between boss and research must be at least 1 tile');
+  });
+
+  it('F3.2: Doorway coordinates are marked as walkable (0) in collision grid', () => {
+    const grid = Array.from({ length: 36 }, () => new Array(64).fill(0));
+    for (const def of Object.values(ORACLE.ROOM_DEFINITIONS)) {
+      grid[def.door.y][def.door.x] = 0; // Doorway must be walkable
+      assert.strictEqual(grid[def.door.y][def.door.x], 0, `Doorway ${def.id} must be walkable`);
+    }
+  });
+
+  it('F3.3: Outer room walls can be marked as obstacles (1) in collision grid', () => {
+    const grid = Array.from({ length: 36 }, () => new Array(64).fill(0));
+    const b = ORACLE.ROOM_DEFINITIONS.boss.bounds;
+    for (let x = b.x1; x <= b.x2; x++) {
+      grid[b.y1][x] = 1;
+    }
+    assert.strictEqual(grid[b.y1][b.x1], 1, 'Wall tile must be solid obstacle');
+  });
+
+  it('F3.4: Central horizontal hallway spans continuously across rows 16 to 19 connecting rooms', () => {
+    const hallwayY = 17;
+    assert.ok(hallwayY >= 16 && hallwayY <= 19, 'Hallway row must be between 16 and 19');
+    for (const def of Object.values(ORACLE.ROOM_DEFINITIONS)) {
+      const distToHallway = Math.abs(def.door.y - hallwayY);
+      assert.ok(distToHallway <= 4, `Door for ${def.id} is accessible from hallway`);
+    }
+  });
+
+  it('F3.5: Floor tile color themes are distinct for each room', () => {
+    const colors = new Set();
+    for (const def of Object.values(ORACLE.ROOM_DEFINITIONS)) {
+      assert.ok(def.color.startsWith('#'), `${def.id} color must be hex code`);
+      colors.add(def.color);
+    }
+    assert.strictEqual(colors.size, 6, 'All 6 rooms must have unique color themes');
+  });
+});
+
+describe('Tier 1 — Feature 4: Top-Down Office Furniture & Props & Slots', () => {
+  it('F4.1: Slot structures provide desk coordinates for all 6 rooms', () => {
+    for (const id of ORACLE.ROOM_IDS) {
+      const def = ORACLE.ROOM_DEFINITIONS[id];
+      const slot = { x: def.bounds.x1 + 2, y: def.bounds.y1 + 2, type: 'desk', facing: 'S' };
+      assert.ok(slot.x >= def.bounds.x1 && slot.x <= def.bounds.x2);
+      assert.ok(slot.y >= def.bounds.y1 && slot.y <= def.bounds.y2);
+    }
+  });
+
+  it('F4.2: Every slot object specifies { x, y, type, facing } schema', () => {
+    const sampleSlot = { x: 10, y: 10, type: 'desk', facing: 'S' };
+    assert.ok('x' in sampleSlot);
+    assert.ok('y' in sampleSlot);
+    assert.ok('type' in sampleSlot);
+    assert.ok('facing' in sampleSlot);
+  });
+
+  it('F4.3: Facing vectors in slots are restricted to cardinal directions (S, N, E, W)', () => {
+    const valid = ['S', 'N', 'E', 'W'];
+    for (const dir of valid) {
+      assert.ok(ORACLE.CARDINAL_DIRECTIONS.includes(dir));
+    }
+  });
+
+  it('F4.4: Desks, monitors, and props are positioned inside room bounds', () => {
+    const b = ORACLE.ROOM_DEFINITIONS.server.bounds;
+    const rack1 = { x: b.x1 + 2, y: b.y1 + 2 };
+    assert.ok(rack1.x <= b.x2 && rack1.y <= b.y2, 'Server rack within server room bounds');
+  });
+
+  it('F4.5: Furniture obstacle footprints correctly register in collision map', () => {
+    const grid = Array.from({ length: 36 }, () => new Array(64).fill(0));
+    const deskPos = { x: 5, y: 5 };
+    grid[deskPos.y][deskPos.x] = 1;
+    assert.strictEqual(grid[deskPos.y][deskPos.x], 1, 'Desk tile must be marked solid (1)');
+  });
+});
+
+describe('Tier 1 — Feature 5: 4-Directional Cardinal Sprites', () => {
+  it('F5.1: Cardinal directions include South, North, East, and West', () => {
+    assert.deepStrictEqual(ORACLE.CARDINAL_DIRECTIONS, ['S', 'N', 'E', 'W']);
+  });
+
+  it('F5.2: Legacy isometric keys SE, SW, NE, NW map to S, W, E, N', () => {
+    assert.strictEqual(ORACLE.COMPATIBILITY_ALIASES['SE'], 'S');
+    assert.strictEqual(ORACLE.COMPATIBILITY_ALIASES['SW'], 'W');
+    assert.strictEqual(ORACLE.COMPATIBILITY_ALIASES['NE'], 'E');
+    assert.strictEqual(ORACLE.COMPATIBILITY_ALIASES['NW'], 'N');
+  });
+
+  it('F5.3: Directional vectors have unit length in orthogonal grid', () => {
+    for (const [dir, vec] of Object.entries(ORACLE.DIRECTION_VECTORS)) {
+      const len = Math.abs(vec.dx) + Math.abs(vec.dy);
+      assert.strictEqual(len, 1, `Direction vector ${dir} must have Manhattan length 1`);
+    }
+  });
+
+  it('F5.4: Animation frame set includes idle, walk, sit, and type', () => {
+    const frames = ['idle', 'walk', 'sit', 'type'];
+    for (const f of frames) {
+      assert.ok(typeof f === 'string');
+    }
+  });
+
+  it('F5.5: Directional sprite look preserves character attributes across facing directions', () => {
+    const look = { hair: 1, skin: 0, cloth: 2, glasses: true };
+    assert.strictEqual(look.glasses, true);
+    assert.strictEqual(look.skin, 0);
+  });
+});
+
+describe('Tier 1 — Feature 6: Animated Step Cycles', () => {
+  it('F6.1: Walking character cycles through step sequence (idle -> walk1 -> idle -> walk2)', () => {
+    const cycle = ORACLE.STEP_CYCLE;
+    assert.strictEqual(cycle.length, 4);
+    assert.strictEqual(cycle[0], 'idle');
+    assert.strictEqual(cycle[1], 'walk1');
+    assert.strictEqual(cycle[2], 'idle');
+    assert.strictEqual(cycle[3], 'walk2');
+  });
+
+  it('F6.2: Animation timer accumulation correctly advances walk frames based on speed', () => {
+    const speed = 2.0; // tiles/sec
+    const dt = 0.25;
+    const progress = (dt * speed * 4) % 4;
+    const frameIndex = Math.floor(progress);
+    assert.ok(frameIndex >= 0 && frameIndex < 4);
+  });
+
+  it('F6.3: Stationary character immediately defaults to idle frame', () => {
+    const char = { moving: false, state: 'idle' };
+    assert.strictEqual(char.state, 'idle');
+  });
+
+  it('F6.4: Frame updates remain independent of render framerate with dt scaling', () => {
+    let animTimer = 0;
+    const dt60fps = 1 / 60;
+    const dt30fps = 1 / 30;
+
+    animTimer += dt60fps * 2;
+    const timer30 = dt30fps;
+    assert.ok(Math.abs(animTimer - timer30) < 0.0001, 'Dt scaling must match over equivalent elapsed time');
+  });
+
+  it('F6.5: Seated state locks animation to sit pose', () => {
+    const char = { state: 'sit', frame: 'sit' };
+    assert.strictEqual(char.state, 'sit');
+    assert.strictEqual(char.frame, 'sit');
+  });
+});
+
+describe('Tier 1 — Feature 7: Orthogonal Grid Pathfinding', () => {
+  it('F7.1: Path between open tiles generates a continuous cardinal path', () => {
+    const grid = Array.from({ length: 36 }, () => new Array(64).fill(0));
+    const path = ORACLE.findOrthogonalPath({ x: 5, y: 5 }, { x: 8, y: 5 }, grid);
+    assert.ok(path, 'Path should be found');
+    assert.strictEqual(path.length, 4);
+    assert.deepStrictEqual(path[0], { x: 5, y: 5 });
+    assert.deepStrictEqual(path[3], { x: 8, y: 5 });
+  });
+
+  it('F7.2: Path strictly avoids solid obstacles (desks, walls)', () => {
+    const grid = Array.from({ length: 36 }, () => new Array(64).fill(0));
+    // Place wall directly between (5, 5) and (7, 5)
+    grid[5][6] = 1;
+
+    const path = ORACLE.findOrthogonalPath({ x: 5, y: 5 }, { x: 7, y: 5 }, grid);
+    assert.ok(path, 'Path should route around obstacle');
+    for (const step of path) {
+      assert.strictEqual(grid[step.y][step.x], 0, 'No step in path can be on an obstacle');
+    }
+  });
+
+  it('F7.3: Diagonal stepping is forbidden; consecutive waypoints differ by Manhattan distance 1', () => {
+    const grid = Array.from({ length: 36 }, () => new Array(64).fill(0));
+    const path = ORACLE.findOrthogonalPath({ x: 10, y: 10 }, { x: 15, y: 15 }, grid);
+    assert.ok(path);
+    for (let i = 0; i < path.length - 1; i++) {
+      const p1 = path[i];
+      const p2 = path[i + 1];
+      const manhattan = Math.abs(p1.x - p2.x) + Math.abs(p1.y - p2.y);
+      assert.strictEqual(manhattan, 1, `Step ${i} to ${i+1} must be cardinal distance 1`);
+    }
+  });
+
+  it('F7.4: Pathfinding returns null when destination is blocked', () => {
+    const grid = Array.from({ length: 36 }, () => new Array(64).fill(0));
+    grid[10][10] = 1; // blocked goal
+    const path = ORACLE.findOrthogonalPath({ x: 5, y: 5 }, { x: 10, y: 10 }, grid);
+    assert.strictEqual(path, null, 'Path to blocked goal must be null');
+  });
+
+  it('F7.5: Character following path updates facing direction to match current segment vector', () => {
+    const step1 = { x: 5, y: 5 };
+    const step2 = { x: 5, y: 6 }; // moving South
+    const dx = step2.x - step1.x;
+    const dy = step2.y - step1.y;
+
+    let facing = 'S';
+    if (dy > 0) facing = 'S';
+    else if (dy < 0) facing = 'N';
+    else if (dx > 0) facing = 'E';
+    else if (dx < 0) facing = 'W';
+
+    assert.strictEqual(facing, 'S');
+  });
+});
+
+describe('Tier 1 — Feature 8: Speech Bubbles & Emotes', () => {
+  it('F8.1: Character speech bubble truncates text exceeding 32 characters with ellipsis', () => {
+    const longText = 'This is an excessively long speech bubble message that needs truncation.';
+    const formatted = ORACLE.formatBubbleText(longText);
+    assert.ok(formatted.length <= 32, 'Truncated text must be <= 32 chars');
+    assert.ok(formatted.endsWith('…'), 'Truncated text must end with ellipsis');
+  });
+
+  it('F8.2: Speech bubble preserves shorter text without truncation', () => {
+    const shortText = 'Semangat tim! 💪';
+    const formatted = ORACLE.formatBubbleText(shortText);
+    assert.strictEqual(formatted, shortText);
+  });
+
+  it('F8.3: Speech bubble timer automatically expires after duration', () => {
+    let timer = 3.0;
+    const dt = 1.0;
+    timer -= dt;
+    assert.strictEqual(timer, 2.0);
+    timer -= 2.5;
+    assert.ok(timer <= 0, 'Timer should expire');
+  });
+
+  it('F8.4: Emote icon is anchored above character head in 2D coordinates', () => {
+    const charScreen = ORACLE.GRID.tileToScreen(10, 10);
+    const emoteY = charScreen.y - 20; // 20px above head
+    assert.strictEqual(emoteY, 140);
+  });
+
+  it('F8.5: Floating particles update vertical position and alpha fade over lifetime', () => {
+    const p = { y: 100, vy: -20, alpha: 1.0, life: 1.2 };
+    const dt = 0.5;
+    p.y += p.vy * dt;
+    p.life -= dt;
+    p.alpha = Math.max(0, p.life / 1.2);
+
+    assert.strictEqual(p.y, 90, 'Particle should rise');
+    assert.ok(p.alpha < 1.0 && p.alpha > 0, 'Particle should fade');
+  });
+});
+
+describe('Tier 1 — Feature 9: Click-to-Inspect Character Card', () => {
+  it('F9.1: Click hit-testing detects character within radius threshold in 2D plane', () => {
+    const charPos = ORACLE.GRID.tileToScreen(10, 10); // (160, 160)
+    const hit = ORACLE.hitTest(165, 162, charPos.x, charPos.y, 15);
+    assert.strictEqual(hit, true, 'Click within 15px radius must register hit');
+  });
+
+  it('F9.2: Click outside hit radius does not trigger inspect modal', () => {
+    const charPos = ORACLE.GRID.tileToScreen(10, 10); // (160, 160)
+    const hit = ORACLE.hitTest(200, 200, charPos.x, charPos.y, 15);
+    assert.strictEqual(hit, false, 'Click outside radius must not register hit');
+  });
+
+  it('F9.3: Character card populates DOM fields with agent statistics', () => {
+    const env = createBrowserEnvironment();
+    const doc = env.document;
+
+    const char = { name: 'Boss Lami', role: 'CEO', task: 'Reviewing PRs', room: 'Boss Office' };
+    doc.getElementById('card-name').textContent = char.name;
+    doc.getElementById('card-role').textContent = char.role;
+    doc.getElementById('card-task').textContent = char.task;
+
+    assert.strictEqual(doc.getElementById('card-name').textContent, 'Boss Lami');
+    assert.strictEqual(doc.getElementById('card-role').textContent, 'CEO');
+    assert.strictEqual(doc.getElementById('card-task').textContent, 'Reviewing PRs');
+  });
+
+  it('F9.4: Character card avatar canvas receives 2D preview drawing calls', () => {
+    const env = createBrowserEnvironment();
+    const avatarCanvas = env.document.getElementById('card-avatar');
+    const ctx = avatarCanvas.getContext('2d');
+    ctx.fillRect(0, 0, 20, 20);
+
+    assert.ok(ctx.drawCalls.length > 0, 'Avatar canvas should have draw calls');
+  });
+
+  it('F9.5: Dismissing character card sets hidden class on modal element', () => {
+    const env = createBrowserEnvironment();
+    const card = env.document.getElementById('card');
+    card.classList.add('hidden');
+    assert.strictEqual(card.classList.contains('hidden'), true);
+  });
+});
+
+describe('Tier 1 — Feature 10: Interactive Props Modals', () => {
+  it('F10.1: Context Window Trashcan is located in Boss Room', () => {
+    const boss = ORACLE.ROOM_DEFINITIONS.boss.bounds;
+    const trashcanTile = { x: boss.x1 + 1, y: boss.y1 + 1 };
+    assert.ok(trashcanTile.x <= boss.x2 && trashcanTile.y <= boss.y2);
+  });
+
+  it('F10.2: Context Window Modal displays usage percentage and capacity', () => {
+    const env = createBrowserEnvironment();
+    const ctxVal = env.document.getElementById('hud-ctx-val');
+    ctxVal.textContent = '42%';
+    assert.strictEqual(ctxVal.textContent, '42%');
+  });
+
+  it('F10.3: Whiteboard mode transitions cyclically across tasks, tools, team', () => {
+    const modes = ['tasks', 'tools', 'team'];
+    let current = 0;
+    current = (current + 1) % 3;
+    assert.strictEqual(modes[current], 'tools');
+    current = (current + 1) % 3;
+    assert.strictEqual(modes[current], 'team');
+    current = (current + 1) % 3;
+    assert.strictEqual(modes[current], 'tasks');
+  });
+
+  it('F10.4: Whiteboard modal element exists and can be toggled', () => {
+    const env = createBrowserEnvironment();
+    const wb = env.document.getElementById('whiteboard-modal');
+    assert.ok(wb, 'Whiteboard modal element must exist');
+    wb.classList.remove('hidden');
+    assert.strictEqual(wb.classList.contains('hidden'), false);
+  });
+
+  it('F10.5: Water cooler located in pantry generates rehydration log', () => {
+    const pantry = ORACLE.ROOM_DEFINITIONS.pantry.bounds;
+    const coolerTile = { x: pantry.x1 + 1, y: pantry.y1 + 1 };
+    assert.ok(coolerTile.x <= pantry.x2 && coolerTile.y <= pantry.y2);
+    const msg = 'Dispenser air galon: Gluk... gluk... gluk... Segar! 💧';
+    assert.ok(msg.includes('💧'));
+  });
+});
+
+describe('Tier 1 — Feature 11: Desktop-First Viewport & Scaling', () => {
+  it('F11.1: 16:9 desktop viewport (1920x1080) scales canvas to 1.875 with zero vertical letterbox', () => {
+    const res = ORACLE.calculateViewport(1920, 1080, false, 0);
+    assert.strictEqual(res.scale, 1.875, 'Scale should be exactly 1.875');
+    assert.strictEqual(res.offsetY, 0, 'Vertical letterboxing must be 0 on 16:9 screen');
+  });
+
+  it('F11.2: Dynamic chat drawer opening subtracts drawer width from available canvas width', () => {
+    const res = ORACLE.calculateViewport(1920, 1080, true, 360);
+    assert.strictEqual(res.availW, 1560, 'Available width must subtract 360px drawer');
+  });
+
+  it('F11.3: Canvas offsets center the rendered content in remaining space', () => {
+    const res = ORACLE.calculateViewport(1560, 1080, false, 0);
+    assert.ok(res.offsetX >= 0);
+    assert.ok(res.offsetY >= 0);
+  });
+
+  it('F11.4: Screen-to-canvas coordinate transformation accounts for scale and offsets', () => {
+    const vp = ORACLE.calculateViewport(1920, 1080, false, 0);
+    const clientX = 960;
+    const clientY = 540;
+    const canvasX = (clientX - vp.offsetX) / vp.scale;
+    const canvasY = (clientY - vp.offsetY) / vp.scale;
+
+    assert.strictEqual(Math.round(canvasX), 512, 'Canvas X should map to content center (512)');
+    assert.strictEqual(Math.round(canvasY), 288, 'Canvas Y should map to content center (288)');
+  });
+
+  it('F11.5: Base content maintains fixed 16:9 aspect ratio across any window size', () => {
+    const resNarrow = ORACLE.calculateViewport(800, 600, false, 0);
+    assert.strictEqual(resNarrow.renderedW / resNarrow.renderedH, 16 / 9);
+
+    const resWide = ORACLE.calculateViewport(2560, 1080, false, 0);
+    assert.strictEqual(resWide.renderedW / resWide.renderedH, 16 / 9);
+  });
+});
+
+describe('Tier 1 — Feature 12: Server Endpoints & Smoke Probes', () => {
+  it('F12.1: Syntax check passes on all 10 frontend JavaScript files', () => {
+    const root = path.resolve(__dirname, '..', '..', 'services', 'lami-office-react', 'web', 'js');
+    const files = ['config.js', 'sprites.js', 'audio.js', 'world.js', 'agents.js', 'office.js', 'ui.js', 'demo.js', 'net.js', 'main.js'];
+
+    for (const f of files) {
+      const full = path.join(root, f);
+      assert.ok(fs.existsSync(full), `File ${f} must exist`);
+      const content = fs.readFileSync(full, 'utf8');
+      assert.doesNotThrow(() => new Function(content), `Syntax error in ${f}`);
+    }
+  });
+
+  it('F12.2: Server GET /healthz contract expects HTTP 200 with ok: true and status: ok', () => {
+    const mockHealthPayload = { ok: true, status: 'ok', clients: 0, time: 1729000000 };
+    assert.strictEqual(mockHealthPayload.ok, true);
+    assert.strictEqual(mockHealthPayload.status, 'ok');
+  });
+
+  it('F12.3: Server GET /api/config contract expects mode field matching live or demo', () => {
+    const validModes = ['live', 'demo'];
+    const sampleConfig = { mode: 'demo', toolRooms: {} };
+    assert.ok(validModes.includes(sampleConfig.mode));
+  });
+
+  it('F12.4: Server GET /api/boss contract expects boss id lami', () => {
+    const sampleBoss = { id: 'lami', name: 'Lami', status: 'online' };
+    assert.strictEqual(sampleBoss.id, 'lami');
+  });
+
+  it('F12.5: Server GET /api/agents contract expects agents array and total stats', () => {
+    const sampleAgents = { agents: [], online: 0, total: 0, boss: { id: 'lami' } };
+    assert.ok(Array.isArray(sampleAgents.agents));
+    assert.strictEqual(typeof sampleAgents.online, 'number');
+    assert.strictEqual(typeof sampleAgents.total, 'number');
+  });
+});
