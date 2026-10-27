@@ -26,9 +26,11 @@
       LO.ui.setStatus('demo');
       LO.ui.addTicker('🎬', '<b>Demo Mode aktif</b>: Mensimulasikan aktivitas sub-agent.');
 
-      // Initial batch of 2 employees
+      // Initial batch of 4 employees so the office feels staffed
       this.spawnRandom();
-      setTimeout(() => this.spawnRandom(), 2000);
+      setTimeout(() => this.spawnRandom(), 900);
+      setTimeout(() => this.spawnRandom(), 1800);
+      setTimeout(() => this.spawnRandom(), 2700);
 
       // Tease a random office event in demo
       setTimeout(() => {
@@ -59,8 +61,8 @@
       const activeCount = this.office.subagents.size;
       const roll = Math.random();
 
-      // If less than 2, spawn new one
-      if (activeCount < 2 || (activeCount < 4 && roll < 0.45)) {
+      // Keep a livelier floor: 5-8 concurrent sub-agents
+      if (activeCount < 5 || (activeCount < 8 && roll < 0.5)) {
         this.spawnRandom();
       } else {
         // Trigger activity on an existing subagent

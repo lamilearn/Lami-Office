@@ -509,6 +509,12 @@
     }
 
     getRoutines() {
+      const personal = this.getPersonalRoutines();
+      if (personal && personal.length > 0) return personal;
+      return (LO.ROOM_ROUTINES && LO.ROOM_ROUTINES[this.homeRoom]) || [];
+    }
+
+    getPersonalRoutines() {
       switch (this.id) {
         case 'res-rina':
           return [

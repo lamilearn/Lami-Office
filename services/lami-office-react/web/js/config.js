@@ -403,11 +403,84 @@
 
   // ---- Resident Staff (2D Top-Down Assignments) ----
   LO.RESIDENTS = [
-    { id: 'res-rina',  name: 'Rina',  role: 'Kepala Riset',   room: 'research',    slot: 0, look: { hair: 5, skin: 0, cloth: 1, long: true, glasses: true } },
-    { id: 'res-dodo',  name: 'Dodo',  role: 'Senior Coder',   room: 'engineering', slot: 0, look: { hair: 0, skin: 2, cloth: 2, long: false, glasses: false } },
-    { id: 'res-sekar', name: 'Sekar', role: 'Sekretaris',     room: 'meeting',     slot: 0, look: { hair: 3, skin: 1, cloth: 0, long: true, glasses: false } },
-    { id: 'res-bima',  name: 'Bima',  role: 'Admin Server',   room: 'server',      slot: 0, look: { hair: 1, skin: 3, cloth: 5, long: false, glasses: true } },
+    // Research Lab
+    { id: 'res-rina',   name: 'Rina',   role: 'Kepala Riset',      room: 'research',    slot: 0, look: { hair: 5, skin: 0, cloth: 1, long: true,  glasses: true } },
+    { id: 'res-nadia',  name: 'Nadia',  role: 'Research Analyst',  room: 'research',    slot: 1, look: { hair: 2, skin: 1, cloth: 4, long: true,  glasses: false } },
+    { id: 'res-yoga',   name: 'Yoga',   role: 'Data Scientist',    room: 'research',    slot: 2, look: { hair: 6, skin: 2, cloth: 3, long: false, glasses: true } },
+    // Engineering Pit
+    { id: 'res-dodo',   name: 'Dodo',   role: 'Senior Coder',      room: 'engineering', slot: 0, look: { hair: 0, skin: 2, cloth: 2, long: false, glasses: false } },
+    { id: 'res-tono',   name: 'Tono',   role: 'Frontend Dev',      room: 'engineering', slot: 1, look: { hair: 3, skin: 0, cloth: 0, long: false, glasses: false } },
+    { id: 'res-citra',  name: 'Citra',  role: 'Backend Dev',       room: 'engineering', slot: 2, look: { hair: 4, skin: 3, cloth: 5, long: true,  glasses: true } },
+    // Meeting Room
+    { id: 'res-sekar',  name: 'Sekar',  role: 'Sekretaris',        room: 'meeting',     slot: 0, look: { hair: 3, skin: 1, cloth: 0, long: true,  glasses: false } },
+    { id: 'res-wulan',  name: 'Wulan',  role: 'Product Planner',   room: 'meeting',     slot: 1, look: { hair: 1, skin: 2, cloth: 1, long: true,  glasses: false } },
+    { id: 'res-dimas',  name: 'Dimas',  role: 'Business Analyst',  room: 'meeting',     slot: 2, look: { hair: 7, skin: 0, cloth: 3, long: false, glasses: true } },
+    // Server Room
+    { id: 'res-bima',   name: 'Bima',   role: 'Admin Server',      room: 'server',      slot: 0, look: { hair: 1, skin: 3, cloth: 5, long: false, glasses: true } },
+    { id: 'res-eko',    name: 'Eko',    role: 'DevOps Engineer',   room: 'server',      slot: 1, look: { hair: 0, skin: 1, cloth: 2, long: false, glasses: false } },
+    { id: 'res-intan',  name: 'Intan',  role: 'Site Reliability',  room: 'server',      slot: 2, look: { hair: 6, skin: 2, cloth: 0, long: true,  glasses: true } },
+    // Pantry / Lounge
+    { id: 'res-kiki',   name: 'Kiki',   role: 'Office Manager',    room: 'pantry',      slot: 0, look: { hair: 2, skin: 3, cloth: 4, long: false, glasses: false } },
   ];
+
+  // ---- Shared room routines (used by staff without a personal script) ----
+  LO.ROOM_ROUTINES = {
+    research: [
+      { id: 'room-corkboard', name: 'Cek Papan Riset', floor: 0, col: 35, row: 4, facing: 'N', duration: 6,
+        startBubble: 'Cek temuan tim di papan 📌', arriveBubble: 'Hipotesis baru tercatat rapi 💡', arriveEmote: '💡',
+        leaveBubble: 'Lanjut olah data 📊', task: 'Review Papan Riset' },
+      { id: 'room-window', name: 'Istirahat Mata', floor: 0, col: 38, row: 12, facing: 'E', duration: 6,
+        startBubble: 'Lihat jendela sebentar 🌤️', arriveBubble: 'Mata seger, fokus lagi ✨', arriveEmote: '✨',
+        leaveBubble: 'Balik ke meja riset 🔍', task: 'Istirahat Sejenak' },
+      { id: 'room-reading', name: 'Baca Referensi', floor: 0, col: 22, row: 12, facing: 'W', duration: 7,
+        startBubble: 'Buka jurnal referensi 📚', arriveBubble: 'Metode ini menarik! 🔍', arriveEmote: '📚',
+        leaveBubble: 'Diskusi ke kepala riset 🤝', task: 'Membaca Jurnal' }
+    ],
+    engineering: [
+      { id: 'room-mini-rig', name: 'Cek Build Runner', floor: 0, col: 14, row: 22, facing: 'N', duration: 6,
+        startBubble: 'Cek build runner lokal ⚙️', arriveBubble: 'Build hijau, test pass ✅', arriveEmote: '⚙️',
+        leaveBubble: 'Lanjut coding 💻', task: 'Inspeksi Build Runner' },
+      { id: 'room-corner', name: 'Diskusi Arsitektur', floor: 0, col: 20, row: 30, facing: 'E', duration: 6,
+        startBubble: 'Diskusi skema arsitektur 📐', arriveBubble: 'Desain baru lebih rapi ⚡', arriveEmote: '💡',
+        leaveBubble: 'Implementasi sekarang 🚀', task: 'Diskusi Arsitektur' },
+      { id: 'room-review', name: 'Code Review', floor: 0, col: 3, row: 24, facing: 'W', duration: 6,
+        startBubble: 'Review PR teman 👀', arriveBubble: 'Kode bersih, approve! 👍', arriveEmote: '✅',
+        leaveBubble: 'Balik ke terminal ⌨️', task: 'Code Review' }
+    ],
+    meeting: [
+      { id: 'room-whiteboard', name: 'Update Whiteboard', floor: 0, col: 26, row: 20, facing: 'N', duration: 6,
+        startBubble: 'Tulis agenda rapat 📝', arriveBubble: 'Agenda sinkron semua 🗓️', arriveEmote: '📋',
+        leaveBubble: 'Rapikan notulensi ✨', task: 'Update Papan Agenda' },
+      { id: 'room-podium', name: 'Presentasi Progres', floor: 0, col: 36, row: 22, facing: 'W', duration: 6,
+        startBubble: 'Siapkan materi presentasi 📊', arriveBubble: 'Target kuartal on-track! 🎯', arriveEmote: '📢',
+        leaveBubble: 'Sesi tanya jawab kelar 🤝', task: 'Presentasi Progres' },
+      { id: 'room-corner', name: 'Ngobrol Tim', floor: 0, col: 38, row: 30, facing: 'E', duration: 6,
+        startBubble: 'Ngobrol rencana minggu ini 💬', arriveBubble: 'Ide baru muncul! ✨', arriveEmote: '💡',
+        leaveBubble: 'Balik ke meja rapat 📋', task: 'Diskusi Tim' }
+    ],
+    server: [
+      { id: 'room-rack-a', name: 'Patroli Rack A', floor: 0, col: 44, row: 7, facing: 'N', duration: 6,
+        startBubble: 'Patroli suhu Rack A ❄️', arriveBubble: 'Suhu 17°C, optimal 🟢', arriveEmote: '🖥️',
+        leaveBubble: 'Cek Rack B 🚶', task: 'Inspeksi Rack A' },
+      { id: 'room-rack-c', name: 'Patroli Rack C', floor: 0, col: 52, row: 7, facing: 'N', duration: 6,
+        startBubble: 'Cek traffic Rack C ⚡', arriveBubble: 'Throughput 10 Gbps 🚀', arriveEmote: '⚡',
+        leaveBubble: 'Jaringan prima 👍', task: 'Inspeksi Rack C' },
+      { id: 'room-console', name: 'Cek Console', floor: 0, col: 43, row: 10, facing: 'W', duration: 6,
+        startBubble: 'Buka ops console 🖥️', arriveBubble: 'Semua service sehat ✅', arriveEmote: '✅',
+        leaveBubble: 'Balik ke terminal ⌨️', task: 'Monitoring Console' }
+    ],
+    pantry: [
+      { id: 'room-espresso', name: 'Racik Kopi', floor: 0, col: 46, row: 24, facing: 'N', duration: 6,
+        startBubble: 'Racik kopi buat tim ☕', arriveBubble: 'Espresso siap! ☕✨', arriveEmote: '☕',
+        leaveBubble: 'Antar ke meja tim 🚶', task: 'Racik Kopi' },
+      { id: 'room-sofa', name: 'Rapikan Lounge', floor: 0, col: 48, row: 29, facing: 'N', duration: 6,
+        startBubble: 'Rapikan sofa lounge 🛋️', arriveBubble: 'Lounge nyaman lagi ✨', arriveEmote: '✨',
+        leaveBubble: 'Cek snack stock 🍪', task: 'Rapikan Lounge' },
+      { id: 'room-center', name: 'Sapa Tim', floor: 0, col: 53, row: 26, facing: 'W', duration: 6,
+        startBubble: 'Sapa tim yang rehat 👋', arriveBubble: 'Semangat terus! 💪', arriveEmote: '❤️',
+        leaveBubble: 'Balik ke pantry ☕', task: 'Sapa Tim' }
+    ]
+  };
 
   LO.NAMES = ['Budi', 'Sari', 'Joko', 'Wulan', 'Tono', 'Putri', 'Agus', 'Mega', 'Rudi', 'Intan', 'Bayu', 'Dewi',
     'Fajar', 'Nina', 'Gilang', 'Ayu', 'Eko', 'Lala', 'Raka', 'Citra', 'Dimas', 'Tika', 'Yoga', 'Kiki'];

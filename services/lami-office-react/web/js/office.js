@@ -65,6 +65,7 @@
       this.slotOccupancy = {};
       this.initSlots();
       this.initResidents();
+      if (LO.ui && LO.ui.updateStaffCount) LO.ui.updateStaffCount(this.residents.length);
 
       this.lastTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
       this.scale = 1;
@@ -371,7 +372,7 @@
       const floorLabel = LO.FLOORS[roomIdx]?.label || room;
       LO.ui.addTicker('✨', `Karyawan baru: <b>${name}</b> join ke <i>${floorLabel}</i>`);
       LO.ui.appendChatMessage('Sistem', 'Kantor', `✨ Karyawan baru <b>${name}</b> bergabung ke divisi <i>${floorLabel}</i>`, '✨', '#1f9d5c');
-      LO.ui.updateStaffCount(this.subagents.size);
+      LO.ui.updateStaffCount(this.residents.length + this.subagents.size);
 
       // Boss Lami delegates
       this.lami.setEmote('📢', 2.0);
@@ -471,7 +472,7 @@
             if (!this.subagents.has(aid)) return;
             this.freeSlot(agent);
             this.subagents.delete(aid);
-            LO.ui.updateStaffCount(this.subagents.size);
+            LO.ui.updateStaffCount(this.residents.length + this.subagents.size);
           }, 1500);
         };
         setTimeout(cleanup, 2500);

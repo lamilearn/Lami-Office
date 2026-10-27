@@ -595,3 +595,50 @@ describe('Tier 1 — Feature 7b: Live Map Path Integrity', () => {
     assert.strictEqual(checked, 21, 'All 21 routines must be verified');
   });
 });
+
+describe('Tier 1 — Feature 13: Staff Roster & Shared Room Routines', () => {
+  function liveConfig() {
+    const env = createBrowserEnvironment();
+    const LO = loadScriptIntoEnv(env, 'config.js');
+    loadScriptIntoEnv(env, 'office.js');
+    const grid = LO.Office.prototype.buildCollisionGrid.call({
+      getFurnitureObstacles: LO.Office.prototype.getFurnitureObstacles
+    });
+    return { LO, grid };
+  }
+
+  it('F13.1: Office roster has at least 12 residents with unique room slots', () => {
+    const { LO } = liveConfig();
+    assert.ok(LO.RESIDENTS.length >= 12, `Expected 12+ residents, got ${LO.RESIDENTS.length}`);
+    const seen = new Set();
+    for (const r of LO.RESIDENTS) {
+      const key = `${r.room}:${r.slot}`;
+      assert.ok(!seen.has(key), `Duplicate home slot ${key} for ${r.name}`);
+      seen.add(key);
+      assert.ok(LO.SLOTS[r.room] && LO.SLOTS[r.room][r.slot], `${r.name} must point at a real slot`);
+    }
+  });
+
+  it('F13.2: Every room exposes shared routines with walkable destinations', () => {
+    const { LO, grid } = liveConfig();
+    for (const room of ['research', 'engineering', 'meeting', 'server', 'pantry']) {
+      const routines = LO.ROOM_ROUTINES[room];
+      assert.ok(Array.isArray(routines) && routines.length >= 3, `${room} needs 3+ shared routines`);
+      for (const rt of routines) {
+        assert.strictEqual(grid[rt.row][rt.col], 0, `${room}/${rt.id} target must be walkable`);
+        assert.ok(['N', 'S', 'E', 'W'].includes(rt.facing), `${room}/${rt.id} needs a cardinal facing`);
+      }
+    }
+  });
+
+  it('F13.3: Every resident can reach every shared routine in its own room', () => {
+    const { LO, grid } = liveConfig();
+    for (const res of LO.RESIDENTS) {
+      const slot = LO.SLOTS[res.room][res.slot];
+      for (const rt of LO.ROOM_ROUTINES[res.room] || []) {
+        const p = LO.findOrthogonalPath({ x: slot.col, y: slot.row }, { x: rt.col, y: rt.row }, grid);
+        assert.ok(p, `${res.name} cannot reach ${res.room}/${rt.id} (${rt.col},${rt.row})`);
+      }
+    }
+  });
+});
