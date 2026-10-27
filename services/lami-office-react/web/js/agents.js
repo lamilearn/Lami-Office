@@ -193,18 +193,19 @@
       const dRow = destRow - this.row;
       const dist = Math.hypot(dCol, dRow);
 
-      // Determine 4-way Isometric Facing
+      // Determine 4-way Cardinal Facing (E, W, S, N) with isometric fallback compatibility
       if (Math.abs(dCol) > Math.abs(dRow)) {
-        this.facing = dCol > 0 ? 'SE' : 'NW';
+        this.facing = dCol > 0 ? 'E' : 'W';
       } else {
-        this.facing = dRow > 0 ? 'SW' : 'NE';
+        this.facing = dRow > 0 ? 'S' : 'N';
       }
 
       const step = Math.min(this.speed * dt, dist);
       this.col += (dCol / dist) * step;
       this.row += (dRow / dist) * step;
 
-      // Happy Mall Story walk bounce
+      // Retro RPG walk bounce & step animation
+      this.animTimer += dt;
       if (this.animTimer > 0.15) {
         this.animTimer = 0;
         this.walkStep = !this.walkStep;
