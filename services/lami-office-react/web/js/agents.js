@@ -1097,14 +1097,14 @@
       if (this.meowTimer <= 0) {
         this.meowTimer = Math.random() * 18 + 12;
 
-        // Cek jika ada orang di dekat Mochi di Pantry (Lantai 4)
+        // Cek jika ada orang di dekat Mochi di Pantry (Lantai Dasar / Pantry)
         let someoneNear = false;
         if (office) {
           const pantryChars = [
             office.lami,
             ...office.residents,
             ...office.subagents.values()
-          ].filter((c) => c && c.floor === 4);
+          ].filter((c) => c && c.floor === (LO.GROUND ?? 4));
 
           for (const c of pantryChars) {
             const dist = Math.hypot(this.col - c.col, this.row - c.row);
@@ -1177,10 +1177,10 @@
   // ---- Delivery Rider (Special Random Event Character - Claude-Office style) ----
   class DeliveryRider extends Character {
     constructor() {
-      super('delivery-rider', 'Bang Kurir', 'Kurir Martabak', { hair: 2, skin: 1, cloth: 1, long: false, glasses: false }, 4, LO.DOOR_COL, LO.DOOR_ROW);
+      super('delivery-rider', 'Bang Kurir', 'Kurir Martabak', { hair: 2, skin: 1, cloth: 1, long: false, glasses: false }, (LO.GROUND ?? 4), LO.DOOR_COL, LO.DOOR_ROW);
       this.speed = 2.4;
       this.carriedItem = 'paper'; // carries food box
-      this.targetFloor = 4;
+      this.targetFloor = (LO.GROUND ?? 4);
       this.targetCol = 2.8;
       this.targetRow = 2.0;
       this.state = 'walk';
@@ -1198,7 +1198,7 @@
         if (this.waitTimer <= 0) {
           this.phase = 'leaving';
           this.carriedItem = null;
-          this.targetFloor = 4;
+          this.targetFloor = (LO.GROUND ?? 4);
           this.targetCol = LO.DOOR_COL;
           this.targetRow = LO.DOOR_ROW;
           this.setBubble('Selamat menikmati semuanya! 👋', 3.0);
@@ -1216,7 +1216,7 @@
         const office = window.LO?.office;
         if (office) {
           office.pizzaEventTimer = 25.0; // box stays for 25s
-          const pantryStaff = [office.lami, ...office.residents, ...office.subagents.values()].filter((c) => c && c.floor === 4);
+          const pantryStaff = [office.lami, ...office.residents, ...office.subagents.values()].filter((c) => c && c.floor === (LO.GROUND ?? 4));
           for (const s of pantryStaff) {
             s.setBubble('Wah mantap, makasih bang! 🎉', 3.0);
             s.setEmote('❤️', 2.5);

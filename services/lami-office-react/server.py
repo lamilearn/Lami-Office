@@ -757,8 +757,24 @@ class Handler(BaseHTTPRequestHandler):
             return self.handle_events()
         if path == "/api/config":
             return self.send_json(200, {"mode": self.mode_for_client(), "toolRooms": CFG.get("tool_rooms") or {}})
-        if path == "/healthz":
-            return self.send_json(200, {"ok": True, "clients": len(HUB.subs)})
+        if path in ("/healthz", "/api/health"):
+            return self.send_json(200, {"ok": True, "status": "ok", "clients": len(HUB.subs), "time": time.time()})
+        if path == "/api/boss":
+            return self.send_json(200, {
+                "id": "lami", "name": "Lami", "title": "Hermes Agent",
+                "description": "AI orchestrator", "status": "online",
+                "color": "#C084FC", "type": "boss",
+                "sub_agents": len(HUB.agents), "tools": ["browser", "terminal", "code", "web", "memory", "vision"]
+            })
+        if path == "/api/agents":
+            snap = HUB.snapshot()
+            return self.send_json(200, {
+                "agents": snap.get("agents", []),
+                "stats": snap.get("stats", {}),
+                "online": len(snap.get("agents", [])),
+                "total": len(snap.get("agents", [])),
+                "boss": {"id": "lami", "name": "Lami", "status": "online"}
+            })
         return self.serve_static(path)
 
     def do_POST(self):

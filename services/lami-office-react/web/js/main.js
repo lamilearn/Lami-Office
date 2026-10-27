@@ -17,6 +17,7 @@
     // 3. Setup Canvas & Office simulation
     const canvas = document.getElementById('office');
     const office = new LO.Office(canvas);
+    LO.office = office;
     LO.currentOffice = office;
 
     // 4. Setup Demo Controller & Network Bridge
