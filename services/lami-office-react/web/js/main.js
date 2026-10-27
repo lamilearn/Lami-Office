@@ -3,8 +3,8 @@
   const LO = window.LO;
 
   window.addEventListener('DOMContentLoaded', () => {
-    // 1. Check Vertical TikTok Mode (?vertical=1 or tall viewport)
-    if (LO.params.get('vertical') === '1' || window.innerWidth / window.innerHeight < 0.7) {
+    // 1. Check Vertical TikTok Mode (only if explicitly requested via ?vertical=1)
+    if (LO.params.get('vertical') === '1') {
       document.body.classList.add('vertical');
     }
 

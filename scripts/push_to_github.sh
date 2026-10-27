@@ -62,7 +62,7 @@ if git ls-remote "${REPO_URL}" >/dev/null 2>&1; then
     echo -e "${GREEN}REPOSITORY FOUND${NC}"
     
     echo -e "\n${BLUE}Pushing baseline branch 'master' to ${REMOTE_NAME} ...${NC}"
-    git push -u "${REMOTE_NAME}" master
+    git rev-parse --verify master >/dev/null 2>&1 && git push -u "${REMOTE_NAME}" master || echo "Master branch skipped or already up-to-date"
 
     echo -e "\n${BLUE}Pushing development branch 'dev' to ${REMOTE_NAME} ...${NC}"
     git push -u "${REMOTE_NAME}" dev

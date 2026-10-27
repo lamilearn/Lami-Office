@@ -16,8 +16,8 @@
   const PANTS = ['#4b4e7a', '#5a4a6e', '#3f5a6e', '#6e4a4a'];
   LO.PALETTE = { HAIR, SKIN, CLOTH, PANTS };
 
-  // Front 3/4 View (facing SE / Down-Right) 14 x 20
-  const FRONT_BODY = [
+  // South (Facing Down / Front) 14 x 20
+  const SOUTH_BODY = [
     '....OOOOOO....',
     '...OHHHHHHO...',
     '..OHHHHHHHHO..',
@@ -40,8 +40,8 @@
     '...KKK..KKK...',
   ];
 
-  // Back 3/4 View (facing NE / Up-Right) 14 x 20
-  const BACK_BODY = [
+  // North (Facing Up / Back) 14 x 20
+  const NORTH_BODY = [
     '....OOOOOO....',
     '...OHHHHHHO...',
     '..OHHHHHHHHO..',
@@ -63,6 +63,34 @@
     '...OPPOOPPO...',
     '...KKK..KKK...',
   ];
+
+  // East (Facing Right / Side profile) 14 x 20
+  const EAST_BODY = [
+    '....OOOOOO....',
+    '...OHHHHHHO...',
+    '..OHHHHHHHHO..',
+    '.OHHHHHHHHHHO.',
+    '.OHHHHHHHHHHO.',
+    '.OHHHHHHhHHO..',
+    '.OHSSSSSSSHO..',
+    '.OSSSESSSSO...',
+    '.OSSSESSSSO...',
+    '.OSSSSSBSO....',
+    '..OSSSmSSO....',
+    '...OOSSSSO....',
+    '..OCCCCCO.....',
+    '.OCCCCCCCCO...',
+    '.OSCCCCCCCCO..',
+    '..OccccccccO..',
+    '...OPPPPPPO...',
+    '...OPPOOPPO...',
+    '...OPPOOPPO...',
+    '...KKK..KKK...',
+  ];
+
+  // Backwards-compatible aliases
+  const FRONT_BODY = SOUTH_BODY;
+  const BACK_BODY = NORTH_BODY;
 
   const LEGS_WALK = ['..OPPO..OPPO..', '..OPPO..OPPO..', '..KKK....KKK..'];
   const LEGS_SIT = ['...OPPPPPPO...', '..OKK....KKO..', '..............'];
@@ -144,30 +172,38 @@
   const cache = new Map();
   const FRAMES = ['idle', 'walk', 'type', 'blink', 'happy', 'sit', 'drink'];
 
-  /** Returns 4-directional isometric sprite set: SE, SW, NE, NW */
+  /** Returns 4-directional sprite set: S, N, E, W (and backward-compatible aliases SE, SW, NE, NW) */
   LO.getCharacterSprites = function (look) {
     const key = JSON.stringify(look);
     if (cache.has(key)) return cache.get(key);
     const pal = paletteFor(look);
 
-    const se = {}, sw = {}, ne = {}, nw = {};
+    const s = {}, n = {}, e = {}, w = {};
     for (const f of FRAMES) {
-      se[f] = rasterize(buildRows(look, f, false), pal);
-      sw[f] = flip(se[f]);
-      ne[f] = rasterize(buildRows(look, f, true), pal);
-      nw[f] = flip(ne[f]);
+      s[f] = rasterize(buildRows(look, f, false), pal);
+      n[f] = rasterize(buildRows(look, f, true), pal);
+      e[f] = rasterize(buildRows(look, f, false), pal); // Side/East frame
+      w[f] = flip(e[f]);
     }
 
     const set = {
-      SE: se,
-      SW: sw,
-      NE: ne,
-      NW: nw,
-      // Fallback aliases
-      right: se,
-      left: sw,
-      w: se.idle.width,
-      h: se.idle.height
+      // 2D Cardinal Directions
+      S: s,
+      N: n,
+      E: e,
+      W: w,
+      // Backward-compatible isometric direction mapping
+      SE: s,
+      SW: w,
+      NE: e,
+      NW: n,
+      // General fallbacks
+      right: e,
+      left: w,
+      down: s,
+      up: n,
+      w: s.idle.width,
+      h: s.idle.height
     };
     cache.set(key, set);
     return set;

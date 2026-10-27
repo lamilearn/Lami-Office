@@ -1,0 +1,17 @@
+[Unit]
+Description=Lami AI Office bridge (forwards Hermes activity to the office)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Adjust these three lines to the real paths/values on the Hermes host.
+Environment=OFFICE_URL=http://192.168.3.33:13579
+Environment=OFFICE_INGEST_TOKEN=CHANGE_ME
+Environment=HERMES_STATE_DB=%h/.hermes/state.db
+ExecStart=/usr/bin/python3 %h/lami-office/deploy/hermes_bridge.py
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target

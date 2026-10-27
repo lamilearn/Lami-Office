@@ -1,4 +1,4 @@
-/* Lami's AI Office — Isometric 2.5D World & Building Renderer (Happy Mall Story Style) */
+/* Lami's AI Office — 2D Top-Down / RPG Pixel-Art World & Building Renderer */
 (function () {
   const LO = window.LO;
 
@@ -6,15 +6,16 @@
     constructor() {
       this.timeSec = 0;
       this.clouds = [
-        { x: 15, y: 12, w: 45, speed: 1.2 },
-        { x: 140, y: 18, w: 35, speed: 1.0 },
-        { x: 260, y: 10, w: 50, speed: 1.5 }
+        { x: 30, y: 8, w: 45, speed: 1.2 },
+        { x: 320, y: 12, w: 35, speed: 0.9 },
+        { x: 680, y: 6, w: 50, speed: 1.4 }
       ];
       this.stars = [];
-      for (let i = 0; i < 35; i++) {
+      const contentW = LO.CONTENT_W || 1024;
+      for (let i = 0; i < 45; i++) {
         this.stars.push({
-          x: Math.random() * LO.CONTENT_W,
-          y: Math.random() * (LO.ROOF_OFFSET + 30),
+          x: Math.random() * contentW,
+          y: Math.random() * 32,
           s: Math.random() * 1.5 + 0.5,
           phase: Math.random() * Math.PI * 2
         });
@@ -23,16 +24,17 @@
 
     update(dt) {
       this.timeSec += dt;
+      const contentW = LO.CONTENT_W || 1024;
       for (const c of this.clouds) {
-        c.x += c.speed * dt;
-        if (c.x > LO.CONTENT_W + 50) c.x = -60;
+        c.x += c.speed * dt * 10;
+        if (c.x > contentW + 60) c.x = -60;
       }
     }
 
     getSkyTheme() {
       let t;
       if (this.manualTheme === 'night') {
-        t = { type: 'night', sky1: '#141226', sky2: '#281f44', light: 0.2 };
+        t = { type: 'night', sky1: '#141226', sky2: '#281f44', light: 0.25 };
       } else if (this.manualTheme === 'sunset') {
         t = { type: 'sunset', sky1: '#ff9a76', sky2: '#644175', light: 0.7 };
       } else if (this.manualTheme === 'day') {
@@ -40,7 +42,7 @@
       } else {
         const h = new Date().getHours();
         if (h >= 20 || h < 5) {
-          t = { type: 'night', sky1: '#141226', sky2: '#281f44', light: 0.2 };
+          t = { type: 'night', sky1: '#141226', sky2: '#281f44', light: 0.25 };
         } else if (h >= 17) {
           t = { type: 'sunset', sky1: '#ff9a76', sky2: '#644175', light: 0.7 };
         } else if (h < 9) {
@@ -63,15 +65,51 @@
 
     render(ctx) {
       const theme = this.getSkyTheme();
+      const contentW = LO.CONTENT_W || 1024;
+      const contentH = LO.CONTENT_H || 576;
+      const ts = LO.TILE_SIZE || 16;
 
-      // 1. Sky Gradient Background
-      const skyGrad = ctx.createLinearGradient(0, 0, 0, LO.CONTENT_H);
+      // 1. Solid Outer Foundation Fill
+      ctx.fillStyle = '#141226';
+      ctx.fillRect(0, 0, contentW, contentH);
+
+      // 2. Top Exterior Sky & Roof Signboard (Y: 0..1)
+      this.drawSkyHeader(ctx, theme, contentW);
+
+      // 3. Central Corridor Floor (Y: 15..18)
+      this.drawCorridorFloor(ctx, ts);
+
+      // 4. Room Floors for all 6 rooms
+      this.drawRoomFloors(ctx, ts);
+
+      // 5. Special Carpets & Runners
+      this.drawCarpets(ctx, ts);
+
+      // 6. Walls, Partitions, and Doorway Transitions
+      this.drawWalls(ctx, ts);
+
+      // 7. Wall-Mounted Decorations & Windows
+      this.drawWallDecorations(ctx, ts, theme);
+
+      // 8. 2D Office Furniture & Room Props
+      this.drawAllFurniture(ctx, ts, theme);
+
+      // 9. Ambient Lighting Pools (Night / Sunset)
+      if (theme.type === 'night' || theme.type === 'sunset') {
+        this.drawAmbientLighting(ctx, theme, ts);
+      }
+    }
+
+    // ---- 1. Sky Header & Roof Banner ----
+    drawSkyHeader(ctx, theme, contentW) {
+      const headerH = 32;
+      const skyGrad = ctx.createLinearGradient(0, 0, 0, headerH);
       skyGrad.addColorStop(0, theme.sky1);
       skyGrad.addColorStop(1, theme.sky2);
       ctx.fillStyle = skyGrad;
-      ctx.fillRect(0, 0, LO.CONTENT_W, LO.CONTENT_H);
+      ctx.fillRect(0, 0, contentW, headerH);
 
-      // Stars / Moon (Night / Sunset)
+      // Stars in Night / Sunset
       if (theme.type === 'night' || theme.type === 'sunset') {
         ctx.fillStyle = '#ffffff';
         for (const s of this.stars) {
@@ -81,607 +119,877 @@
         }
         ctx.globalAlpha = 1.0;
 
-        // Crescent / Glowing Moon
+        // Glowing Moon
         ctx.fillStyle = '#fff9d6';
         ctx.beginPath();
-        ctx.arc(LO.CONTENT_W - 36, 20, 8, 0, Math.PI * 2);
+        ctx.arc(contentW - 48, 14, 7, 0, Math.PI * 2);
         ctx.fill();
         ctx.fillStyle = theme.sky1;
         ctx.beginPath();
-        ctx.arc(LO.CONTENT_W - 39, 18, 7.5, 0, Math.PI * 2);
+        ctx.arc(contentW - 51, 12, 6.5, 0, Math.PI * 2);
         ctx.fill();
       }
 
-      // Fluffy pastel clouds
+      // Clouds
       if (theme.type !== 'night') {
         ctx.fillStyle = theme.type === 'sunset' ? '#ffded6' : '#ffffff';
         ctx.globalAlpha = 0.75;
         for (const c of this.clouds) {
           const cx = Math.floor(c.x);
           ctx.beginPath();
-          ctx.arc(cx, c.y, 7, 0, Math.PI * 2);
-          ctx.arc(cx + 7, c.y - 3, 9, 0, Math.PI * 2);
-          ctx.arc(cx + 16, c.y, 7, 0, Math.PI * 2);
+          ctx.arc(cx, c.y, 6, 0, Math.PI * 2);
+          ctx.arc(cx + 6, c.y - 2, 8, 0, Math.PI * 2);
+          ctx.arc(cx + 14, c.y, 6, 0, Math.PI * 2);
           ctx.fill();
         }
         ctx.globalAlpha = 1.0;
       }
 
-      // Roof Banner ("👑 LAMI CORP") on Top
-      this.drawRoofBanner(ctx);
-
-      // 2. Render Stacked Isometric Floors (From Floor 5 up to Floor 0 or vice versa)
-      for (let f = 0; f < LO.NF; f++) {
-        this.drawIsometricFloor(ctx, f, theme);
-      }
-    }
-
-    drawRoofBanner(ctx) {
-      const topPt = LO.isoToScreen(0, 0, 0);
-      const bx = LO.ORIGIN_X;
-      const by = topPt.y - 28;
+      // Roof Signboard Banner (Centered on Header)
       const office = window.LO?.office;
       const isTheOffice = Boolean(office && office.theOfficeMode);
+      const bx = Math.floor(contentW / 2);
+      const by = 8;
 
-      // Cute Mall Signboard
       ctx.fillStyle = isTheOffice ? '#dff9fb' : '#ffd25e';
-      ctx.fillRect(bx - 55, by, 110, 14);
+      ctx.fillRect(bx - 110, by, 220, 18);
       ctx.strokeStyle = '#3a2838';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(bx - 54.5, by + 0.5, 109, 13);
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(bx - 109.5, by + 0.5, 219, 17);
 
       ctx.fillStyle = '#3a2838';
-      ctx.font = '6.5px "Press Start 2P", monospace';
+      ctx.font = '8px "Press Start 2P", monospace';
       ctx.textAlign = 'center';
-      ctx.fillText(isTheOffice ? '📄 DUNDER MIFFLIN' : '👑 LAMI CORP', bx, by + 10);
+      ctx.fillText(isTheOffice ? '📄 DUNDER MIFFLIN HQ' : '👑 LAMI AI OFFICE SUITE', bx, by + 12);
 
-      // Small antenna beacon
+      // Blinking Antenna Beacon
       ctx.fillStyle = '#55445c';
-      ctx.fillRect(bx - 58, by - 10, 2, 10);
+      ctx.fillRect(bx - 116, by - 6, 2, 8);
       const beacon = Math.sin(this.timeSec * 4) > 0;
       ctx.fillStyle = beacon ? '#ff3344' : '#661122';
-      ctx.fillRect(bx - 59, by - 12, 4, 3);
+      ctx.fillRect(bx - 117, by - 8, 4, 3);
     }
 
-    drawIsometricFloor(ctx, floorIndex, theme) {
-      const f = LO.FLOORS[floorIndex];
-      const cols = LO.GRID_COLS;
-      const rows = LO.GRID_ROWS;
+    // ---- 2. Central Corridor Floor ----
+    drawCorridorFloor(ctx, ts) {
+      const y1 = 15 * ts;
+      const y2 = 19 * ts;
+      const x1 = 0;
+      const x2 = (LO.GRID_COLS || 64) * ts;
 
-      // 1. Back Wall (North-West: along row = 0)
-      this.drawBackWallNW(ctx, floorIndex, f, cols);
+      // Slate / Linoleum alternating tiles
+      for (let y = 15; y < 19; y++) {
+        for (let x = 0; x < (LO.GRID_COLS || 64); x++) {
+          ctx.fillStyle = (x + y) % 2 === 0 ? '#272437' : '#221f31';
+          ctx.fillRect(x * ts, y * ts, ts, ts);
 
-      // 2. Back Wall (North-East: along col = cols)
-      this.drawBackWallNE(ctx, floorIndex, f, cols, rows);
-
-      // 3. Isometric Floor Base Slab Thickness (Front Faces: SW & SE edges)
-      this.drawFloorSlab(ctx, floorIndex, f, cols, rows);
-
-      // 4. Diamond Floor Checkerboard Tiles
-      for (let r = 0; r < rows; r++) {
-        for (let c = 0; c < cols; c++) {
-          const p0 = LO.isoToScreen(c, r, floorIndex);
-          const p1 = LO.isoToScreen(c + 1, r, floorIndex);
-          const p2 = LO.isoToScreen(c + 1, r + 1, floorIndex);
-          const p3 = LO.isoToScreen(c, r + 1, floorIndex);
-
-          ctx.fillStyle = (c + r) % 2 === 0 ? f.tile1 : f.tile2;
-          ctx.beginPath();
-          ctx.moveTo(p0.x, p0.y);
-          ctx.lineTo(p1.x, p1.y);
-          ctx.lineTo(p2.x, p2.y);
-          ctx.lineTo(p3.x, p3.y);
-          ctx.closePath();
-          ctx.fill();
-
-          ctx.strokeStyle = 'rgba(58, 40, 56, 0.12)';
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
           ctx.lineWidth = 0.5;
-          ctx.stroke();
+          ctx.strokeRect(x * ts + 0.5, y * ts + 0.5, ts - 1, ts - 1);
         }
       }
 
-      // Cozy Night Lighting: warm interior light pool over tiles
-      if (theme.type === 'night') {
-        const centerPos = LO.isoToScreen(cols / 2, rows / 2, floorIndex);
-        const grad = ctx.createRadialGradient(centerPos.x, centerPos.y - 10, 8, centerPos.x, centerPos.y, 65);
-        grad.addColorStop(0, 'rgba(255, 238, 175, 0.22)');
-        grad.addColorStop(0.7, 'rgba(255, 215, 130, 0.08)');
+      // Subtle center walking path runner (Y: 16.5..17.5)
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.02)';
+      ctx.fillRect(x1, 16.5 * ts, x2, ts);
+    }
+
+    // ---- 3. Room Floors ----
+    drawRoomFloors(ctx, ts) {
+      const rooms = LO.ROOMS || {};
+      for (const key of ['boss', 'research', 'server', 'engineering', 'meeting', 'pantry']) {
+        const r = rooms[key];
+        if (!r || !r.bounds) continue;
+        const b = r.bounds;
+
+        for (let y = b.y1; y <= b.y2; y++) {
+          for (let x = b.x1; x <= b.x2; x++) {
+            ctx.fillStyle = (x + y) % 2 === 0 ? r.floor1 : r.floor2;
+            ctx.fillRect(x * ts, y * ts, ts, ts);
+
+            // Subtle parquet / tile seam
+            ctx.strokeStyle = 'rgba(58, 40, 56, 0.08)';
+            ctx.lineWidth = 0.5;
+            ctx.strokeRect(x * ts + 0.5, y * ts + 0.5, ts - 1, ts - 1);
+          }
+        }
+
+        // Room-specific floor texture details
+        if (key === 'server') {
+          // Glowing blue underfloor cable duct grating down center aisle (X: 48..50, Y: 5..13)
+          ctx.fillStyle = 'rgba(56, 189, 248, 0.12)';
+          ctx.fillRect(48 * ts, 5 * ts, 3 * ts, 9 * ts);
+          ctx.strokeStyle = '#38bdf8';
+          ctx.lineWidth = 0.8;
+          ctx.strokeRect(48 * ts + 0.5, 5 * ts + 0.5, 3 * ts - 1, 9 * ts - 1);
+        }
+      }
+    }
+
+    // ---- 4. Carpets & Rugs ----
+    drawCarpets(ctx, ts) {
+      // Boss Royal Purple Carpet (X: 5..16, Y: 5..11)
+      const bx = 5 * ts, by = 5 * ts, bw = 12 * ts, bh = 7 * ts;
+      ctx.fillStyle = '#7e22ce';
+      ctx.fillRect(bx, by, bw, bh);
+
+      // Gold / Violet Border
+      ctx.strokeStyle = '#f1c40f';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(bx + 1, by + 1, bw - 2, bh - 2);
+      ctx.strokeStyle = '#c084fc';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(bx + 4, by + 4, bw - 8, bh - 8);
+
+      // Meeting Room Conference Rug (X: 26..36, Y: 23..27)
+      const mx = 26 * ts, my = 23 * ts, mw = 11 * ts, mh = 5 * ts;
+      ctx.fillStyle = '#fae3d2';
+      ctx.fillRect(mx, my, mw, mh);
+      ctx.strokeStyle = '#b56d43';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(mx + 1, my + 1, mw - 2, mh - 2);
+
+      // Pantry Lounge Sofa Rug (X: 44..50, Y: 26..29)
+      const px = 44 * ts, py = 26 * ts, pw = 7 * ts, ph = 4 * ts;
+      ctx.fillStyle = '#a7f3d0';
+      ctx.fillRect(px, py, pw, ph);
+      ctx.strokeStyle = '#059669';
+      ctx.lineWidth = 1.2;
+      ctx.strokeRect(px + 1, py + 1, pw - 2, ph - 2);
+    }
+
+    // ---- 5. Walls & Doorways (1.5-Tile Depth) ----
+    drawWalls(ctx, ts) {
+      const rooms = LO.ROOMS || {};
+      const wallDepth = 24; // 1.5 tiles (24px)
+
+      // A. North Exterior Walls for Top Rooms (Y = 2)
+      for (const key of ['boss', 'research', 'server']) {
+        const r = rooms[key];
+        if (!r) continue;
+        const b = r.bounds;
+        const wx = b.x1 * ts;
+        const ww = (b.x2 - b.x1 + 1) * ts;
+        const wy = b.y1 * ts;
+
+        // Top Ledge / Trim
+        ctx.fillStyle = r.trim || '#875824';
+        ctx.fillRect(wx, wy, ww, 4);
+
+        // Wall Face
+        ctx.fillStyle = r.wall || '#b5834f';
+        ctx.fillRect(wx, wy + 4, ww, wallDepth - 8);
+
+        // Skirting Board
+        ctx.fillStyle = r.trim || '#875824';
+        ctx.fillRect(wx, wy + wallDepth - 4, ww, 4);
+
+        // Wall Outline & Seams
+        ctx.strokeStyle = '#2d2438';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(wx + 0.5, wy + 0.5, ww - 1, wallDepth - 1);
+
+        // Drop shadow onto floor
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.16)';
+        ctx.fillRect(wx, wy + wallDepth, ww, 6);
+      }
+
+      // B. Corridor Partition Walls & Clean Doorways (Y = 14, and Y = 19)
+      // Top Rooms South Wall (along Y = 14)
+      for (const key of ['boss', 'research', 'server']) {
+        const r = rooms[key];
+        if (!r) continue;
+        const b = r.bounds;
+        const doorX = r.door ? r.door.x : (b.x1 + Math.floor((b.x2 - b.x1) / 2));
+        const wy = 14 * ts;
+
+        // Left section of wall (before door)
+        const leftW = (doorX - b.x1) * ts;
+        if (leftW > 0) {
+          ctx.fillStyle = r.wall;
+          ctx.fillRect(b.x1 * ts, wy, leftW, ts);
+          ctx.fillStyle = r.trim || '#6a431a';
+          ctx.fillRect(b.x1 * ts, wy, leftW, 3);
+          ctx.fillRect(b.x1 * ts, wy + ts - 3, leftW, 3);
+          ctx.strokeStyle = '#2d2438';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(b.x1 * ts + 0.5, wy + 0.5, leftW - 1, ts - 1);
+        }
+
+        // Right section of wall (after door, door width = 2 tiles = 32px)
+        const rightStartX = (doorX + 2) * ts;
+        const rightW = (b.x2 + 1) * ts - rightStartX;
+        if (rightW > 0) {
+          ctx.fillStyle = r.wall;
+          ctx.fillRect(rightStartX, wy, rightW, ts);
+          ctx.fillStyle = r.trim || '#6a431a';
+          ctx.fillRect(rightStartX, wy, rightW, 3);
+          ctx.fillRect(rightStartX, wy + ts - 3, rightW, 3);
+          ctx.strokeStyle = '#2d2438';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(rightStartX + 0.5, wy + 0.5, rightW - 1, ts - 1);
+        }
+
+        // Clean Cut Doorway Threshold Strip (2 tiles wide)
+        ctx.fillStyle = '#d4af37';
+        ctx.fillRect(doorX * ts, wy + ts - 4, 2 * ts, 4);
+      }
+
+      // Bottom Rooms North Wall (along Y = 19)
+      for (const key of ['engineering', 'meeting', 'pantry']) {
+        const r = rooms[key];
+        if (!r) continue;
+        const b = r.bounds;
+        const doorX = r.door ? r.door.x : (b.x1 + Math.floor((b.x2 - b.x1) / 2));
+        const wy = 19 * ts;
+
+        // Left section of wall (before door)
+        const leftW = (doorX - b.x1) * ts;
+        if (leftW > 0) {
+          ctx.fillStyle = r.wall;
+          ctx.fillRect(b.x1 * ts, wy, leftW, ts);
+          ctx.fillStyle = r.trim || '#1e4b2e';
+          ctx.fillRect(b.x1 * ts, wy, leftW, 3);
+          ctx.fillRect(b.x1 * ts, wy + ts - 3, leftW, 3);
+          ctx.strokeStyle = '#2d2438';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(b.x1 * ts + 0.5, wy + 0.5, leftW - 1, ts - 1);
+        }
+
+        // Right section of wall (after door)
+        const rightStartX = (doorX + 2) * ts;
+        const rightW = (b.x2 + 1) * ts - rightStartX;
+        if (rightW > 0) {
+          ctx.fillStyle = r.wall;
+          ctx.fillRect(rightStartX, wy, rightW, ts);
+          ctx.fillStyle = r.trim || '#1e4b2e';
+          ctx.fillRect(rightStartX, wy, rightW, 3);
+          ctx.fillRect(rightStartX, wy + ts - 3, rightW, 3);
+          ctx.strokeStyle = '#2d2438';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(rightStartX + 0.5, wy + 0.5, rightW - 1, ts - 1);
+        }
+
+        // Clean Cut Doorway Threshold Strip (2 tiles wide)
+        ctx.fillStyle = '#d4af37';
+        ctx.fillRect(doorX * ts, wy, 2 * ts, 4);
+      }
+
+      // C. Vertical Room Partition Walls (Width: 1 tile = 16px)
+      const partitions = [
+        { x: 20, y1: 2, y2: 14, color: '#3f3b52' }, // Boss | Research
+        { x: 40, y1: 2, y2: 14, color: '#3f3b52' }, // Research | Server
+        { x: 22, y1: 19, y2: 32, color: '#3f3b52' }, // Engineering | Meeting
+        { x: 40, y1: 19, y2: 32, color: '#3f3b52' }  // Meeting | Pantry
+      ];
+
+      for (const p of partitions) {
+        const px = p.x * ts;
+        const py = p.y1 * ts;
+        const ph = (p.y2 - p.y1 + 1) * ts;
+
+        ctx.fillStyle = p.color;
+        ctx.fillRect(px, py, ts, ph);
+        ctx.strokeStyle = '#2d2438';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(px + 0.5, py + 0.5, ts - 1, ph - 1);
+
+        // Side drop shadows
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.12)';
+        ctx.fillRect(px + ts, py, 4, ph);
+      }
+    }
+
+    // ---- 6. Wall Decorations & Windows ----
+    drawWallDecorations(ctx, ts, theme) {
+      // A. Arched Skyline Windows in Boss Office (X: 6..8 and X: 15..17)
+      [6, 15].forEach((wx) => {
+        const xPx = wx * ts, yPx = 2 * ts + 4;
+        ctx.fillStyle = theme.type === 'night' ? '#181730' : '#88c8f7';
+        ctx.fillRect(xPx, yPx, 2 * ts, 14);
+        ctx.strokeStyle = '#ba854d';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(xPx + 0.5, yPx + 0.5, 2 * ts - 1, 13);
+      });
+
+      // B. Research Lab Corkboard (X: 24..27, Y: 2..3)
+      const cbX = 24 * ts, cbY = 2 * ts + 4;
+      ctx.fillStyle = '#c79867';
+      ctx.fillRect(cbX, cbY, 3.5 * ts, 16);
+      ctx.strokeStyle = '#8c5828';
+      ctx.strokeRect(cbX + 0.5, cbY + 0.5, 3.5 * ts - 1, 15);
+      // Pinned sticky notes
+      ctx.fillStyle = '#ff8fa3'; ctx.fillRect(cbX + 4, cbY + 3, 8, 8);
+      ctx.fillStyle = '#ffd25e'; ctx.fillRect(cbX + 16, cbY + 2, 8, 8);
+      ctx.fillStyle = '#7ec8f2'; ctx.fillRect(cbX + 28, cbY + 4, 8, 8);
+      ctx.strokeStyle = '#e74c3c'; ctx.beginPath(); ctx.moveTo(cbX + 8, cbY + 7); ctx.lineTo(cbX + 20, cbY + 6); ctx.stroke();
+
+      // C. Research Academic Bookshelves (X: 34..37, Y: 2..4)
+      const bsX = 34 * ts, bsY = 2 * ts + 2;
+      ctx.fillStyle = '#5c4033';
+      ctx.fillRect(bsX, bsY, 3.5 * ts, 20);
+      ctx.strokeStyle = '#3d2b22';
+      ctx.strokeRect(bsX + 0.5, bsY + 0.5, 3.5 * ts - 1, 19);
+      // Colorful book spines
+      const bookColors = ['#e74c3c', '#3498db', '#2ecc71', '#f1c40f', '#9b59b6', '#e67e22', '#1abc9c'];
+      for (let bi = 0; bi < 14; bi++) {
+        ctx.fillStyle = bookColors[bi % bookColors.length];
+        ctx.fillRect(bsX + 3 + bi * 3.5, bsY + 4, 2.5, 13);
+      }
+
+      // D. Meeting Room Interactive Whiteboard (North wall at X: 25..29, Y: 19)
+      const wb = LO.PROPS?.whiteboard || { x: 25, y: 19 };
+      this.drawWhiteboard(ctx, wb.x * ts, wb.y * ts - 12);
+
+      // E. Doorway Signboards in Central Corridor
+      const signs = [
+        { x: 10, y: 14, text: '👑 BOSS' },
+        { x: 30, y: 14, text: '🔍 LAB' },
+        { x: 49, y: 14, text: '🖥️ SRV' },
+        { x: 11, y: 18.5, text: '💻 ENG' },
+        { x: 31, y: 18.5, text: '📋 MEET' },
+        { x: 49, y: 18.5, text: '☕ LOUNGE' }
+      ];
+
+      for (const s of signs) {
+        const sx = s.x * ts + 16;
+        const sy = s.y * ts + 1;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+        ctx.fillRect(sx - 20, sy - 8, 40, 9);
+        ctx.strokeStyle = '#3a2838';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(sx - 19.5, sy - 7.5, 39, 8);
+        ctx.fillStyle = '#3a2838';
+        ctx.font = '5px "Press Start 2P", monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(s.text, sx, sy - 1.5);
+      }
+    }
+
+    // ---- 7. 2D Furniture & Props ----
+    drawAllFurniture(ctx, ts, theme) {
+      this.drawBossOffice(ctx, ts, theme);
+      this.drawResearchLab(ctx, ts, theme);
+      this.drawServerRoom(ctx, ts, theme);
+      this.drawEngineeringPit(ctx, ts, theme);
+      this.drawMeetingRoom(ctx, ts, theme);
+      this.drawPantryLounge(ctx, ts, theme);
+      this.drawElevatorLobby(ctx, ts, theme);
+    }
+
+    // Helper: 2D Block
+    draw2DBlock(ctx, xPx, yPx, wPx, hPx, topH, topColor, frontColor, outlineColor) {
+      // Drop Shadow
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+      ctx.fillRect(xPx + 2, yPx + hPx - 2, wPx, 4);
+
+      // Front Face
+      ctx.fillStyle = frontColor;
+      ctx.fillRect(xPx, yPx + topH, wPx, hPx - topH);
+
+      // Top Face
+      ctx.fillStyle = topColor;
+      ctx.fillRect(xPx, yPx, wPx, topH);
+
+      // Outline
+      ctx.strokeStyle = outlineColor || '#2d2438';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(xPx + 0.5, yPx + 0.5, wPx - 1, hPx - 1);
+    }
+
+    // Specific Room 1: Boss Office
+    drawBossOffice(ctx, ts, theme) {
+      // Grand Executive Desk (X: 9..13, Y: 6)
+      const dx = 9 * ts, dy = 6 * ts, dw = 5 * ts, dh = 1.2 * ts;
+      this.draw2DBlock(ctx, dx, dy, dw, dh, 14, '#7a3e2e', '#5a2b1e', '#ffd25e');
+
+      // Executive Leather Swivel Chair (X: 11, Y: 4.8)
+      const cx = 11 * ts + 8, cy = 4.8 * ts;
+      ctx.fillStyle = '#1f1e24';
+      ctx.beginPath();
+      ctx.arc(cx, cy + 8, 9, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffd25e';
+      ctx.fillRect(cx - 3, cy + 4, 2, 2);
+      ctx.fillRect(cx + 1, cy + 4, 2, 2);
+
+      // Gold Laptop on Desk
+      const lx = 10.5 * ts, ly = 5.9 * ts;
+      ctx.fillStyle = '#ffd25e';
+      ctx.fillRect(lx, ly, 14, 8);
+      ctx.fillStyle = '#fff9d6';
+      ctx.fillRect(lx + 2, ly + 1, 10, 5);
+
+      // "Best Boss" Mug
+      const mx = 9.6 * ts, my = 6.0 * ts;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(mx, my, 6, 6);
+      ctx.fillStyle = '#e74c3c';
+      ctx.fillRect(mx + 2, my + 2, 2, 2);
+
+      // Floating Gold Crown Easter Egg
+      const crownBob = Math.sin(this.timeSec * 3) * 2;
+      const crX = 11.5 * ts, crY = 4.1 * ts + crownBob;
+      ctx.fillStyle = '#f1c40f';
+      ctx.fillRect(crX, crY, 10, 4);
+      ctx.fillRect(crX, crY - 3, 2, 3);
+      ctx.fillRect(crX + 4, crY - 4, 2, 4);
+      ctx.fillRect(crX + 8, crY - 3, 2, 3);
+      ctx.fillStyle = '#e74c3c';
+      ctx.fillRect(crX + 4, crY + 1, 2, 2);
+
+      // Potted Luxury Monstera Plant (X: 3, Y: 4)
+      const px = 3 * ts, py = 4 * ts;
+      ctx.fillStyle = '#c0392b';
+      ctx.fillRect(px, py + 8, 14, 10);
+      ctx.fillStyle = '#27ae60';
+      ctx.beginPath();
+      ctx.arc(px + 7, py + 5, 8, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Context Window Trashcan (Interactive Prop) (X: 14, Y: 5)
+      const tc = LO.PROPS?.trashcan || { x: 14, y: 5 };
+      this.drawContextTrashcan(ctx, (tc.x + 0.5) * ts, (tc.y + 0.5) * ts);
+    }
+
+    // Interactive Prop: Context Window Trashcan
+    drawContextTrashcan(ctx, tx, ty) {
+      const office = window.LO?.office;
+      const ctxUsage = office ? office.contextUsage : 0.42;
+
+      // Ribbed Metal Bin
+      this.draw2DBlock(ctx, tx - 7, ty - 5, 14, 14, 6, '#95a5a6', '#7f8c8d', '#576574');
+
+      // Crumpled Paper Balls Filling Can
+      const paperCount = Math.min(Math.floor(ctxUsage * 10), 10);
+      const paperColors = ['#ffffff', '#f1f2f6', '#fed330', '#dff9fb'];
+      for (let p = 0; p < paperCount; p++) {
+        const pxOffset = ((p * 5) % 6) - 3;
+        const pyOffset = -Math.min(p * 1.2, 8);
+        ctx.fillStyle = paperColors[p % paperColors.length];
+        ctx.fillRect(tx + pxOffset - 2, ty - 6 + pyOffset, 4, 3);
+      }
+
+      // Overflow Paper on Carpet if context > 70%
+      if (ctxUsage > 0.7) {
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(tx + 10, ty + 2, 4, 3);
+        ctx.fillRect(tx - 12, ty + 4, 4, 3);
+      }
+
+      // Floating Badge (${pct}% 🗑️)
+      const pct = Math.round(ctxUsage * 100);
+      const tBob = Math.sin(this.timeSec * 3) * 1.5;
+      ctx.fillStyle = ctxUsage > 0.8 ? '#e74c3c' : (ctxUsage > 0.5 ? '#f39c12' : '#27ae60');
+      ctx.fillRect(tx - 16, ty - 22 + tBob, 32, 9);
+      ctx.strokeStyle = '#3a2838';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(tx - 15.5, ty - 21.5 + tBob, 31, 8);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '6px "Press Start 2P", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(`${pct}% 🗑️`, tx, ty - 15 + tBob);
+    }
+
+    // Specific Room 2: Research Lab
+    drawResearchLab(ctx, ts, theme) {
+      // 3 Workstations with Dual Monitors (X: 23, 28, 33 at Y: 7)
+      [23, 28, 33].forEach((dx) => {
+        this.draw2DBlock(ctx, dx * ts, 7 * ts, 2 * ts, 1.1 * ts, 12, '#8f7762', '#6b5443');
+
+        // Dual Monitors on Desk
+        const m1x = dx * ts + 2, my = 7 * ts - 2;
+        const m2x = dx * ts + 17;
+        [m1x, m2x].forEach((mx) => {
+          ctx.fillStyle = '#2c3e50';
+          ctx.fillRect(mx, my, 13, 9);
+          ctx.fillStyle = '#7ec8f2';
+          ctx.fillRect(mx + 1, my + 1, 11, 7);
+          // Waveform line
+          ctx.strokeStyle = '#38bdf8';
+          ctx.lineWidth = 0.8;
+          ctx.beginPath();
+          ctx.moveTo(mx + 2, my + 5);
+          ctx.lineTo(mx + 5, my + 3);
+          ctx.lineTo(mx + 8, my + 6);
+          ctx.lineTo(mx + 11, my + 4);
+          ctx.stroke();
+        });
+      });
+
+      // Microscope Station (X: 22..24, Y: 11..12)
+      const scX = 22 * ts, scY = 11 * ts;
+      this.draw2DBlock(ctx, scX, scY, 2 * ts, 1.1 * ts, 10, '#ffffff', '#cbd5e1');
+      // Cast-Iron Microscope
+      ctx.fillStyle = '#34495e';
+      ctx.fillRect(scX + 8, scY + 1, 5, 8);
+      ctx.fillStyle = '#d4af37';
+      ctx.fillRect(scX + 9, scY - 2, 3, 3);
+      // Petri Dish Specimen
+      ctx.fillStyle = '#00bcd4';
+      ctx.beginPath();
+      ctx.arc(scX + 22, scY + 5, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Journal Stack on Desk
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(29 * ts + 2, 7.2 * ts, 10, 4);
+      ctx.fillStyle = '#3498db';
+      ctx.fillRect(29 * ts + 4, 7.2 * ts, 6, 1);
+    }
+
+    // Specific Room 3: Server Room
+    drawServerRoom(ctx, ts, theme) {
+      // 4 Dark Server Racks (X: 43, 47, 51, 55 at Y: 4..5)
+      [43, 47, 51, 55].forEach((rx, idx) => {
+        const xPx = rx * ts, yPx = 4 * ts;
+        this.draw2DBlock(ctx, xPx, yPx, 2 * ts, 2 * ts, 10, '#2c2738', '#1c1826');
+
+        // Blinking LED Status Lights on Racks
+        for (let row = 0; row < 3; row++) {
+          const ly = yPx + 10 + row * 6;
+          const b1 = Math.sin(this.timeSec * 8 + idx + row) > 0;
+          const b2 = Math.sin(this.timeSec * 5 + idx * 1.5 + row) > 0;
+          ctx.fillStyle = b1 ? '#2ecc71' : '#145a32';
+          ctx.fillRect(xPx + 5, ly, 3, 2);
+          ctx.fillStyle = b2 ? '#38bdf8' : '#0369a1';
+          ctx.fillRect(xPx + 11, ly, 3, 2);
+          ctx.fillStyle = !b1 ? '#f59e0b' : '#78350f';
+          ctx.fillRect(xPx + 17, ly, 3, 2);
+        }
+      });
+
+      // Mainframe Ops Console Desk (X: 46..49, Y: 10)
+      const cx = 46 * ts, cy = 10 * ts;
+      this.draw2DBlock(ctx, cx, cy, 4 * ts, 1.2 * ts, 12, '#34495e', '#2c3e50');
+
+      // 3 Curved Monitoring Screens
+      [cx + 4, cx + 24, cx + 44].forEach((mx, i) => {
+        ctx.fillStyle = '#111827';
+        ctx.fillRect(mx, cy - 2, 14, 8);
+        ctx.fillStyle = i === 0 ? '#2ecc71' : (i === 1 ? '#38bdf8' : '#34d399');
+        ctx.fillRect(mx + 1, cy - 1, 12, 5);
+      });
+
+      // DevOps Toolkit & Wrench on Desk
+      const tkX = cx + 8, tkY = cy + 4;
+      const tkB = Math.sin(this.timeSec * 3 + 4) * 1.2;
+      ctx.fillStyle = '#95a5a6';
+      ctx.fillRect(tkX, tkY + tkB, 8, 2);
+      ctx.fillStyle = '#e74c3c';
+      ctx.fillRect(tkX + 2, tkY - 1 + tkB, 2, 4);
+    }
+
+    // Specific Room 4: Engineering Pit
+    drawEngineeringPit(ctx, ts, theme) {
+      // 6 Developer Desks (3 Dual Pods)
+      const pods = [
+        { x: 5, y: 21 }, { x: 9, y: 21 },
+        { x: 5, y: 25 }, { x: 9, y: 25 },
+        { x: 15, y: 23 }, { x: 18, y: 23 }
+      ];
+
+      for (const p of pods) {
+        const xPx = p.x * ts, yPx = p.y * ts;
+        this.draw2DBlock(ctx, xPx, yPx, 2 * ts, 1.1 * ts, 12, '#453d54', '#322c3e');
+
+        // Glowing Green Phosphor Terminal Monitor
+        ctx.fillStyle = '#1e1927';
+        ctx.fillRect(xPx + 4, yPx - 2, 16, 9);
+        ctx.fillStyle = '#0d1117';
+        ctx.fillRect(xPx + 5, yPx - 1, 14, 7);
+        ctx.fillStyle = '#36d399';
+        ctx.fillRect(xPx + 7, yPx + 1, 9, 1);
+        ctx.fillRect(xPx + 7, yPx + 3, 7, 1);
+        // Blinking cursor
+        if (Math.sin(this.timeSec * 8) > 0) {
+          ctx.fillRect(xPx + 15, yPx + 3, 2, 2);
+        }
+      }
+
+      // Yellow Rubber Duck Debugger (Desk at X: 5.5, Y: 21)
+      const dkB = Math.sin(this.timeSec * 3 + 2) * 1.5;
+      const dkX = 5.5 * ts, dkY = 21 * ts + dkB;
+      ctx.fillStyle = '#f1c40f';
+      ctx.fillRect(dkX, dkY, 6, 5);
+      ctx.fillStyle = '#e67e22';
+      ctx.fillRect(dkX + 6, dkY + 1, 3, 2); // beak
+
+      // Green Energy Drink Can (Desk at X: 7.2, Y: 21.1)
+      const canX = 7.2 * ts, canY = 21.1 * ts;
+      ctx.fillStyle = '#2ecc71';
+      ctx.fillRect(canX, canY, 4, 6);
+      ctx.fillStyle = '#111111';
+      ctx.fillRect(canX + 1, canY + 1, 2, 4);
+
+      // Mini Server Tower / Custom Rig (X: 13, Y: 21)
+      const rigX = 13 * ts, rigY = 21 * ts;
+      this.draw2DBlock(ctx, rigX, rigY, 1 * ts, 1.2 * ts, 8, '#221b2c', '#15101c');
+      // Cycling RGB Interior
+      const rgbColor = ['#ff7675', '#74b9ff', '#55efc4', '#a29bfe'][Math.floor(this.timeSec * 2) % 4];
+      ctx.fillStyle = rgbColor;
+      ctx.fillRect(rigX + 3, rigY + 6, 8, 8);
+    }
+
+    // Specific Room 5: Meeting Room
+    drawMeetingRoom(ctx, ts, theme) {
+      // Large Conference Table (X: 28..34, Y: 24..25)
+      const tx = 28 * ts, ty = 24 * ts, tw = 7 * ts, th = 2 * ts;
+      this.draw2DBlock(ctx, tx, ty, tw, th, 16, '#c7926b', '#9b6e4e');
+
+      // 8 Ergonomic Mesh Chairs
+      // 3 North Chairs (Y: 23.3)
+      [29, 31.5, 33.5].forEach((cx) => {
+        ctx.fillStyle = '#334155';
+        ctx.beginPath();
+        ctx.arc(cx * ts, 23.3 * ts, 6, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      // 3 South Chairs (Y: 26.2)
+      [29, 31.5, 33.5].forEach((cx) => {
+        ctx.fillStyle = '#334155';
+        ctx.beginPath();
+        ctx.arc(cx * ts, 26.2 * ts, 6, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      // 2 Head Chairs (West / East)
+      ctx.fillStyle = '#334155';
+      ctx.beginPath(); ctx.arc(27.2 * ts, 25 * ts, 6, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(35.8 * ts, 25 * ts, 6, 0, Math.PI * 2); ctx.fill();
+
+      // Sakura Flower Vase Centerpiece on Conference Table
+      const flB = Math.sin(this.timeSec * 3 + 3) * 1.2;
+      const vsX = 31.5 * ts, vsY = 24.6 * ts;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(vsX - 3, vsY - 3, 6, 6);
+      ctx.fillStyle = '#ff7675';
+      ctx.beginPath();
+      ctx.arc(vsX, vsY - 6 + flB, 4, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Agenda Binder on Table
+      ctx.fillStyle = '#3498db';
+      ctx.fillRect(vsX + 14, vsY - 1, 8, 4);
+    }
+
+    // Interactive Prop: Multi-Mode Whiteboard
+    drawWhiteboard(ctx, xPx, yPx) {
+      const office = window.LO?.office;
+      const wbMode = office ? (office.whiteboardMode || 0) : 0;
+      const wbW = 64, wbH = 24;
+
+      // Board Base & Aluminum Frame
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(xPx, yPx, wbW, wbH);
+      ctx.strokeStyle = '#64748b';
+      ctx.lineWidth = 1.2;
+      ctx.strokeRect(xPx + 0.5, yPx + 0.5, wbW - 1, wbH - 1);
+
+      // Top Header Tabs: [TASKS] [TOOLS] [TEAM]
+      const tabLabels = ['TASKS', 'TOOLS', 'TEAM'];
+      for (let ti = 0; ti < 3; ti++) {
+        const tabX = xPx + 2 + ti * 20;
+        ctx.fillStyle = wbMode === ti ? '#3b82f6' : '#cbd5e1';
+        ctx.fillRect(tabX, yPx + 1, 19, 5);
+        ctx.fillStyle = wbMode === ti ? '#ffffff' : '#475569';
+        ctx.font = '4px "Press Start 2P", monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(tabLabels[ti], tabX + 9.5, yPx + 5);
+      }
+
+      // Dynamic Tab Contents
+      if (wbMode === 0) {
+        // Mode 0: Tasks Checklist & Sticky Notes
+        ctx.fillStyle = '#ff7675'; ctx.fillRect(xPx + 4, yPx + 8, 6, 6);
+        ctx.fillStyle = '#fdcb6e'; ctx.fillRect(xPx + 12, yPx + 8, 6, 6);
+        ctx.fillStyle = '#00cec9'; ctx.fillRect(xPx + 20, yPx + 8, 6, 6);
+        // Task Lines
+        ctx.fillStyle = '#2d3436';
+        ctx.fillRect(xPx + 30, yPx + 9, 26, 1);
+        ctx.fillRect(xPx + 30, yPx + 13, 20, 1);
+        ctx.fillRect(xPx + 30, yPx + 17, 24, 1);
+        // Green Checkmark
+        ctx.fillStyle = '#00b894';
+        ctx.fillRect(xPx + 4, yPx + 16, 4, 4);
+      } else if (wbMode === 1) {
+        // Mode 1: Tool Analytics Bar Chart
+        const barColors = ['#36d399', '#3b82f6', '#f59e0b', '#ec4899'];
+        const barHeights = [11, 8, 13, 6];
+        for (let bi = 0; bi < 4; bi++) {
+          ctx.fillStyle = barColors[bi];
+          ctx.fillRect(xPx + 8 + bi * 13, yPx + 21 - barHeights[bi], 8, barHeights[bi]);
+        }
+      } else {
+        // Mode 2: Agent Hierarchy Org Chart
+        ctx.fillStyle = '#ffd25e'; ctx.fillRect(xPx + 24, yPx + 7, 16, 4); // Lami Node
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillRect(xPx + 31.5, yPx + 11, 1, 3);
+        ctx.fillRect(xPx + 12, yPx + 14, 40, 1);
+        // 3 Sub-Boxes
+        ctx.fillStyle = '#7ec8f2'; ctx.fillRect(xPx + 8, yPx + 15, 10, 4);
+        ctx.fillStyle = '#8fdba8'; ctx.fillRect(xPx + 27, yPx + 15, 10, 4);
+        ctx.fillStyle = '#ff8fab'; ctx.fillRect(xPx + 46, yPx + 15, 10, 4);
+      }
+
+      // Marker Tray at Bottom
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillRect(xPx + 8, yPx + wbH - 2, 48, 2);
+      ctx.fillStyle = '#e74c3c'; ctx.fillRect(xPx + 12, yPx + wbH - 3, 5, 1);
+      ctx.fillStyle = '#3498db'; ctx.fillRect(xPx + 20, yPx + wbH - 3, 5, 1);
+      ctx.fillStyle = '#2ecc71'; ctx.fillRect(xPx + 28, yPx + wbH - 3, 5, 1);
+      ctx.fillStyle = '#3498db'; ctx.fillRect(xPx + 38, yPx + wbH - 4, 6, 2); // Eraser
+    }
+
+    // Specific Room 6: Pantry & Lounge
+    drawPantryLounge(ctx, ts, theme) {
+      // Coffee Bar Marble Counter (X: 43..46, Y: 22)
+      const cx = 43 * ts, cy = 22 * ts;
+      this.draw2DBlock(ctx, cx, cy, 4 * ts, 1.2 * ts, 12, '#ffffff', '#c8b49e');
+
+      // Italian Commercial Espresso Machine
+      const kpX = cx + 6, kpY = cy - 2;
+      ctx.fillStyle = '#e74c3c';
+      ctx.fillRect(kpX, kpY, 14, 10);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(kpX + 2, kpY + 2, 4, 3); // Cup
+      // Animated Steam Particles
+      const steamY = (this.timeSec * 15) % 10;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+      ctx.fillRect(kpX + 3, kpY - 3 - steamY, 2, 2);
+
+      // Microwave Oven
+      const mwX = cx + 24, mwY = cy - 2;
+      ctx.fillStyle = '#2c3e50';
+      ctx.fillRect(mwX, mwY, 14, 9);
+      ctx.fillStyle = '#34495e';
+      ctx.fillRect(mwX + 2, mwY + 2, 7, 5); // Glass
+      ctx.fillStyle = '#2ecc71';
+      ctx.fillRect(mwX + 10, mwY + 2, 2, 2); // Timer
+
+      // Donut Tray
+      const dnX = cx + 44, dnY = cy + 2;
+      ctx.fillStyle = '#d35400';
+      ctx.fillRect(dnX, dnY, 10, 4);
+      ctx.fillStyle = '#ff7675';
+      ctx.fillRect(dnX + 2, dnY + 1, 6, 2);
+
+      // Interactive Water Cooler Dispenser (X: 51, Y: 23)
+      const wc = LO.PROPS?.watercooler || { x: 51, y: 23 };
+      this.drawWaterCooler(ctx, wc.x * ts, wc.y * ts, ts);
+
+      // Pastel Teal Lounge Sofa (X: 45..48, Y: 27)
+      const sX = 45 * ts, sY = 27 * ts;
+      this.draw2DBlock(ctx, sX, sY, 4 * ts, 1.1 * ts, 10, '#7ac9af', '#57aa8f');
+
+      // Low Wood Coffee Table in Front of Sofa (X: 46..47, Y: 29)
+      this.draw2DBlock(ctx, 46 * ts, 29 * ts, 2 * ts, 1.0 * ts, 8, '#c7926b', '#9b6e4e');
+
+      // Snack Vending Machine along East Wall (X: 55..56, Y: 27..28)
+      const vmX = 55 * ts, vmY = 27 * ts;
+      this.draw2DBlock(ctx, vmX, vmY, 2 * ts, 2 * ts, 8, '#ff7675', '#d65453');
+      // Glass display with colorful snacks
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(vmX + 3, vmY + 8, 26, 18);
+      const snackColors = ['#f59e0b', '#3b82f6', '#10b981', '#ec4899'];
+      for (let si = 0; si < 4; si++) {
+        ctx.fillStyle = snackColors[si];
+        ctx.fillRect(vmX + 4 + si * 6, vmY + 11, 4, 6);
+      }
+
+      // Pizza / Martabak Event Item on Table
+      const office = window.LO?.office;
+      if (office && office.pizzaEventTimer > 0) {
+        const pzX = 46 * ts + 2, pzY = 29 * ts + 2;
+        ctx.fillStyle = '#e67e22';
+        ctx.fillRect(pzX, pzY, 14, 5);
+        ctx.strokeStyle = '#d35400';
+        ctx.strokeRect(pzX + 0.5, pzY + 0.5, 13, 4);
+        ctx.fillStyle = '#f39c12';
+        ctx.fillRect(pzX + 3, pzY + 1, 8, 3);
+      }
+    }
+
+    // Interactive Prop: Water Cooler
+    drawWaterCooler(ctx, wx, wy, ts) {
+      ts = ts || LO.TILE_SIZE || 16;
+      // White Dispenser Cabinet
+      this.draw2DBlock(ctx, wx + 1, wy + 4, 14, 12, 6, '#ecf0f1', '#bdc3c7');
+
+      // Translucent Blue Water Bottle on Top
+      ctx.fillStyle = 'rgba(52, 152, 219, 0.85)';
+      ctx.fillRect(wx + 2, wy - 6, 12, 10);
+      ctx.fillStyle = '#2980b9';
+      ctx.fillRect(wx + 4, wy - 9, 8, 3);
+
+      // Animated Rising Bubble
+      const bubbleY = (this.timeSec * 8) % 7;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(wx + 7, wy + 1 - bubbleY, 2, 2);
+
+      // Red & Blue Taps
+      ctx.fillStyle = '#e74c3c'; ctx.fillRect(wx + 3, wy + 7, 2, 3);
+      ctx.fillStyle = '#3498db'; ctx.fillRect(wx + 9, wy + 7, 2, 3);
+    }
+
+    // Elevator Lobby & Entrance (East Corridor X: 59..63, Y: 15..18)
+    drawElevatorLobby(ctx, ts, theme) {
+      const ex = 59 * ts, ey = 15 * ts;
+      // Double Steel Elevator Doors
+      ctx.fillStyle = '#64748b';
+      ctx.fillRect(ex, ey, 3.5 * ts, 4 * ts);
+      ctx.fillStyle = '#475569';
+      ctx.fillRect(ex + 2, ey + 4, 1.6 * ts, 3.5 * ts);
+      ctx.fillRect(ex + 1.8 * ts, ey + 4, 1.6 * ts, 3.5 * ts);
+      // Floor Indicator Panel
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(ex + 6, ey - 4, 40, 7);
+      ctx.fillStyle = '#22c55e';
+      ctx.font = '4px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('1F ▲', ex + 26, ey);
+    }
+
+    // ---- 8. Ambient Lighting Pools (Night / Sunset) ----
+    drawAmbientLighting(ctx, theme, ts) {
+      const lightSources = [
+        { x: 11 * ts, y: 6 * ts, r: 90, color: 'rgba(255, 238, 175, 0.22)' }, // Boss Desk
+        { x: 29 * ts, y: 8 * ts, r: 80, color: 'rgba(186, 230, 253, 0.18)' }, // Research Lab
+        { x: 49 * ts, y: 6 * ts, r: 95, color: 'rgba(56, 189, 248, 0.16)' },  // Server Racks
+        { x: 11 * ts, y: 24 * ts, r: 95, color: 'rgba(167, 243, 208, 0.18)' },// Engineering
+        { x: 31 * ts, y: 25 * ts, r: 90, color: 'rgba(254, 215, 170, 0.20)' },// Meeting Room
+        { x: 47 * ts, y: 24 * ts, r: 85, color: 'rgba(254, 240, 138, 0.22)' } // Pantry Bar
+      ];
+
+      for (const ls of lightSources) {
+        const grad = ctx.createRadialGradient(ls.x, ls.y, 10, ls.x, ls.y, ls.r);
+        grad.addColorStop(0, ls.color);
+        grad.addColorStop(0.7, 'rgba(0, 0, 0, 0.05)');
         grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
         ctx.fillStyle = grad;
         ctx.beginPath();
-        ctx.ellipse(centerPos.x, centerPos.y, 64, 32, 0, 0, Math.PI * 2);
+        ctx.arc(ls.x, ls.y, ls.r, 0, Math.PI * 2);
         ctx.fill();
       }
-
-      // 5. Room Badge on Back Wall
-      const badgePos = LO.isoToScreen(1.5, 0, floorIndex);
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.88)';
-      ctx.fillRect(badgePos.x - 18, badgePos.y - 26, 36, 9);
-      ctx.strokeStyle = '#3a2838';
-      ctx.strokeRect(badgePos.x - 17.5, badgePos.y - 25.5, 35, 8);
-      ctx.fillStyle = '#3a2838';
-      ctx.font = '6px "Press Start 2P", monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText(`${f.short} ${f.icon}`, badgePos.x, badgePos.y - 19);
-
-      // 6. Isometric Furniture & Room Props
-      this.drawRoomProps(ctx, floorIndex, f.id, theme);
     }
 
-    drawBackWallNW(ctx, floorIndex, f, cols) {
-      const pStart = LO.isoToScreen(0, 0, floorIndex);
-      const pEnd = LO.isoToScreen(cols, 0, floorIndex);
-      const wallH = 28;
-
-      ctx.fillStyle = f.wallL;
-      ctx.beginPath();
-      ctx.moveTo(pStart.x, pStart.y);
-      ctx.lineTo(pEnd.x, pEnd.y);
-      ctx.lineTo(pEnd.x, pEnd.y - wallH);
-      ctx.lineTo(pStart.x, pStart.y - wallH);
-      ctx.closePath();
-      ctx.fill();
-
-      // Top trim
-      ctx.strokeStyle = f.trim;
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(pStart.x, pStart.y - wallH);
-      ctx.lineTo(pEnd.x, pEnd.y - wallH);
-      ctx.stroke();
-
-      // Wall outline
-      ctx.strokeStyle = '#3a2838';
-      ctx.lineWidth = 0.8;
-      ctx.stroke();
+    // ---- Backward Compatibility Wrappers ----
+    drawIsometricFloor(ctx, floorIndex, theme) {
+      this.render(ctx);
     }
 
-    drawBackWallNE(ctx, floorIndex, f, cols, rows) {
-      const pStart = LO.isoToScreen(cols, 0, floorIndex);
-      const pEnd = LO.isoToScreen(cols, rows, floorIndex);
-      const wallH = 28;
-
-      ctx.fillStyle = f.wallR;
-      ctx.beginPath();
-      ctx.moveTo(pStart.x, pStart.y);
-      ctx.lineTo(pEnd.x, pEnd.y);
-      ctx.lineTo(pEnd.x, pEnd.y - wallH);
-      ctx.lineTo(pStart.x, pStart.y - wallH);
-      ctx.closePath();
-      ctx.fill();
-
-      // Top trim
-      ctx.strokeStyle = f.trim;
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(pStart.x, pStart.y - wallH);
-      ctx.lineTo(pEnd.x, pEnd.y - wallH);
-      ctx.stroke();
-
-      ctx.strokeStyle = '#3a2838';
-      ctx.lineWidth = 0.8;
-      ctx.stroke();
-    }
-
-    drawFloorSlab(ctx, floorIndex, f, cols, rows) {
-      const pWest = LO.isoToScreen(0, rows, floorIndex);
-      const pSouth = LO.isoToScreen(cols, rows, floorIndex);
-      const pEast = LO.isoToScreen(cols, 0, floorIndex);
-      const slabH = 6;
-
-      // South-West slab face
-      ctx.fillStyle = '#423240';
-      ctx.beginPath();
-      ctx.moveTo(pWest.x, pWest.y);
-      ctx.lineTo(pSouth.x, pSouth.y);
-      ctx.lineTo(pSouth.x, pSouth.y + slabH);
-      ctx.lineTo(pWest.x, pWest.y + slabH);
-      ctx.closePath();
-      ctx.fill();
-
-      // South-East slab face
-      ctx.fillStyle = '#2f2430';
-      ctx.beginPath();
-      ctx.moveTo(pSouth.x, pSouth.y);
-      ctx.lineTo(pEast.x, pEast.y);
-      ctx.lineTo(pEast.x, pEast.y + slabH);
-      ctx.lineTo(pSouth.x, pSouth.y + slabH);
-      ctx.closePath();
-      ctx.fill();
-
-      // Gold / pastel accent stripe on slab rim
-      ctx.strokeStyle = f.trim;
-      ctx.lineWidth = 1.2;
-      ctx.beginPath();
-      ctx.moveTo(pWest.x, pWest.y);
-      ctx.lineTo(pSouth.x, pSouth.y);
-      ctx.lineTo(pEast.x, pEast.y);
-      ctx.stroke();
-    }
-
-    // ---- 3D Isometric Cube / Block Helper ----
     drawIsoCube(ctx, col, row, floor, wCols, dRows, hPx, topCol, leftCol, rightCol) {
-      const p0 = LO.isoToScreen(col, row, floor);
-      const p1 = LO.isoToScreen(col + wCols, row, floor);
-      const p2 = LO.isoToScreen(col + wCols, row + dRows, floor);
-      const p3 = LO.isoToScreen(col, row + dRows, floor);
-
-      // Top face (raised by hPx)
-      ctx.fillStyle = topCol;
-      ctx.beginPath();
-      ctx.moveTo(p0.x, p0.y - hPx);
-      ctx.lineTo(p1.x, p1.y - hPx);
-      ctx.lineTo(p2.x, p2.y - hPx);
-      ctx.lineTo(p3.x, p3.y - hPx);
-      ctx.closePath();
-      ctx.fill();
-      ctx.strokeStyle = '#3a2838';
-      ctx.lineWidth = 0.8;
-      ctx.stroke();
-
-      // Left face
-      ctx.fillStyle = leftCol;
-      ctx.beginPath();
-      ctx.moveTo(p3.x, p3.y - hPx);
-      ctx.lineTo(p2.x, p2.y - hPx);
-      ctx.lineTo(p2.x, p2.y);
-      ctx.lineTo(p3.x, p3.y);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-
-      // Right face
-      ctx.fillStyle = rightCol;
-      ctx.beginPath();
-      ctx.moveTo(p2.x, p2.y - hPx);
-      ctx.lineTo(p1.x, p1.y - hPx);
-      ctx.lineTo(p1.x, p1.y);
-      ctx.lineTo(p2.x, p2.y);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
+      const ts = LO.TILE_SIZE || 16;
+      this.draw2DBlock(ctx, col * ts, row * ts, wCols * ts, dRows * ts, Math.min(hPx, dRows * ts), topCol, leftCol || topCol, rightCol || topCol);
     }
 
-    // ---- Isometric Furniture & Room Details ----
-    drawRoomProps(ctx, floorIndex, roomId, theme) {
-      switch (roomId) {
-        case 'boss': {
-          // Arched window on North-West wall
-          const wPos = LO.isoToScreen(4.0, 0, floorIndex);
-          ctx.fillStyle = theme.type === 'night' ? '#181730' : '#88c8f7';
-          ctx.fillRect(wPos.x - 14, wPos.y - 24, 28, 16);
-          ctx.strokeStyle = '#ba854d';
-          ctx.strokeRect(wPos.x - 13.5, wPos.y - 23.5, 27, 15);
-
-          // Grand Executive Desk (col: 4.0, row: 2.0)
-          this.drawIsoCube(ctx, 4.0, 2.0, floorIndex, 1.4, 0.8, 8, '#7a3e2e', '#5a2b1e', '#451e13');
-
-          // Gold laptop on desk
-          const lp = LO.isoToScreen(4.4, 2.2, floorIndex);
-          ctx.fillStyle = '#ffd25e';
-          ctx.fillRect(lp.x - 4, lp.y - 12, 8, 4);
-          ctx.fillStyle = '#fff9d6';
-          ctx.fillRect(lp.x - 3, lp.y - 15, 6, 4); // screen
-
-          // Easter-egg Signature Prop: Floating Gold Crown & "Best Boss" Mug
-          const crownBob = Math.sin(this.timeSec * 3) * 1.5;
-          const crPos = LO.isoToScreen(4.9, 2.0, floorIndex);
-          ctx.fillStyle = '#f1c40f';
-          ctx.fillRect(crPos.x - 4, crPos.y - 19 + crownBob, 8, 3);
-          ctx.fillRect(crPos.x - 4, crPos.y - 22 + crownBob, 2, 3);
-          ctx.fillRect(crPos.x - 1, crPos.y - 23 + crownBob, 2, 4);
-          ctx.fillRect(crPos.x + 2, crPos.y - 22 + crownBob, 2, 3);
-          // Mug
-          const mgPos = LO.isoToScreen(3.8, 2.3, floorIndex);
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(mgPos.x - 2, mgPos.y - 11, 4, 4);
-          ctx.fillStyle = '#e74c3c';
-          ctx.fillRect(mgPos.x - 1, mgPos.y - 10, 2, 2);
-
-          // Potted luxury plant
-          const pl = LO.isoToScreen(6.2, 0.8, floorIndex);
-          ctx.fillStyle = '#c0392b';
-          ctx.fillRect(pl.x - 4, pl.y - 6, 8, 6);
-          ctx.fillStyle = '#27ae60';
-          ctx.beginPath();
-          ctx.arc(pl.x, pl.y - 9, 6, 0, Math.PI * 2);
-          ctx.fill();
-
-          // ---- Context Window Trashcan (Claude-Office reference) ----
-          const office = window.LO?.office;
-          const ctxUsage = office ? office.contextUsage : 0.42; // ratio 0.0 - 1.0
-          const tcPos = LO.isoToScreen(3.0, 1.8, floorIndex);
-
-          // Outer metal wastebasket
-          this.drawIsoCube(ctx, 3.0, 1.8, floorIndex, 0.6, 0.6, 8, '#95a5a6', '#7f8c8d', '#576574');
-
-          // Crumpled paper balls filling the trashcan
-          const paperCount = Math.min(Math.floor(ctxUsage * 9), 10);
-          const paperColors = ['#ffffff', '#f1f2f6', '#fed330', '#dff9fb'];
-          for (let p = 0; p < paperCount; p++) {
-            const pxOffset = ((p * 5) % 4) - 2;
-            const pyOffset = -Math.min(p * 1.2, 9);
-            ctx.fillStyle = paperColors[p % paperColors.length];
-            ctx.fillRect(tcPos.x + pxOffset - 2, tcPos.y - 7 + pyOffset, 4, 3);
-            ctx.fillStyle = '#718093';
-            ctx.fillRect(tcPos.x + pxOffset, tcPos.y - 6 + pyOffset, 1, 1);
-          }
-
-          // Overflow crumpled papers on floor if context > 70%
-          if (ctxUsage > 0.7) {
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(tcPos.x + 5, tcPos.y - 1, 3, 2);
-            ctx.fillRect(tcPos.x - 6, tcPos.y + 1, 3, 2);
-          }
-
-          // Floating mini badge above trashcan
-          const pct = Math.round(ctxUsage * 100);
-          const tBob = Math.sin(this.timeSec * 3) * 1.2;
-          ctx.fillStyle = ctxUsage > 0.8 ? '#e74c3c' : (ctxUsage > 0.5 ? '#f39c12' : '#27ae60');
-          ctx.fillRect(tcPos.x - 13, tcPos.y - 21 + tBob, 26, 7);
-          ctx.strokeStyle = '#3a2838';
-          ctx.strokeRect(tcPos.x - 12.5, tcPos.y - 20.5, 25, 6);
-          ctx.fillStyle = '#ffffff';
-          ctx.font = '5px "Press Start 2P", monospace';
-          ctx.textAlign = 'center';
-          ctx.fillText(`${pct}% 🗑️`, tcPos.x, tcPos.y - 16 + tBob);
-          break;
-        }
-
-        case 'research': {
-          // Double research desks
-          this.drawIsoCube(ctx, 2.2, 1.2, floorIndex, 1.2, 0.7, 7, '#8f7762', '#6b5443', '#574232');
-          this.drawIsoCube(ctx, 4.2, 1.2, floorIndex, 1.2, 0.7, 7, '#8f7762', '#6b5443', '#574232');
-
-          // Monitors with glowing blue search screens
-          [2.6, 4.6].forEach((c) => {
-            const mp = LO.isoToScreen(c, 1.4, floorIndex);
-            ctx.fillStyle = '#2c3e50';
-            ctx.fillRect(mp.x - 4, mp.y - 13, 8, 6);
-            ctx.fillStyle = '#7ec8f2';
-            ctx.fillRect(mp.x - 3, mp.y - 12, 6, 4);
-          });
-
-          // Signature Prop: Mini Microscope & Journal Stack on desk
-          const rBob = Math.sin(this.timeSec * 3 + 1) * 1.2;
-          const scPos = LO.isoToScreen(2.0, 1.3, floorIndex);
-          ctx.fillStyle = '#34495e';
-          ctx.fillRect(scPos.x - 2, scPos.y - 13 + rBob, 4, 6);
-          ctx.fillStyle = '#00bcd4';
-          ctx.fillRect(scPos.x, scPos.y - 16 + rBob, 2, 3);
-          const jpPos = LO.isoToScreen(3.2, 1.4, floorIndex);
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(jpPos.x - 3, jpPos.y - 10, 6, 3);
-          ctx.fillStyle = '#3498db';
-          ctx.fillRect(jpPos.x - 1, jpPos.y - 10, 2, 1);
-
-          // Corkboard on North-West wall
-          const cb = LO.isoToScreen(5.5, 0, floorIndex);
-          ctx.fillStyle = '#c79867';
-          ctx.fillRect(cb.x - 14, cb.y - 22, 28, 14);
-          ctx.fillStyle = '#ff8fa3'; ctx.fillRect(cb.x - 10, cb.y - 19, 5, 5);
-          ctx.fillStyle = '#ffd25e'; ctx.fillRect(cb.x - 2, cb.y - 18, 5, 5);
-          ctx.fillStyle = '#7ec8f2'; ctx.fillRect(cb.x + 6, cb.y - 17, 5, 5);
-          break;
-        }
-
-        case 'coding': {
-          // Isometric Coding Desks with green code monitors
-          this.drawIsoCube(ctx, 2.0, 1.4, floorIndex, 1.2, 0.7, 7, '#5c546e', '#453d54', '#322c3e');
-          this.drawIsoCube(ctx, 4.0, 1.4, floorIndex, 1.2, 0.7, 7, '#5c546e', '#453d54', '#322c3e');
-          this.drawIsoCube(ctx, 2.2, 3.0, floorIndex, 1.2, 0.7, 7, '#5c546e', '#453d54', '#322c3e');
-
-          // Glowing Green Terminal Monitors
-          [2.4, 4.4].forEach((c) => {
-            const cp = LO.isoToScreen(c, 1.6, floorIndex);
-            ctx.fillStyle = '#1e1927';
-            ctx.fillRect(cp.x - 5, cp.y - 14, 10, 7);
-            ctx.fillStyle = '#36d399';
-            ctx.fillRect(cp.x - 4, cp.y - 13, 8, 5);
-          });
-
-          // Signature Prop: Yellow Rubber Duck Debugger & Energy Can
-          const dkB = Math.sin(this.timeSec * 3 + 2) * 1.5;
-          const dkPos = LO.isoToScreen(1.8, 1.5, floorIndex);
-          ctx.fillStyle = '#f1c40f'; // duck body
-          ctx.fillRect(dkPos.x - 3, dkPos.y - 14 + dkB, 5, 4);
-          ctx.fillStyle = '#e67e22'; // orange beak
-          ctx.fillRect(dkPos.x + 2, dkPos.y - 13 + dkB, 2, 2);
-          // Green Energy Drink Can
-          const canPos = LO.isoToScreen(2.9, 1.5, floorIndex);
-          ctx.fillStyle = '#2ecc71';
-          ctx.fillRect(canPos.x - 1, canPos.y - 13, 3, 5);
-          ctx.fillStyle = '#111111';
-          ctx.fillRect(canPos.x, canPos.y - 12, 1, 3);
-
-          // Mini server tower with blinking LED
-          const srv = LO.isoToScreen(6.2, 1.2, floorIndex);
-          ctx.fillStyle = '#221b2c';
-          ctx.fillRect(srv.x - 4, srv.y - 16, 8, 16);
-          const blink = Math.sin(this.timeSec * 8) > 0;
-          ctx.fillStyle = blink ? '#36d399' : '#145c3e';
-          ctx.fillRect(srv.x - 2, srv.y - 14, 2, 2);
-          break;
-        }
-
-        case 'meeting': {
-          const office = window.LO?.office;
-          const wbMode = office ? (office.whiteboardMode || 0) : 0; // 0 = Tasks, 1 = Tools, 2 = Team
-
-          // Whiteboard frame on North-West wall (interactive)
-          const wb = LO.isoToScreen(3.5, 0, floorIndex);
-          ctx.fillStyle = '#f8fafc';
-          ctx.fillRect(wb.x - 22, wb.y - 26, 44, 18);
-          ctx.strokeStyle = '#64748b';
-          ctx.lineWidth = 1.2;
-          ctx.strokeRect(wb.x - 21.5, wb.y - 25.5, 43, 17);
-
-          // Top Header Tabs: [Tasks] [Tools] [Team]
-          const tabLabels = ['TASKS', 'TOOLS', 'TEAM'];
-          for (let ti = 0; ti < 3; ti++) {
-            const tabX = wb.x - 20 + ti * 14;
-            ctx.fillStyle = wbMode === ti ? '#3b82f6' : '#cbd5e1';
-            ctx.fillRect(tabX, wb.y - 25, 13, 4);
-            ctx.fillStyle = wbMode === ti ? '#ffffff' : '#475569';
-            ctx.font = '3px "Press Start 2P", monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText(tabLabels[ti], tabX + 6.5, wb.y - 22);
-          }
-
-          // Whiteboard content based on active mode
-          if (wbMode === 0) {
-            // Mode 0: Tasks checklist & sticky notes
-            ctx.fillStyle = '#ff7675'; ctx.fillRect(wb.x - 18, wb.y - 19, 5, 5); // red sticky
-            ctx.fillStyle = '#fdcb6e'; ctx.fillRect(wb.x - 11, wb.y - 19, 5, 5); // yellow sticky
-            ctx.fillStyle = '#00cec9'; ctx.fillRect(wb.x - 4, wb.y - 19, 5, 5);  // cyan sticky
-            // Task lines
-            ctx.fillStyle = '#2d3436';
-            ctx.fillRect(wb.x + 3, wb.y - 18, 14, 1);
-            ctx.fillRect(wb.x + 3, wb.y - 15, 10, 1);
-            ctx.fillRect(wb.x + 3, wb.y - 12, 12, 1);
-            // Green checkmark
-            ctx.fillStyle = '#00b894';
-            ctx.fillRect(wb.x - 18, wb.y - 12, 3, 3);
-          } else if (wbMode === 1) {
-            // Mode 1: Tool analytics bar chart
-            const barColors = ['#36d399', '#3b82f6', '#f59e0b', '#ec4899'];
-            const barHeights = [9, 7, 11, 5];
-            for (let bi = 0; bi < 4; bi++) {
-              ctx.fillStyle = barColors[bi];
-              const bx = wb.x - 16 + bi * 9;
-              ctx.fillRect(bx, wb.y - 10 - barHeights[bi], 6, barHeights[bi]);
-            }
-          } else {
-            // Mode 2: Agent hierarchy org chart
-            ctx.fillStyle = '#ffd25e'; ctx.fillRect(wb.x - 4, wb.y - 20, 8, 3); // Lami boss box
-            ctx.fillStyle = '#94a3b8';
-            ctx.fillRect(wb.x - 0.5, wb.y - 17, 1, 3); // connector
-            ctx.fillRect(wb.x - 12, wb.y - 14, 24, 1); // branch
-            // 3 Sub-boxes
-            ctx.fillStyle = '#7ec8f2'; ctx.fillRect(wb.x - 15, wb.y - 13, 6, 3);
-            ctx.fillStyle = '#8fdba8'; ctx.fillRect(wb.x - 3, wb.y - 13, 6, 3);
-            ctx.fillStyle = '#ff8fab'; ctx.fillRect(wb.x + 9, wb.y - 13, 6, 3);
-          }
-
-          // Marker tray at bottom
-          ctx.fillStyle = '#94a3b8';
-          ctx.fillRect(wb.x - 14, wb.y - 8, 28, 2);
-          ctx.fillStyle = '#e74c3c'; ctx.fillRect(wb.x - 10, wb.y - 9, 4, 1); // red marker
-          ctx.fillStyle = '#3498db'; ctx.fillRect(wb.x - 4, wb.y - 9, 4, 1);  // blue marker
-          ctx.fillStyle = '#2ecc71'; ctx.fillRect(wb.x + 2, wb.y - 9, 4, 1);  // green marker
-          ctx.fillStyle = '#34495e'; ctx.fillRect(wb.x + 8, wb.y - 10, 4, 2); // eraser
-
-          // Isometric Conference Table
-          this.drawIsoCube(ctx, 3.0, 2.0, floorIndex, 1.8, 1.2, 7, '#c7926b', '#9b6e4e', '#7a5135');
-
-          // Signature Prop: Sakura Flower Vase on Conference Table
-          const flB = Math.sin(this.timeSec * 3 + 3) * 1.2;
-          const vsPos = LO.isoToScreen(3.8, 2.5, floorIndex);
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(vsPos.x - 2, vsPos.y - 12, 4, 4);
-          ctx.fillStyle = '#ff7675';
-          ctx.beginPath();
-          ctx.arc(vsPos.x, vsPos.y - 15 + flB, 3, 0, Math.PI * 2);
-          ctx.fill();
-          // Agenda binder
-          const bdPos = LO.isoToScreen(4.4, 2.3, floorIndex);
-          ctx.fillStyle = '#3498db';
-          ctx.fillRect(bdPos.x - 3, bdPos.y - 10, 6, 2);
-          break;
-        }
-
-        case 'pantry': {
-          // Coffee bar counter
-          this.drawIsoCube(ctx, 1.5, 1.2, floorIndex, 1.4, 0.8, 8, '#ffffff', '#c8b49e', '#ab9681');
-
-          // Espresso Machine & Animated Steam
-          const kp = LO.isoToScreen(1.8, 1.4, floorIndex);
-          ctx.fillStyle = '#e74c3c';
-          ctx.fillRect(kp.x - 4, kp.y - 14, 8, 6);
-          const steamY = (this.timeSec * 12) % 8;
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-          ctx.fillRect(kp.x - 1, kp.y - 16 - steamY, 2, 2);
-
-          // Microwave on counter next to espresso
-          const mwPos = LO.isoToScreen(2.5, 1.3, floorIndex);
-          ctx.fillStyle = '#2c3e50';
-          ctx.fillRect(mwPos.x - 4, mwPos.y - 14, 8, 5);
-          ctx.fillStyle = Math.sin(this.timeSec * 2) > 0 ? '#f39c12' : '#34495e';
-          ctx.fillRect(mwPos.x - 3, mwPos.y - 13, 4, 3); // door glass
-          ctx.fillStyle = '#2ecc71';
-          ctx.fillRect(mwPos.x + 2, mwPos.y - 13, 1, 1); // timer display
-
-          // Signature Prop: Donut tray on counter
-          const dnPos = LO.isoToScreen(2.2, 1.6, floorIndex);
-          ctx.fillStyle = '#d35400';
-          ctx.fillRect(dnPos.x - 3, dnPos.y - 10, 6, 2);
-          ctx.fillStyle = '#ff7675';
-          ctx.fillRect(dnPos.x - 2, dnPos.y - 11, 4, 1);
-
-          // ---- Water Cooler (Claude-Office break area) ----
-          this.drawIsoCube(ctx, 5.8, 1.8, floorIndex, 0.6, 0.6, 8, '#ecf0f1', '#bdc3c7', '#95a5a6');
-          const wcPos = LO.isoToScreen(6.1, 2.1, floorIndex);
-          // Translucent blue bottle on top
-          ctx.fillStyle = 'rgba(52, 152, 219, 0.85)';
-          ctx.fillRect(wcPos.x - 3, wcPos.y - 16, 6, 7);
-          ctx.fillStyle = '#2980b9';
-          ctx.fillRect(wcPos.x - 2, wcPos.y - 18, 4, 2);
-          // Animated rising bubble
-          const bubbleY = ((this.timeSec * 8) % 6);
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(wcPos.x, wcPos.y - 11 - bubbleY, 1, 1);
-          // Red & blue taps
-          ctx.fillStyle = '#e74c3c'; ctx.fillRect(wcPos.x - 2, wcPos.y - 10, 1, 2);
-          ctx.fillStyle = '#3498db'; ctx.fillRect(wcPos.x + 1, wcPos.y - 10, 1, 2);
-
-          // Random Office Event Item: Pizza/Martabak Delivery Box
-          const office = window.LO?.office;
-          if (office && office.pizzaEventTimer > 0) {
-            const pzPos = LO.isoToScreen(2.4, 1.8, floorIndex);
-            ctx.fillStyle = '#e67e22'; // pizza box
-            ctx.fillRect(pzPos.x - 5, pzPos.y - 12, 10, 4);
-            ctx.fillStyle = '#d35400';
-            ctx.strokeRect(pzPos.x - 4.5, pzPos.y - 11.5, 9, 3);
-            ctx.fillStyle = '#f39c12';
-            ctx.fillRect(pzPos.x - 2, pzPos.y - 11, 4, 2);
-          }
-
-          // Pastel Teal Lounge Sofa
-          this.drawIsoCube(ctx, 3.8, 2.2, floorIndex, 1.6, 0.9, 6, '#7ac9af', '#57aa8f', '#3f8d74');
-
-          // Vending machine on North-East wall
-          this.drawIsoCube(ctx, 6.2, 1.0, floorIndex, 0.8, 0.8, 16, '#ff7675', '#d65453', '#b83b3a');
-          break;
-        }
-
-        case 'server': {
-          // Array of tall isometric server racks
-          [2.0, 3.6, 5.2].forEach((c, idx) => {
-            this.drawIsoCube(ctx, c, 1.0, floorIndex, 0.9, 0.8, 18, '#2c2738', '#1c1826', '#14111d');
-            const sp = LO.isoToScreen(c + 0.45, 1.4, floorIndex);
-            for (let r = 0; r < 3; r++) {
-              const b1 = Math.sin(this.timeSec * 6 + idx + r) > 0;
-              ctx.fillStyle = b1 ? '#2ecc71' : '#145a32';
-              ctx.fillRect(sp.x - 2, sp.y - 14 + r * 4, 2, 2);
-              ctx.fillStyle = !b1 ? '#3498db' : '#1b4f72';
-              ctx.fillRect(sp.x + 1, sp.y - 14 + r * 4, 2, 2);
-            }
-          });
-
-          // Mainframe control desk
-          this.drawIsoCube(ctx, 4.8, 2.8, floorIndex, 1.0, 0.8, 7, '#34495e', '#2c3e50', '#1a252f');
-
-          // Signature Prop: DevOps Toolkit & Wrench on desk
-          const tkB = Math.sin(this.timeSec * 3 + 4) * 1.2;
-          const tkPos = LO.isoToScreen(4.5, 2.9, floorIndex);
-          ctx.fillStyle = '#95a5a6'; // metal wrench
-          ctx.fillRect(tkPos.x - 3, tkPos.y - 12 + tkB, 6, 2);
-          ctx.fillStyle = '#e74c3c'; // red handle
-          ctx.fillRect(tkPos.x - 1, tkPos.y - 13 + tkB, 2, 4);
-          break;
-        }
-      }
+    drawBackWallNW() {}
+    drawBackWallNE() {}
+    drawFloorSlab() {}
+    drawRoofBanner(ctx) {
+      const theme = this.getSkyTheme();
+      this.drawSkyHeader(ctx, theme, LO.CONTENT_W || 1024);
     }
+    drawRoomProps() {}
   }
 
   LO.World = World;

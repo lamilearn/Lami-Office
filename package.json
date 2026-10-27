@@ -1,0 +1,23 @@
+{
+  "name": "lami-ai-office-suite",
+  "version": "1.0.0",
+  "description": "2D Top-Down / RPG AI Office Suite",
+  "scripts": {
+    "test": "node tests/run_all_e2e.js",
+    "test:tier1": "node tests/run_all_e2e.js --tier=1",
+    "test:tier2": "node tests/run_all_e2e.js --tier=2",
+    "test:tier3": "node tests/run_all_e2e.js --tier=3",
+    "test:tier4": "node tests/run_all_e2e.js --tier=4",
+    "test:json": "node tests/run_all_e2e.js --json",
+    "test:smoke": "node tests/run_all_e2e.js --smoke",
+    "smoke": "bash scripts/smoke_test.sh"
+  },
+  "keywords": [
+    "ai-office",
+    "rpg",
+    "pixel-art",
+    "e2e-testing"
+  ],
+  "author": "Lami AI Team",
+  "license": "MIT"
+}

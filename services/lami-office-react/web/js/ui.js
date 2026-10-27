@@ -153,6 +153,8 @@
       if (!this.chatDrawer) return;
       const willShow = show !== null ? show : this.chatDrawer.classList.contains('hidden');
       if (willShow) {
+        // Anti-overlap: hide any open character card when drawer opens
+        this.hideCard();
         this.chatDrawer.classList.remove('hidden');
         LO.audio.pop();
         if (this.chatInput) setTimeout(() => this.chatInput.focus(), 80);

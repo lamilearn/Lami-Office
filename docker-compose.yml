@@ -27,5 +27,6 @@ services:
       - HOST=0.0.0.0
       - PORT=8090
       - PUBLIC_MODE=${PUBLIC_MODE:-live}
+      - INGEST_TOKEN=${INGEST_TOKEN:-}
       - PYTHONUNBUFFERED=1
       - ENVIRONMENT=${ENVIRONMENT:-production}
