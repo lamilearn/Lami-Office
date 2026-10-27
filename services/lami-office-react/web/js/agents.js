@@ -46,21 +46,22 @@
       this.name = name;
       this.role = role;
       this.look = look;
-      this.floor = floor;
+      this.floor = 0;
       this.col = col;
       this.row = row;
-      this.targetFloor = floor;
+      this.targetFloor = 0;
       this.targetCol = col;
       this.targetRow = row;
 
-      this.facing = 'SE'; // 'SE' | 'SW' | 'NE' | 'NW'
-      this.state = 'idle'; // idle | walk | type | lift_wait | lift_ride | reporting
+      this.facing = 'S'; // 'S' | 'N' | 'E' | 'W'
+      this.state = 'idle'; // idle | walk | type | reporting | work
       this.speed = 2.2; // tiles per second
       this.sprites = LO.getCharacterSprites(this.look);
 
       this.frame = 'idle';
       this.animTimer = 0;
       this.walkStep = false;
+      this.path = []; // orthogonal waypoints [{x, y}, ...]
 
       this.emote = null;
       this.emoteTimer = 0;
@@ -75,8 +76,8 @@
     }
 
     getDepth() {
-      // Y-sorting: floor priority, then isometric grid diagonal (col + row)
-      return this.floor * 1000 + (this.col + this.row) * 10;
+      // 2D Top-down Y-depth sorting (Painter's algorithm): lower row rendered in front
+      return (this.row || 0) * 100 + (this.col || 0) * 0.1;
     }
 
     setEmote(icon, duration = 3.0) {
@@ -103,6 +104,42 @@
         alpha: 1.0,
         life: 1.2
       });
+    }
+
+    navigateTo(destCol, destRow, office) {
+      this.targetCol = destCol;
+      this.targetRow = destRow;
+      this.pathGoal = { x: destCol, y: destRow };
+
+      const sx = Math.round(this.col);
+      const sy = Math.round(this.row);
+      const gx = Math.round(destCol);
+      const gy = Math.round(destRow);
+
+      if (sx === gx && sy === gy) {
+        this.col = destCol;
+        this.row = destRow;
+        this.path = [];
+        this.state = 'walk';
+        this.onArrived();
+        return;
+      }
+
+      const sim = office || window.LO?.office;
+      const p = sim && sim.findPath ? sim.findPath({ x: sx, y: sy }, { x: gx, y: gy }) : null;
+      if (p && p.length > 1) {
+        // Drop the tile the character already stands on.
+        this.path = p.slice(1);
+        // navigateTo is also used mid 'reporting'; keep that semantic state.
+        if (this.state !== 'reporting') this.state = 'walk';
+        return;
+      }
+
+      // No reachable route: never clip through walls as a fallback. Complete
+      // the navigation in place so the agent's state machine cannot hang.
+      this.path = [];
+      this.state = 'work';
+      this.onArrived();
     }
 
     update(dt, office) {
@@ -132,59 +169,83 @@
     }
 
     updateMovement(dt, office) {
-      // Needs to change floor
-      if (this.floor !== this.targetFloor) {
-        if (this.state !== 'lift_wait' && this.state !== 'lift_ride') {
-          // Walk diagonally to elevator waiting area
-          const dCol = LO.LIFT_WAIT_COL - this.col;
-          const dRow = LO.LIFT_WAIT_ROW - this.row;
-          const dist = Math.hypot(dCol, dRow);
-          if (dist > 0.15) {
-            this.walkTowards(LO.LIFT_WAIT_COL, LO.LIFT_WAIT_ROW, dt);
-          } else {
-            this.col = LO.LIFT_WAIT_COL;
-            this.row = LO.LIFT_WAIT_ROW;
-            this.state = 'lift_wait';
-            this.frame = 'idle';
-            this.facing = 'SW';
-            this.waitElevatorTime = 0;
-            office.elevator.request(this);
-          }
-        } else if (this.state === 'lift_wait') {
-          this.waitElevatorTime = (this.waitElevatorTime || 0) + dt;
-          if (this.waitElevatorTime > 12) {
-            this.waitElevatorTime = 0;
-            office.elevator.request(this);
+      // Single-floor 2D top-down world: normalize
+      if (this.floor !== 0 || this.targetFloor !== 0) {
+        this.floor = 0;
+        this.targetFloor = 0;
+      }
+
+      // 0. Destination changed while walking (routine switch, new tool, ...):
+      // recompute immediately instead of finishing the stale path.
+      if (this.pathGoal &&
+          (this.pathGoal.x !== this.targetCol || this.pathGoal.y !== this.targetRow)) {
+        this.navigateTo(this.targetCol, this.targetRow, office);
+        if (!this.path || this.path.length === 0) return;
+      }
+
+      // 1. Follow waypoint path (keep semantic states such as 'reporting')
+      if (this.path && this.path.length > 0) {
+        if (this.state !== 'reporting') this.state = 'walk';
+        const targetNode = this.path[0];
+        const dx = targetNode.x - this.col;
+        const dy = targetNode.y - this.row;
+        const dist = Math.hypot(dx, dy);
+
+        if (Math.abs(dx) >= Math.abs(dy)) {
+          if (Math.abs(dx) > 0.01) this.facing = dx > 0 ? 'E' : 'W';
+        } else {
+          if (Math.abs(dy) > 0.01) this.facing = dy > 0 ? 'S' : 'N';
+        }
+
+        const step = Math.min(this.speed * dt, dist);
+        if (dist > 0.0001) {
+          this.col += (dx / dist) * step;
+          this.row += (dy / dist) * step;
+        }
+
+        if (this.animTimer > 0.15) {
+          this.animTimer = 0;
+          this.walkStep = !this.walkStep;
+        }
+        this.frame = this.walkStep ? 'walk' : 'idle';
+
+        if (dist <= step || dist < 0.06) {
+          this.col = targetNode.x;
+          this.row = targetNode.y;
+          this.path.shift();
+
+          if (this.path.length === 0) {
+            // Snap to the exact (possibly fractional) target only when the
+            // final waypoint really is its tile; never teleport across rooms.
+            if (Math.round(this.targetCol) === targetNode.x &&
+                Math.round(this.targetRow) === targetNode.y) {
+              this.col = this.targetCol;
+              this.row = this.targetRow;
+            } else {
+              this.targetCol = this.col;
+              this.targetRow = this.row;
+            }
+            this.pathGoal = { x: this.targetCol, y: this.targetRow };
+            if (this.state === 'walk' || this.state === 'reporting') this.onArrived();
           }
         }
         return;
       }
 
-      // On correct floor
-      if (this.state === 'lift_ride') {
-        this.state = 'walk';
-      }
-
-      if (this.state === 'lift_wait') {
-        this.frame = 'idle';
+      // 2. Check if destination was updated without navigateTo
+      const dTarget = Math.hypot(this.targetCol - this.col, this.targetRow - this.row);
+      if (dTarget > 0.2) {
+        this.navigateTo(this.targetCol, this.targetRow, office);
         return;
       }
 
-      // Walk to target slot on floor
-      const dCol = this.targetCol - this.col;
-      const dRow = this.targetRow - this.row;
-      const dist = Math.hypot(dCol, dRow);
-
-      if (dist > 0.12) {
-        this.walkTowards(this.targetCol, this.targetRow, dt);
-      } else {
-        this.col = this.targetCol;
-        this.row = this.targetRow;
-        if (this.state === 'walk') {
-          this.onArrived();
-        }
-        this.updateIdleState(dt);
+      // 3. At destination
+      this.col = this.targetCol;
+      this.row = this.targetRow;
+      if (this.state === 'walk') {
+        this.onArrived();
       }
+      this.updateIdleState(dt);
     }
 
     walkTowards(destCol, destRow, dt) {
@@ -193,11 +254,12 @@
       const dRow = destRow - this.row;
       const dist = Math.hypot(dCol, dRow);
 
-      // Determine 4-way Cardinal Facing (E, W, S, N) with isometric fallback compatibility
-      if (Math.abs(dCol) > Math.abs(dRow)) {
-        this.facing = dCol > 0 ? 'E' : 'W';
+      // Determine cardinal facing for 2D top-down movement
+      if (Math.abs(dCol) >= Math.abs(dRow)) {
+        if (Math.abs(dCol) > 0.001) this.facing = dCol > 0 ? 'E' : 'W';
       } else {
-        this.facing = dRow > 0 ? 'S' : 'N';
+        if (Math.abs(dRow) > 0.001) this.facing = dRow > 0 ? 'S' : 'N';
+      }
       }
 
       const step = Math.min(this.speed * dt, dist);
@@ -253,13 +315,13 @@
 
     render(ctx) {
       const pos = LO.isoToScreen(this.col, this.row, this.floor);
-      const sprGroup = this.sprites[this.facing] || this.sprites.SE;
+      const sprGroup = this.sprites[this.facing] || this.sprites.SE || this.sprites.right;
       const img = sprGroup[this.frame] || sprGroup.idle;
 
       const px = Math.floor(pos.x - this.sprites.w / 2);
       const py = Math.floor(pos.y - this.sprites.h + 2);
 
-      // Isometric Character Shadow
+      // Character Shadow
       ctx.fillStyle = 'rgba(58, 40, 56, 0.28)';
       ctx.beginPath();
       ctx.ellipse(pos.x, pos.y + 1, 6, 3, 0, 0, Math.PI * 2);
@@ -271,7 +333,7 @@
       // Carried Paper Item
       if (this.carriedItem === 'paper') {
         const paper = LO.getPaperSprite();
-        const paperX = this.facing === 'SE' || this.facing === 'NE' ? px + this.sprites.w - 3 : px - 2;
+        const paperX = (this.facing === 'E' || this.facing === 'S' || this.facing === 'SE') ? px + this.sprites.w - 3 : px - 2;
         ctx.drawImage(paper, paperX, py + 9);
       }
 
@@ -400,10 +462,10 @@
             {
               id: 'corkboard',
               name: 'Cek Papan Catatan',
-              floor: 1, // 4F Research Lab
-              col: 5.2,
-              row: 1.1,
-              facing: 'NW',
+              floor: 0,
+              col: 35,
+              row: 4,
+              facing: 'N',
               duration: 7,
               startBubble: 'Cek hipotesis di papan 📌',
               arriveBubble: 'Data riset sinkron semua 💡',
@@ -414,10 +476,10 @@
             {
               id: 'stretch',
               name: 'Peregangan Jendela',
-              floor: 1,
-              col: 5.2,
-              row: 3.2,
-              facing: 'NW',
+              floor: 0,
+              col: 38,
+              row: 12,
+              facing: 'E',
               duration: 6,
               startBubble: 'Peregangan badan dulu~ ✨',
               arriveBubble: 'Udara sejuk bikin fokus 🌿',
@@ -428,10 +490,10 @@
             {
               id: 'reading',
               name: 'Membaca Jurnal',
-              floor: 1,
-              col: 2.0,
-              row: 2.8,
-              facing: 'NE',
+              floor: 0,
+              col: 22,
+              row: 12,
+              facing: 'W',
               duration: 7,
               startBubble: 'Buka referensi jurnal 📖',
               arriveBubble: 'Metode baru menarik banget 🔍',
@@ -442,10 +504,10 @@
             {
               id: 'coffee_pantry',
               name: 'Ngopi di Pantry',
-              floor: 4, // 1F Pantry
-              col: 2.0,
-              row: 1.5,
-              facing: 'SE',
+              floor: 0,
+              col: 45,
+              row: 25,
+              facing: 'N',
               duration: 8,
               startBubble: 'Turun ke pantry, ngopi dulu 🍵',
               arriveBubble: 'Racik matcha latte hangat 🍵✨',
@@ -456,10 +518,10 @@
             {
               id: 'consult_boss',
               name: 'Lapor Boss Lami',
-              floor: 0, // Roof Boss
-              col: 3.5,
-              row: 3.2,
-              facing: 'NE',
+              floor: 0,
+              col: 11,
+              row: 8,
+              facing: 'N',
               duration: 6.5,
               startBubble: 'Naik ke kantor Boss Lami 👑',
               arriveBubble: 'Lapor temuan riset, Boss! 📑',
@@ -477,10 +539,10 @@
             {
               id: 'server_mini',
               name: 'Cek Mini Server',
-              floor: 2, // 3F Coding
-              col: 5.8,
-              row: 1.8,
-              facing: 'NW',
+              floor: 0,
+              col: 14,
+              row: 22,
+              facing: 'N',
               duration: 7,
               startBubble: 'Cek build runner lokal ⚙️',
               arriveBubble: 'Build hijau, test pass 100%! 🟢',
@@ -491,10 +553,10 @@
             {
               id: 'arch_board',
               name: 'Desain Skema',
-              floor: 2,
-              col: 5.8,
-              row: 3.2,
-              facing: 'NW',
+              floor: 0,
+              col: 20,
+              row: 30,
+              facing: 'E',
               duration: 7,
               startBubble: 'Petakan skema arsitektur 📐',
               arriveBubble: 'Arsitektur baru lebih ngebut ⚡',
@@ -505,10 +567,10 @@
             {
               id: 'peer_review',
               name: 'Code Review Tim',
-              floor: 2,
-              col: 4.2,
-              row: 1.8,
-              facing: 'SE',
+              floor: 0,
+              col: 3,
+              row: 24,
+              facing: 'W',
               duration: 6,
               startBubble: 'Cek PR kodingan teman 👀',
               arriveBubble: 'Kode bersih, approve merge! 👍',
@@ -519,10 +581,10 @@
             {
               id: 'pantry_snack',
               name: 'Cari Cemilan',
-              floor: 4, // 1F Pantry
-              col: 5.6,
-              row: 1.8,
-              facing: 'NW',
+              floor: 0,
+              col: 54,
+              row: 28,
+              facing: 'N',
               duration: 8,
               startBubble: 'Turun cari cemilan koding 🍫',
               arriveBubble: 'Kopi hitam + biskuit mantap ☕',
@@ -537,10 +599,10 @@
             {
               id: 'agenda_board',
               name: 'Update Whiteboard',
-              floor: 3, // 2F Meeting
-              col: 3.5,
-              row: 1.2,
-              facing: 'NW',
+              floor: 0,
+              col: 26,
+              row: 20,
+              facing: 'N',
               duration: 7,
               startBubble: 'Tulis agenda rapat baru 📝',
               arriveBubble: 'Jadwal meeting sinkron semua 🗓️',
@@ -551,10 +613,10 @@
             {
               id: 'podium',
               name: 'Presentasi Progres',
-              floor: 3,
-              col: 2.0,
-              row: 2.2,
-              facing: 'SE',
+              floor: 0,
+              col: 36,
+              row: 22,
+              facing: 'W',
               duration: 6.5,
               startBubble: 'Siapkan materi presentasi 📊',
               arriveBubble: 'Target kuartal ini on-track! 🎯',
@@ -565,10 +627,10 @@
             {
               id: 'report_boss',
               name: 'Lapor Boss Lami',
-              floor: 0, // Roof Boss
-              col: 2.2,
-              row: 3.0,
-              facing: 'NE',
+              floor: 0,
+              col: 11,
+              row: 8,
+              facing: 'N',
               duration: 6.5,
               startBubble: 'Bawa berkas ke Boss Lami 👑',
               arriveBubble: 'Ini jadwal evaluasi, Boss! 📑',
@@ -585,10 +647,10 @@
             {
               id: 'lounge_relax',
               name: 'Santai di Sofa',
-              floor: 4, // 1F Pantry
-              col: 3.8,
-              row: 2.2,
-              facing: 'SE',
+              floor: 0,
+              col: 48,
+              row: 29,
+              facing: 'N',
               duration: 8,
               startBubble: 'Turun santai di sofa lounge 🛋️',
               arriveBubble: 'Teh hangat + puk-puk Mochi 🐱☕',
@@ -606,10 +668,10 @@
             {
               id: 'patrol_rack_a',
               name: 'Inspeksi Rack A',
-              floor: 5, // B1 Server
-              col: 2.5,
-              row: 1.6,
-              facing: 'NW',
+              floor: 0,
+              col: 44,
+              row: 7,
+              facing: 'N',
               duration: 7,
               startBubble: 'Patroli suhu server Rack A ❄️',
               arriveBubble: 'Suhu 17°C, airflow optimal 🟢',
@@ -620,10 +682,10 @@
             {
               id: 'patrol_rack_b',
               name: 'Inspeksi Rack B',
-              floor: 5,
-              col: 4.0,
-              row: 1.6,
-              facing: 'NW',
+              floor: 0,
+              col: 48,
+              row: 7,
+              facing: 'N',
               duration: 7,
               startBubble: 'Cek traffic jaringan Rack B ⚡',
               arriveBubble: 'Throughput 10 Gbps ngebut pol! 🚀',
@@ -634,10 +696,10 @@
             {
               id: 'cables_patch',
               name: 'Cek Kabel Jaringan',
-              floor: 5,
-              col: 2.2,
-              row: 3.2,
-              facing: 'NE',
+              floor: 0,
+              col: 52,
+              row: 7,
+              facing: 'N',
               duration: 6,
               startBubble: 'Cek kerapian kabel switch 🔧',
               arriveBubble: 'Kabel fiber optik rapi jali 👍',
@@ -648,10 +710,10 @@
             {
               id: 'coffee_break',
               name: 'Ngopi ke Pantry',
-              floor: 4, // 1F Pantry
-              col: 2.0,
-              row: 1.5,
-              facing: 'SE',
+              floor: 0,
+              col: 46,
+              row: 24,
+              facing: 'N',
               duration: 8,
               startBubble: 'Naik dari basement, ngopi ☕',
               arriveBubble: 'Hirup udara segar & kopi panas 🌿☕',
@@ -812,9 +874,9 @@
           id: 'window',
           name: 'Menatap Kota',
           floor: 0,
-          col: 4.0,
-          row: 1.1,
-          facing: 'NW',
+          col: 16,
+          row: 3,
+          facing: 'N',
           duration: 7,
           startBubble: 'Lihat pemandangan kota dulu 🏙️',
           arriveBubble: 'Kota tampak indah dari atas ✨',
@@ -826,9 +888,9 @@
           id: 'bonsai',
           name: 'Merawat Bonsai',
           floor: 0,
-          col: 5.8,
-          row: 1.4,
-          facing: 'NE',
+          col: 5,
+          row: 4,
+          facing: 'W',
           duration: 6,
           startBubble: 'Cek tanaman bonsai kantor 🌱',
           arriveBubble: 'Bonsai makin asri & subur 🌿',
@@ -840,9 +902,9 @@
           id: 'balcony',
           name: 'Pantau Gedung',
           floor: 0,
-          col: 2.8,
-          row: 3.0,
-          facing: 'SW',
+          col: 3,
+          row: 12,
+          facing: 'W',
           duration: 6.5,
           startBubble: 'Tinjau suasana kerja dari balkon 👑',
           arriveBubble: 'Semua divisi sangat produktif! 👍',
@@ -853,10 +915,10 @@
         {
           id: 'pantry_visit',
           name: 'Sapa Tim di Pantry',
-          floor: 4, // 1F Pantry
-          col: 3.5,
-          row: 2.0,
-          facing: 'SE',
+          floor: 0,
+          col: 47,
+          row: 26,
+          facing: 'N',
           duration: 8,
           startBubble: 'Turun ke Pantry sapa tim ☕',
           arriveBubble: 'Halo semuanya, ngopi bareng! ☕✨',
@@ -1001,6 +1063,26 @@
     }
 
     onArrived() {
+      if (this.state === 'reporting') {
+        this.state = 'report_done';
+        this.carriedItem = 'paper';
+        this.facing = 'N';
+        const office = this.reportOffice || window.LO?.office;
+        if (office && office.lami) this.deliverReport(office.lami);
+        this.reportOffice = null;
+
+        // Report delivered: unwind in the pantry before heading home.
+        if (office && office.assignToSlot) {
+          office.assignToSlot(this, 'pantry');
+          this.state = 'walk';
+          this.setBubble('Istirahat dulu di pantry ☕', 3.0);
+          this.navigateTo(this.targetCol, this.targetRow, office);
+        } else {
+          this.state = 'work';
+        }
+        return;
+      }
+
       this.state = 'work';
       this.frame = 'idle';
       if (this.assignedSlot && this.assignedSlot.facing) {
@@ -1032,18 +1114,19 @@
       this.currentTool = null;
     }
 
-    reportToLami() {
+    reportToLami(office) {
       this.carriedItem = 'paper';
       this.targetFloor = 0;
-      this.targetCol = 3.5;
-      this.targetRow = 3.2;
       this.state = 'reporting';
       this.setBubble('Lapor Boss, selesai! 📄', 4.0);
+      const spot = (LO.SLOTS.boss && LO.SLOTS.boss[0]) || { x: 11, y: 8 };
+      this.reportOffice = office || window.LO?.office;
+      this.navigateTo(spot.x, spot.y, this.reportOffice);
     }
 
     deliverReport(lami) {
       this.carriedItem = null;
-      this.facing = 'NE';
+      this.facing = 'N';
       this.setEmote('❤️', 3.0);
       this.setBubble('Ini hasilnya, Boss! ✨', 3.0);
       this.addParticle('+1 Tugas', '✅', '#2ecc71');
@@ -1051,15 +1134,15 @@
     }
   }
 
-  // ---- Mochi the Cat (Isometric) ----
+  // ---- Mochi the Cat (2D Pantry Lounge) ----
   class MochiCat {
     constructor() {
-      this.floor = 4; // Pantry
-      this.col = 4.2;
-      this.row = 2.8;
-      this.targetCol = 4.2;
-      this.targetRow = 2.8;
-      this.facing = 'SE';
+      this.floor = 0; // single-floor 2D office
+      this.col = 51;
+      this.row = 26;
+      this.targetCol = 51;
+      this.targetRow = 26;
+      this.facing = 'W';
       this.state = 'sit';
       this.sprites = LO.getCatSprites();
       this.timer = Math.random() * 5 + 3;
@@ -1069,7 +1152,7 @@
     }
 
     getDepth() {
-      return this.floor * 1000 + (this.col + this.row) * 10;
+      return (this.row || 0) * 100 + (this.col || 0) * 0.1;
     }
 
     setBubble(text, duration = 3.0) {
@@ -1084,9 +1167,9 @@
         const roll = Math.random();
         if (roll < 0.45) {
           this.state = 'walk';
-          this.targetCol = 2 + Math.random() * 4;
-          this.targetRow = 1.5 + Math.random() * 2.5;
-          this.facing = this.targetCol > this.col ? 'SE' : 'SW';
+          this.targetCol = 50 + Math.random() * 3;   // open lounge floor
+          this.targetRow = 25 + Math.random() * 4;
+          this.facing = this.targetCol > this.col ? 'E' : 'W';
         } else if (roll < 0.8) {
           this.state = 'sit';
         } else {
@@ -1105,7 +1188,7 @@
             office.lami,
             ...office.residents,
             ...office.subagents.values()
-          ].filter((c) => c && c.floor === (LO.GROUND ?? 4));
+          ].filter((c) => c && Math.hypot(c.col - this.col, c.row - this.row) < 2.5);
 
           for (const c of pantryChars) {
             const dist = Math.hypot(this.col - c.col, this.row - c.row);
@@ -1148,7 +1231,7 @@
 
     render(ctx) {
       const pos = LO.isoToScreen(this.col, this.row, this.floor);
-      const spr = this.facing === 'SE' ? this.sprites.SE : this.sprites.SW;
+      const spr = this.facing === 'W' ? this.sprites.SW : this.sprites.SE;
       const img = spr[this.state] || spr.sit;
       ctx.drawImage(img, Math.floor(pos.x - 6), Math.floor(pos.y - 7));
 
@@ -1181,9 +1264,9 @@
       super('delivery-rider', 'Bang Kurir', 'Kurir Martabak', { hair: 2, skin: 1, cloth: 1, long: false, glasses: false }, (LO.GROUND ?? 4), LO.DOOR_COL, LO.DOOR_ROW);
       this.speed = 2.4;
       this.carriedItem = 'paper'; // carries food box
-      this.targetFloor = (LO.GROUND ?? 4);
-      this.targetCol = 2.8;
-      this.targetRow = 2.0;
+      this.targetFloor = 0;
+      this.targetCol = 47;
+      this.targetRow = 26;
       this.state = 'walk';
       this.phase = 'entering'; // 'entering' | 'delivering' | 'leaving'
       this.waitTimer = 0;
@@ -1199,7 +1282,7 @@
         if (this.waitTimer <= 0) {
           this.phase = 'leaving';
           this.carriedItem = null;
-          this.targetFloor = (LO.GROUND ?? 4);
+          this.targetFloor = 0;
           this.targetCol = LO.DOOR_COL;
           this.targetRow = LO.DOOR_ROW;
           this.setBubble('Selamat menikmati semuanya! 👋', 3.0);
@@ -1211,13 +1294,13 @@
       if (this.phase === 'entering') {
         this.phase = 'delivering';
         this.waitTimer = 4.0;
-        this.facing = 'NW';
+        this.facing = 'N';
         this.setEmote('🍕', 3.5);
         this.setBubble('Martabak manis spesial siap di pantry! 🍕✨', 4.0);
         const office = window.LO?.office;
         if (office) {
           office.pizzaEventTimer = 25.0; // box stays for 25s
-          const pantryStaff = [office.lami, ...office.residents, ...office.subagents.values()].filter((c) => c && c.floor === (LO.GROUND ?? 4));
+          const pantryStaff = [office.lami, ...office.residents, ...office.subagents.values()].filter((c) => c && Math.hypot(c.col - 47, c.row - 26) < 6);
           for (const s of pantryStaff) {
             s.setBubble('Wah mantap, makasih bang! 🎉', 3.0);
             s.setEmote('❤️', 2.5);

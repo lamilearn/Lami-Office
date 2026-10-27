@@ -525,3 +525,73 @@ describe('Tier 1 — Feature 12: Server Endpoints & Smoke Probes', () => {
     assert.strictEqual(typeof sampleAgents.total, 'number');
   });
 });
+
+describe('Tier 1 — Feature 7b: Live Map Path Integrity', () => {
+  const HOME = { rina: [24, 8], dodo: [6, 22], sekar: [29, 23], bima: [48, 11], lami: [11, 5] };
+  const OWNER = {
+    corkboard: 'rina', stretch: 'rina', reading: 'rina', coffee_pantry: 'rina', consult_boss: 'rina',
+    server_mini: 'dodo', arch_board: 'dodo', peer_review: 'dodo', pantry_snack: 'dodo',
+    agenda_board: 'sekar', podium: 'sekar', report_boss: 'sekar', lounge_relax: 'sekar',
+    patrol_rack_a: 'bima', patrol_rack_b: 'bima', cables_patch: 'bima', coffee_break: 'bima',
+    window: 'lami', bonsai: 'lami', balcony: 'lami', pantry_visit: 'lami'
+  };
+
+  function liveMap() {
+    const env = createBrowserEnvironment();
+    const LO = loadScriptIntoEnv(env, 'config.js');
+    loadScriptIntoEnv(env, 'office.js');
+    const grid = LO.Office.prototype.buildCollisionGrid.call({
+      getFurnitureObstacles: LO.Office.prototype.getFurnitureObstacles
+    });
+    return { LO, grid };
+  }
+
+  function assertCleanPath(LO, grid, path) {
+    assert.ok(path && path.length > 1, 'Path must contain a route');
+    for (const step of path) {
+      assert.strictEqual(grid[step.y][step.x], 0, `Waypoint (${step.x},${step.y}) must be walkable`);
+    }
+    for (let i = 1; i < path.length; i++) {
+      const a = path[i - 1], b = path[i];
+      assert.ok(a.x === b.x || a.y === b.y, 'Every segment must be strictly orthogonal');
+    }
+  }
+
+  it('F7b.1: Routed path is orthogonal, walkable and collinear-compressed', () => {
+    const { LO, grid } = liveMap();
+    const path = LO.findOrthogonalPath({ x: 1, y: 16 }, { x: 44, y: 24 }, grid);
+    assertCleanPath(LO, grid, path);
+    assert.ok(path.length < 20, `Compressed path should be a few runs, got ${path.length} waypoints`);
+    const end = path[path.length - 1];
+    assert.strictEqual(end.x, 44);
+    assert.strictEqual(end.y, 24);
+  });
+
+  it('F7b.2: A goal inside furniture snaps to the nearest walkable tile instead of failing', () => {
+    const { LO, grid } = liveMap();
+    // (11,6) is the executive desk tile.
+    assert.strictEqual(grid[6][11], 1, 'Executive desk tile must be solid');
+    const path = LO.findOrthogonalPath({ x: 11, y: 9 }, { x: 11, y: 6 }, grid);
+    assertCleanPath(LO, grid, path);
+    const end = path[path.length - 1];
+    assert.ok(Math.abs(end.x - 11) + Math.abs(end.y - 6) <= 2, 'Goal must snap to an adjacent tile');
+  });
+
+  it('F7b.3: Every resident boss routine destination is reachable from its home desk', () => {
+    const { LO, grid } = liveMap();
+    const agentsSrc = fs.readFileSync(
+      path.resolve(__dirname, '..', '..', 'services', 'lami-office-react', 'web', 'js', 'agents.js'), 'utf8');
+    let checked = 0;
+    for (const [id, owner] of Object.entries(OWNER)) {
+      const m = new RegExp(`id: '${id}',[\\s\\S]{0,260}?col: ([\\d.]+),\\s*row: ([\\d.]+),\\s*facing: '([^']*)'`).exec(agentsSrc);
+      assert.ok(m, `Routine ${id} must exist with col/row/facing`);
+      const x = Number(m[1]), y = Number(m[2]);
+      assert.ok(['N', 'S', 'E', 'W'].includes(m[3]), `Routine ${id} must use a cardinal facing`);
+      const [hx, hy] = HOME[owner];
+      const pathLive = LO.findOrthogonalPath({ x: hx, y: hy }, { x, y }, grid);
+      assert.ok(pathLive, `Routine ${id} target (${x},${y}) must be reachable from ${owner}'s desk`);
+      checked++;
+    }
+    assert.strictEqual(checked, 21, 'All 21 routines must be verified');
+  });
+});

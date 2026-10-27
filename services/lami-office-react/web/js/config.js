@@ -53,6 +53,129 @@
     };
   };
 
+  // ---- 2D Orthogonal Pathfinding (A* / Manhattan heuristic) ----
+  // Returns the nearest walkable tile to (x, y) or null when none exists.
+  LO.nearestWalkable = function (x, y, collisionGrid, maxRadius = 8) {
+    if (!collisionGrid) return null;
+    const rows = collisionGrid.length;
+    const cols = collisionGrid[0].length;
+    const cx = Math.round(x);
+    const cy = Math.round(y);
+    if (cx >= 0 && cx < cols && cy >= 0 && cy < rows && collisionGrid[cy][cx] === 0) {
+      return { x: cx, y: cy };
+    }
+    for (let r = 1; r <= maxRadius; r++) {
+      let best = null;
+      let bestDist = Infinity;
+      for (let oy = -r; oy <= r; oy++) {
+        for (let ox = -r; ox <= r; ox++) {
+          if (Math.max(Math.abs(ox), Math.abs(oy)) !== r) continue;
+          const nx = cx + ox;
+          const ny = cy + oy;
+          if (nx < 0 || nx >= cols || ny < 0 || ny >= rows) continue;
+          if (collisionGrid[ny][nx] !== 0) continue;
+          const d = Math.hypot(ox, oy);
+          if (d < bestDist) { bestDist = d; best = { x: nx, y: ny }; }
+        }
+      }
+      if (best) return best;
+    }
+    return null;
+  };
+
+  // Collapse collinear waypoints so a walk is a few straight runs instead of
+  // one tiny hop per tile (prevents the "stuttering robot" look).
+  LO.compressPath = function (path) {
+    if (!path || path.length <= 2) return path;
+    const out = [path[0]];
+    for (let i = 1; i < path.length - 1; i++) {
+      const a = path[i - 1];
+      const b = path[i];
+      const c = path[i + 1];
+      const inDx = b.x - a.x, inDy = b.y - a.y;
+      const outDx = c.x - b.x, outDy = c.y - b.y;
+      if (inDx !== outDx || inDy !== outDy) out.push(b);
+    }
+    out.push(path[path.length - 1]);
+    return out;
+  };
+
+  LO.findOrthogonalPath = function (start, goal, collisionGrid) {
+    if (!collisionGrid) return null;
+    const rows = collisionGrid.length;
+    const cols = collisionGrid[0].length;
+
+    // Snap both ends to the closest walkable tile (never path through a wall).
+    const s = LO.nearestWalkable(start.x, start.y, collisionGrid);
+    const g = LO.nearestWalkable(goal.x, goal.y, collisionGrid);
+    if (!s || !g) return null;
+    if (s.x === g.x && s.y === g.y) return [s];
+
+    const DIRS = [
+      { dx: 0, dy: -1 }, // N
+      { dx: 0, dy: 1 },  // S
+      { dx: 1, dy: 0 },  // E
+      { dx: -1, dy: 0 }  // W
+    ];
+    const TURN_COST = 0.6; // strongly prefer long straight runs over stair-steps
+    const stateKey = (x, y, d) => ((y * cols + x) * 5) + d; // 5th slot = start state
+    const heur = (x, y) => Math.abs(x - g.x) + Math.abs(y - g.y);
+    const total = rows * cols * 5;
+    const gScore = new Float32Array(total).fill(Infinity);
+    const cameFrom = new Int32Array(total).fill(-1);
+    const closed = new Uint8Array(total);
+
+    // dir 4 = "no previous direction" (start state)
+    const startKey = stateKey(s.x, s.y, 4);
+    gScore[startKey] = 0;
+    const open = [{ x: s.x, y: s.y, d: 4, g: 0, f: heur(s.x, s.y), h: heur(s.x, s.y) }];
+
+    while (open.length > 0) {
+      let best = 0;
+      for (let i = 1; i < open.length; i++) {
+        if (open[i].f < open[best].f ||
+            (open[i].f === open[best].f && open[i].h < open[best].h)) best = i;
+      }
+      const cur = open.splice(best, 1)[0];
+      const ck = stateKey(cur.x, cur.y, cur.d);
+      if (closed[ck]) continue;
+      closed[ck] = 1;
+
+      if (cur.x === g.x && cur.y === g.y) {
+        const path = [];
+        let node = ck;
+        while (node !== -1) {
+          const cell = Math.floor(node / 5);
+          path.push({ x: cell % cols, y: Math.floor(cell / cols) });
+          node = cameFrom[node];
+        }
+        path.reverse();
+        // Drop duplicate coordinates created by the direction dimension.
+        const unique = path.filter((p, i) => i === 0 || p.x !== path[i - 1].x || p.y !== path[i - 1].y);
+        return LO.compressPath(unique);
+      }
+
+      for (let d = 0; d < 4; d++) {
+        const nx = cur.x + DIRS[d].dx;
+        const ny = cur.y + DIRS[d].dy;
+        if (nx < 0 || nx >= cols || ny < 0 || ny >= rows) continue;
+        if (collisionGrid[ny][nx] !== 0) continue;
+        const nk = stateKey(nx, ny, d);
+        if (closed[nk]) continue;
+        const turn = (cur.d !== 4 && cur.d !== d) ? TURN_COST : 0;
+        const tentative = cur.g + 1 + turn;
+        if (tentative < gScore[nk]) {
+          gScore[nk] = tentative;
+          cameFrom[nk] = ck;
+          const h = heur(nx, ny);
+          open.push({ x: nx, y: ny, d, g: tentative, f: tentative + h, h });
+        }
+      }
+    }
+
+    return null;
+  };
+
   // ---- Themed 2D Office Rooms (Contiguous Single Floorplan) ----
   LO.ROOMS = {
     boss: {

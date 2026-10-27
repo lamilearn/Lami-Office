@@ -223,6 +223,30 @@
       }
     }
 
+    // ---- 2D Orthogonal Pathfinding Method ----
+    findPath(start, goal, customGrid = null) {
+      const grid = customGrid || this.collisionGrid;
+      if (!grid) return null;
+
+      const cols = LO.GRID_COLS || 64;
+      const rows = LO.GRID_ROWS || 36;
+      const startX = start.x !== undefined ? start.x : start.col;
+      const startY = start.y !== undefined ? start.y : start.row;
+      const goalX = goal.x !== undefined ? goal.x : goal.col;
+      const goalY = goal.y !== undefined ? goal.y : goal.row;
+
+      // Clip to map bounds; LO.findOrthogonalPath snaps both ends to the
+      // nearest walkable tile so a furniture overlap never breaks a walk.
+      const sx = Math.max(0, Math.min(cols - 1, Math.round(startX)));
+      const sy = Math.max(0, Math.min(rows - 1, Math.round(startY)));
+      const gx = Math.max(0, Math.min(cols - 1, Math.round(goalX)));
+      const gy = Math.max(0, Math.min(rows - 1, Math.round(goalY)));
+
+      return LO.findOrthogonalPath
+        ? LO.findOrthogonalPath({ x: sx, y: sy }, { x: gx, y: gy }, grid)
+        : null;
+    }
+
     initSlots() {
       for (const roomId in LO.SLOTS) {
         if (Array.isArray(LO.SLOTS[roomId])) {
@@ -427,21 +451,29 @@
 
       const ok = data.ok !== false;
       if (ok) {
-        agent.reportToLami();
+        agent.reportToLami(this);
         LO.ui.addTicker('🎉', `<b>${agent.name}</b> selesai tugas! Lapor ke Boss Lami.`);
         LO.ui.appendChatMessage(agent.name, agent.role || 'Staff', `Lapor Boss Lami, tugas telah selesai dengan baik! 🎉`, '✅', '#2ecc71');
         LO.ui.recordDone(true);
-        setTimeout(() => {
-          agent.deliverReport(this.lami);
+
+        // Despawn only after the report is delivered and the agent has walked
+        // back to the pantry (never delete someone mid-corridor).
+        const started = Date.now();
+        const cleanup = () => {
+          const stillWalking = agent.path && agent.path.length > 0;
+          const inPantry = agent.assignedSlot && agent.assignedSlot.roomId === 'pantry' && !stillWalking;
+          if (!inPantry && Date.now() - started < 90000) {
+            setTimeout(cleanup, 500);
+            return;
+          }
           setTimeout(() => {
-            this.assignToSlot(agent, 'pantry');
-            setTimeout(() => {
-              this.freeSlot(agent);
-              this.subagents.delete(aid);
-              LO.ui.updateStaffCount(this.subagents.size);
-            }, 6000);
-          }, 3500);
-        }, 3000);
+            if (!this.subagents.has(aid)) return;
+            this.freeSlot(agent);
+            this.subagents.delete(aid);
+            LO.ui.updateStaffCount(this.subagents.size);
+          }, 1500);
+        };
+        setTimeout(cleanup, 2500);
       } else {
         agent.setEmote('💦', 3.0);
         this.lami.panic();
