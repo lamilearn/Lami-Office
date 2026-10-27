@@ -32,7 +32,7 @@ Unified workspace & monorepo containing services for **AI Office** and **Lami Of
   - Project name: `office-prod`
   - Mode: `live`
 - **Development / Staging (`.env.development`)**:
-  - Ports: 18088 (`ai-office`), 18090 (`lami-office-react`)
+  - Ports: 18088 (`ai-office`), 13579 (`lami-office-react`)
   - Project name: `office-dev`
   - Mode: `demo`
 
@@ -44,7 +44,7 @@ To run services with Docker Compose:
 # Production environment (standard ports 8088/8090)
 docker compose --env-file .env.production up -d --build
 
-# Development environment (isolated ports 18088/18090)
+# Development environment (isolated ports 18088/13579)
 docker compose --env-file .env.development up -d --build
 ```
 
