@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Lami's AI Office — Kantor AI Pixel Live</title>
+  <meta name="description" content="Kantor AI bergaya pixel art: Boss Lami dan para sub-agent bekerja real-time mengikuti aktivitas Hermes Agent.">
+  <meta name="theme-color" content="#ffb3c7">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏢</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <main id="stage" aria-label="Lami's AI Office">
+    <h1 class="sr-only">Lami's AI Office</h1>
+    <canvas id="office" aria-label="Animasi kantor AI"></canvas>
+
+    <header id="hud">
+      <div class="hud-brand">
+        <span class="hud-logo">👑</span>
+        <span class="hud-title">LAMI CORP</span>
+        <span id="hud-status" class="hud-pill status-live"><i></i><b>LIVE</b></span>
+      </div>
+      <div class="hud-stats">
+        <div class="hud-chip" title="Jam"><span>🕒</span><b id="hud-clock">--:--</b></div>
+        <div class="hud-chip" title="Task selesai hari ini"><span>✅</span><b id="hud-done">0</b></div>
+        <div class="hud-chip coin" title="Koin"><span>🪙</span><b id="hud-coins">0</b></div>
+        <div class="hud-chip" title="Karyawan aktif"><span>👥</span><b id="hud-staff">0</b></div>
+        <div id="hud-ctx-chip" class="hud-chip pointer" title="Context Window (Klik detail)"><span>🗑️</span><b id="hud-ctx-val">42%</b></div>
+        <button id="btn-wb" class="hud-btn" title="Buka Whiteboard Rapat (2F)" aria-label="Whiteboard">📋</button>
+        <button id="btn-time" class="hud-btn" title="Ganti Waktu (Siang / Sore / Malam)" aria-label="Ganti Waktu">☀️</button>
+        <button id="btn-chat" class="hud-btn" title="Buka Chat Kantor (Slack Mode)" aria-label="Buka Chat">💬</button>
+        <button id="btn-sound" class="hud-btn" title="Suara on/off" aria-label="Suara on/off">🔇</button>
+      </div>
+    </header>
+
+    <section id="ticker" aria-live="polite" aria-label="Aktivitas terbaru">
+      <ul id="ticker-list"></ul>
+    </section>
+
+    <div id="card" class="card hidden" role="dialog" aria-label="Info karyawan">
+      <button id="card-close" class="card-close" aria-label="Tutup">✕</button>
+      <div class="card-head">
+        <canvas id="card-avatar" width="20" height="20"></canvas>
+        <div>
+          <div id="card-name" class="card-name">-</div>
+          <div id="card-role" class="card-role">-</div>
+        </div>
+      </div>
+      <dl class="card-body">
+        <dt>Tugas</dt><dd id="card-task">-</dd>
+        <dt>Lagi ngapain</dt><dd id="card-tool">-</dd>
+        <dt>Ruangan</dt><dd id="card-room">-</dd>
+        <dt>Durasi</dt><dd id="card-time">-</dd>
+      </dl>
+    </div>
+
+    <!-- Slack-style Office Chat Drawer (Claude-Office reference) -->
+    <aside id="chat-drawer" class="chat-drawer hidden" aria-label="Obrolan Kantor Slack">
+      <div class="chat-head">
+        <div class="chat-head-title">
+          <span class="chat-hash">#</span>
+          <b>general-kantor</b>
+          <span class="chat-online-badge">● live</span>
+        </div>
+        <div class="chat-head-actions">
+          <button id="chat-clear-btn" class="chat-icon-btn" title="Bersihkan riwayat chat">🧹</button>
+          <button id="chat-close" class="chat-close-btn" aria-label="Tutup Chat">✕</button>
+        </div>
+      </div>
+      <div id="chat-messages" class="chat-messages">
+        <!-- Messages appended here -->
+      </div>
+      <form id="chat-form" class="chat-input-bar">
+        <input type="text" id="chat-input" placeholder="Tulis pesan atau /help..." autocomplete="off">
+        <button type="submit" id="chat-send">Kirim</button>
+      </form>
+    </aside>
+
+    <!-- Random Event Banner (Claude-Office reference) -->
+    <div id="event-banner" class="event-banner hidden">
+      <span id="event-icon">🍕</span>
+      <div class="event-content">
+        <b id="event-title">EVENT KANTOR</b>
+        <p id="event-desc">Traktir Martabak Manis!</p>
+      </div>
+    </div>
+
+    <!-- Whiteboard Modal (Claude-Office reference) -->
+    <div id="whiteboard-modal" class="modal hidden" role="dialog" aria-label="Whiteboard Meeting Room">
+      <div class="modal-card">
+        <div class="modal-head">
+          <div class="modal-title">
+            <span>📋</span>
+            <b>WHITEBOARD RUANG RAPAT (2F)</b>
+          </div>
+          <button id="wb-close" class="modal-close" aria-label="Tutup">✕</button>
+        </div>
+        <div class="modal-tabs">
+          <button class="wb-tab-btn active" data-tab="tasks">📋 Tasks</button>
+          <button class="wb-tab-btn" data-tab="tools">📊 Tools</button>
+          <button class="wb-tab-btn" data-tab="team">👥 Tim</button>
+        </div>
+        <div class="modal-body">
+          <div id="wb-tab-tasks" class="wb-tab-content active">
+            <ul class="wb-task-list">
+              <li><span class="badge-done">✅ Selesai</span> Analisis arsitektur kodingan & modularisasi file</li>
+              <li><span class="badge-done">✅ Selesai</span> Integrasi live watcher real-time Antigravity</li>
+              <li><span class="badge-active">⚡ Berjalan</span> Render Pixel Art Whiteboard & Trashcan Context</li>
+              <li><span class="badge-pending">⏳ Antrean</span> Scranton Dunder Mifflin Easter Egg</li>
+            </ul>
+          </div>
+          <div id="wb-tab-tools" class="wb-tab-content">
+            <div class="wb-chart-row">
+              <span>Terminal & Koding</span>
+              <div class="wb-bar-bg"><div class="wb-bar-fill fill-green" style="width: 75%"></div></div>
+              <b>75%</b>
+            </div>
+            <div class="wb-chart-row">
+              <span>Web & File Research</span>
+              <div class="wb-bar-bg"><div class="wb-bar-fill fill-blue" style="width: 60%"></div></div>
+              <b>60%</b>
+            </div>
+            <div class="wb-chart-row">
+              <span>Planning & Delegasi</span>
+              <div class="wb-bar-bg"><div class="wb-bar-fill fill-yellow" style="width: 45%"></div></div>
+              <b>45%</b>
+            </div>
+            <div class="wb-chart-row">
+              <span>Server Inference Ops</span>
+              <div class="wb-bar-bg"><div class="wb-bar-fill fill-purple" style="width: 85%"></div></div>
+              <b>85%</b>
+            </div>
+          </div>
+          <div id="wb-tab-team" class="wb-tab-content">
+            <div class="wb-org-grid">
+              <div class="wb-org-card"><b>👑 Boss Lami</b><small>CEO & Master AI</small></div>
+              <div class="wb-org-card"><b>🔍 Rina</b><small>Kepala Riset (4F)</small></div>
+              <div class="wb-org-card"><b>💻 Dodo</b><small>Senior Coder (3F)</small></div>
+              <div class="wb-org-card"><b>📋 Sekar</b><small>Sekretaris (2F)</small></div>
+              <div class="wb-org-card"><b>🖥️ Bima</b><small>Admin Server (B1)</small></div>
+              <div class="wb-org-card"><b>🐱 Mochi</b><small>Maskot Kantor (1F)</small></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Context Window Trashcan Modal (Claude-Office reference) -->
+    <div id="context-modal" class="modal hidden" role="dialog" aria-label="Context Window Trashcan">
+      <div class="modal-card">
+        <div class="modal-head">
+          <div class="modal-title">
+            <span>🗑️</span>
+            <b>CONTEXT WINDOW USAGE</b>
+          </div>
+          <button id="ctx-close" class="modal-close" aria-label="Tutup">✕</button>
+        </div>
+        <div class="modal-body ctx-body">
+          <div class="ctx-meter-box">
+            <div class="ctx-meter-label">
+              <span>Estimasi Token & Konteks</span>
+              <b id="ctx-pct-text">42% Terisi</b>
+            </div>
+            <div class="ctx-gauge-bg">
+              <div id="ctx-gauge-bar" class="ctx-gauge-fill" style="width: 42%"></div>
+            </div>
+          </div>
+          <div class="ctx-stats-grid">
+            <div class="ctx-stat-item"><small>Tokens Terpakai</small><b id="ctx-used-val">84,200</b></div>
+            <div class="ctx-stat-item"><small>Kapasitas Window</small><b>200,000</b></div>
+            <div class="ctx-stat-item"><small>Status Tong Sampah</small><b id="ctx-status-text">🟢 Aman</b></div>
+          </div>
+          <p class="ctx-hint">💡 <i>Tong sampah di Ruang Boss (Top Floor) akan terisi kertas kusut dan meluber jika context window hampir penuh!</i></p>
+        </div>
+      </div>
+    </div>
+
+    <div id="loading">
+      <div class="loading-box">
+        <div class="loading-logo">👑</div>
+        <div class="loading-text">Membuka kantor Lami…</div>
+        <div class="loading-bar"><i></i></div>
+      </div>
+    </div>
+  </main>
+
+  <script src="js/config.js"></script>
+  <script src="js/sprites.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/world.js"></script>
+  <script src="js/agents.js"></script>
+  <script src="js/office.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/demo.js"></script>
+  <script src="js/net.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

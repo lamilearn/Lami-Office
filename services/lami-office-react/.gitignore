@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+
+# Credentials & secrets
+*.json.bak
+*.key
+*.pem
+credentials.json
+.cloudflared/
+
+# Logs & temp
+*.log
+.DS_Store
+Thumbs.db

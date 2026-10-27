@@ -1,0 +1,10 @@
+# Konfigurasi Cloudflare Tunnel untuk office.fatihrumi.id di Linux VPS
+# Ganti <TUNNEL_ID> dengan UUID tunnel kamu setelah menjalankan `cloudflared tunnel create lami-office`
+tunnel: lami-office
+credentials-file: /root/.cloudflared/<TUNNEL_ID>.json
+# (Jika menggunakan user non-root, gunakan: /home/<user>/.cloudflared/<TUNNEL_ID>.json)
+
+ingress:
+  - hostname: office.fatihrumi.id
+    service: http://localhost:8090
+  - service: http_status:404

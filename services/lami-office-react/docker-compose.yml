@@ -1,0 +1,17 @@
+services:
+  lami-office:
+    build: .
+    container_name: lami-office
+    networks:
+      - lami-office-net
+    ports:
+      - "8090:8090"
+    restart: unless-stopped
+    environment:
+      - HOST=0.0.0.0
+    volumes:
+      - ~/.hermes:/root/.hermes:ro
+networks:
+  lami-office-net:
+    external: true
+    name: lami-office_default

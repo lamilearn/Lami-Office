@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lami's Office</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.11.3/p5.min.js"></script>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{width:100%;height:100%;overflow:hidden;background:#1a0f2e;font-family:'Inter',sans-serif}
+    canvas{display:block}
+    /* HUD panels */
+    #hud{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10}
+    .panel{
+      position:absolute;background:rgba(255,255,255,0.93);
+      backdrop-filter:blur(16px);border-radius:16px;
+      box-shadow:0 4px 28px rgba(100,60,200,0.13);
+      border:1px solid rgba(180,140,255,0.22)
+    }
+    #pl{top:18px;left:18px;padding:14px 16px;min-width:188px}
+    #pl h2{font-size:12.5px;font-weight:600;color:#3d2b6e;letter-spacing:.03em;
+           margin-bottom:10px;display:flex;align-items:center;gap:6px}
+    .sr{display:flex;justify-content:space-between;align-items:center;
+        padding:3.5px 0;font-size:11px;color:#7a6a9a;
+        border-bottom:1px solid rgba(160,120,240,.07)}
+    .sr:last-child{border:none}
+    .sv{font-weight:600;color:#3d2b6e;font-size:11.5px}
+    #pr{top:18px;right:18px;padding:14px 16px;text-align:right}
+    #ck{font-size:26px;font-weight:600;color:#3d2b6e;letter-spacing:-.02em;line-height:1}
+    #dt{font-size:10.5px;color:#a090c0;margin-top:3px}
+    #dy{font-size:10.5px;color:#a090c0;margin-top:1px}
+    .badge{display:inline-flex;align-items:center;gap:4px;
+           background:rgba(168,85,247,.1);border:1px solid rgba(168,85,247,.25);
+           border-radius:6px;padding:2px 8px;font-size:10px;font-weight:500;
+           color:#7c3aed;margin-top:8px}
+    .dot{width:7px;height:7px;border-radius:50%;display:inline-block}
+    .dp{background:#a855f7;box-shadow:0 0 6px #a855f7}
+    .dg{background:#22c55e;box-shadow:0 0 4px #22c55e}
+    .dr{background:#ef4444;box-shadow:0 0 4px #ef4444}
+    #ft{position:absolute;bottom:13px;left:50%;transform:translateX(-50%);
+        background:rgba(255,255,255,.75);backdrop-filter:blur(8px);
+        border-radius:20px;padding:5px 18px;font-size:10px;color:#a090c0;
+        border:1px solid rgba(180,140,255,.15);white-space:nowrap;pointer-events:none}
+    /* loader */
+    #ld{position:fixed;inset:0;background:linear-gradient(135deg,#1a0f2e,#2d1b4e);
+        display:flex;flex-direction:column;align-items:center;justify-content:center;
+        z-index:99;transition:opacity .55s ease}
+    #ld.out{opacity:0;pointer-events:none}
+    .orb{width:52px;height:52px;border-radius:50%;
+         background:linear-gradient(135deg,#a855f7,#7c3aed);
+         box-shadow:0 0 36px rgba(168,85,247,.65);
+         animation:pulse 1.4s ease-in-out infinite}
+    .ltx{margin-top:14px;color:rgba(255,255,255,.65);font-size:13px;letter-spacing:.06em}
+    @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
+  </style>
+</head>
+<body>
+<div id="ld"><div class="orb"></div><div class="ltx">Loading Lami's Office…</div></div>
+
+<div id="hud">
+  <div class="panel" id="pl">
+    <h2><span class="dot dp"></span>Lami's Office</h2>
+    <div class="sr"><span>Agents</span><span class="sv" id="sa">—</span></div>
+    <div class="sr"><span>Offline</span><span class="sv" id="so">—</span></div>
+    <div class="sr"><span>Bekerja</span><span class="sv" id="sw">—</span></div>
+    <div class="sr"><span>Rapat</span><span class="sv" id="sm">—</span></div>
+    <div class="sr"><span>Ngopi</span><span class="sv" id="sb">—</span></div>
+    <div class="sr"><span>Load</span><span class="sv" id="sl">—</span></div>
+    <div class="sr"><span>Memory</span><span class="sv" id="smm">—</span></div>
+    <div class="sr"><span>Status</span><span class="sv" id="sws">—</span></div>
+  </div>
+  <div class="panel" id="pr">
+    <div id="ck">--:--</div>
+    <div id="dt">—</div>
+    <div id="dy">—</div>
+    <div class="badge"><span class="dot dp" style="width:6px;height:6px;margin-right:2px"></span>Live</div>
+  </div>
+  <div id="ft">Space = pause &nbsp;·&nbsp; R = reset</div>
+</div>
+
+<script>
+p5.disableFriendlyErrors = true;
+
+// ── TOKENS ───────────────────────────────────
+const BGA=[26,15,46], BGB=[48,28,85];
+const FLOOR=[255,248,244], TILE_A=[255,236,226], TILE_B=[255,248,244];
+const MEET_FILL=[255,232,245], MEET_BRD=[215,155,190];
+const DESK_SURF=[232,212,255], DESK_EDGE=[255,255,255];
+const BOSS_SURF=[192,132,252], LAMI_COL=[168,85,247], LAMI_GOLD=[255,213,74];
+const TXT_M=[156,138,184], TXT_B=[61,43,110];
+const AGENT_COLS=[
+  [255,143,163],[255,201,107],[126,215,168],[131,184,255],
+  [215,161,255],[105,210,231],[255,163,107],[181,161,255],
+  [255,179,122],[168,230,207]
+];
+const SLIDES=[
+  {t:'Q3 2026 📈',l:['Revenue +42%','Users +18k','Churn −3%']},
+  {t:'Roadmap 🗺',l:['v2.0 Launch','AI features','Scale infra']},
+  {t:'Demo 🔥',l:['Realtime','Edge deploy','Zero latency']},
+];
+const AI_SAY=['ready ✓','shipped!','on it','lgtm!','done','running','ping!','all good','debug','pushed!'];
+const ST={W:'w',WK:'wk',M:'m',B:'b'};
+
+// ── GLOBALS ──────────────────────────────────
+let CHARS=[], DESKS=[], MSPOTS=[], MEET_ZONE={}, COFFEE={}, BOSS_DESK={};
+let BUBBLES=[], slideIdx=0, slideT=0;
+let wsConn=null, connected=false;
+let sysStat={load:'—',mem:0};
+let layoutDone=false, dataDone=false;
+
+// ── HUD helpers ──────────────────────────────
+function hud(id,v){ const el=document.getElementById(id); if(el) el.innerHTML=v; }
+function updateHUD(){
+  hud('sa', CHARS.filter(c=>!c.boss&&c.online).length);
+  hud('so', CHARS.filter(c=>!c.boss&&!c.online).length);
+  hud('sw', CHARS.filter(c=>!c.boss&&c.st===ST.W).length);
+  hud('sm', CHARS.filter(c=>c.st===ST.M).length);
+  hud('sb', CHARS.filter(c=>c.st===ST.B).length);
+  hud('sl', sysStat.load);
+  hud('smm',sysStat.mem+'%');
+  hud('sws',connected
+    ? '<span class="dot dg" style="width:6px;height:6px;vertical-align:middle;margin-right:3px"></span>Online'
+    : '<span class="dot dr" style="width:6px;height:6px;vertical-align:middle;margin-right:3px"></span>Off');
+  const n=new Date();
+  hud('ck',n.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}));
+  hud('dt',n.toLocaleDateString('id-ID',{day:'numeric',month:'short',year:'numeric'}));
+  hud('dy',n.toLocaleDateString('id-ID',{weekday:'long'}));
+}
+setInterval(updateHUD,1000);
+
+// ── BUBBLE ───────────────────────────────────
+class Bubble{
+  constructor(x,y,msg,rgb){
+    this.x=x; this.y=y; this.msg=msg; this.rgb=rgb;
+    this.life=1; this.vy=-0.42; this.w=max(msg.length*6+22,42);
+  }
+  tick(dt){ this.life-=dt*0.28; this.y+=this.vy; }
+  show(){
+    if(this.life<=0) return;
+    const a=min(this.life*1.8,1);
+    noStroke(); fill(255,255,255,a*215);
+    rect(this.x-this.w/2, this.y-14, this.w, 18, 9);
+    stroke(this.rgb[0],this.rgb[1],this.rgb[2],a*100);
+    strokeWeight(1); noFill();
+    rect(this.x-this.w/2, this.y-14, this.w, 18, 9);
+    noStroke(); fill(255,255,255,a*215);
+    triangle(this.x-4,this.y+4, this.x+4,this.y+4, this.x,this.y+11);
+    fill(TXT_B[0],TXT_B[1],TXT_B[2],a*230);
+    noStroke(); textAlign(CENTER); textSize(10);
+    text(this.msg, this.x, this.y-1);
+  }
+  dead(){ return this.life<=0; }
+}
+
+// ── CHARACTER ────────────────────────────────
+class Char{
+  constructor(info, desk, idx, isBoss){
+    this.info = info;
+    this.desk = desk;
+    this.idx  = idx;
+    this.boss = isBoss;
+    // position — start at desk directly to avoid off-canvas issue
+    this.x  = desk.x + (isBoss?0:random(-30,30));
+    this.y  = desk.y + 6;
+    this.tx = desk.x;
+    this.ty = desk.y + 6;
+    this.st = ST.W;
+    this.timer  = isBoss ? 9999 : random(3,12);
+    this.speed  = random(1.5, 2.4);
+    this._spot  = null;
+    this.chatT  = random(8,18);
+    this.ph     = random(1000);
+    this.facing = 1;
+    this.moving = false;
+    this.rgb    = isBoss ? LAMI_COL : AGENT_COLS[idx % AGENT_COLS.length];
+    this.label  = isBoss ? 'Lami' : (info.name || info.id || 'Agent');
+    this.icon   = info.icon || '●';
+    this.online = info.status === 'online';
+  }
+
+  sync(d){ this.info=d; this.online=d.status==='online'; }
+
+  tick(dt){
+    if(this.boss) return; // boss is stationary
+    this.timer -= dt;
+    this.chatT -= dt;
+    if(this.chatT<=0 && this.st!==ST.WK){
+      this.chatT = random(8,20);
+      BUBBLES.push(new Bubble(this.x, this.y-64, random(AI_SAY), this.rgb));
+    }
+    if(this.timer<=0){
+      if(this.st===ST.W){
+        const r=Math.random();
+        if(r<0.58){ this.st=ST.W; this.timer=random(8,22); }
+        else if(r<0.77){ this._goMeet(); }
+        else { this._goBreak(); }
+      } else { this._goDesk(); }
+    }
+    const dx=this.tx-this.x, dy=this.ty-this.y, d=Math.sqrt(dx*dx+dy*dy);
+    if(d>3){
+      this.facing = dx>0?1:-1;
+      this.x += (dx/d)*this.speed*dt*60;
+      this.y += (dy/d)*this.speed*dt*60;
+      this.moving = true;
+    } else {
+      this.x=this.tx; this.y=this.ty; this.moving=false;
+    }
+  }
+
+  _goDesk(){
+    if(this._spot){ this._spot.owner=null; this._spot=null; }
+    this.tx=this.desk.x; this.ty=this.desk.y+6;
+    this.st=ST.W; this.timer=random(8,24);
+  }
+  _goMeet(){
+    const free=MSPOTS.filter(s=>!s.owner);
+    if(!free.length){ this._goDesk(); return; }
+    const sp=free[Math.floor(Math.random()*free.length)];
+    sp.owner=this;
+    if(this._spot) this._spot.owner=null;
+    this._spot=sp;
+    this.tx=sp.x; this.ty=sp.y+2;
+    this.st=ST.M; this.timer=random(6,14);
+  }
+  _goBreak(){
+    if(this._spot){ this._spot.owner=null; this._spot=null; }
+    this.tx=COFFEE.x+random(-22,22);
+    this.ty=COFFEE.y+random(-8,8);
+    this.st=ST.B; this.timer=random(4,9);
+  }
+
+  show(){
+    const x=this.x;
+    const bob = this.moving ? Math.sin((frameCount+this.ph)*0.28)*1.3 : 0;
+    const sit = !this.moving && this.st!==ST.B;
+    const y   = this.y + bob*(sit?0:1);
+
+    const [r,g,b] = this.rgb;
+
+    // ground shadow
+    noStroke(); fill(r,g,b,16);
+    ellipse(x, this.y+24, 32,8);
+
+    push(); translate(x,y);
+
+    // LEGS
+    noFill(); strokeCap(ROUND);
+    stroke(r*0.75, g*0.75, b*0.75, 200);
+    strokeWeight(4.5);
+    if(sit){
+      line(0,9, -10,17); line(0,9, 10,17);
+      noStroke(); fill(255,255,255,215);
+      ellipse(-10,18.5, 9,4.5); ellipse(10,18.5, 9,4.5);
+    } else {
+      const p=Math.sin((frameCount+this.ph)*0.3)*6;
+      line(0,9,-5+p*.4,16); line(-5+p*.4,16,-6+p*.7,23);
+      line(0,9, 5-p*.4,16); line( 5-p*.4,16, 6-p*.7,23);
+      noStroke(); fill(255,255,255,215);
+      ellipse(-6+p*.7,24,9,4.5); ellipse(6-p*.7,24,9,4.5);
+    }
+
+    // BODY shadow
+    fill(r*0.7,g*0.7,b*0.7,50); noStroke();
+    if(this.boss) rect(-11,0,22,18,8); else rect(-9,-2,18,18,7);
+    // BODY fill
+    fill(r,g,b); stroke(255,255,255,140); strokeWeight(1.5);
+    if(this.boss){
+      rect(-12,-4,24,19,8);
+      fill(255,255,255,190); noStroke(); rect(-8,2,16,7,4);
+    } else {
+      rect(-9,-3,18,18,7);
+      noStroke();
+      fill(this.online ? color(34,197,94) : color(239,68,68));
+      circle(7,0,5.5);
+    }
+
+    // ARMS
+    noFill(); stroke(r*0.8,g*0.8,b*0.8,190); strokeWeight(3.5); strokeCap(ROUND);
+    const ab=this.moving?Math.sin((frameCount+this.ph)*0.3+PI)*3:0;
+    line(-9,-1,-15,5+ab); line(9,-1,15,5-ab);
+
+    // HEAD
+    const HR=15, HY=-18;
+    fill(r*0.85,g*0.85,b*0.85,50); noStroke(); circle(0.5,HY+1.5,HR*2);
+    fill(this.boss?color(220,190,255):color(250,228,238));
+    stroke(255,255,255,150); strokeWeight(1.5);
+    circle(0,HY,HR*2);
+
+    // antenna for service agents
+    if(!this.boss && this.info.type==='service'){
+      const gl=Math.sin(frameCount*.09+this.idx)*.35+.65;
+      stroke(r,g,b,160); strokeWeight(1.8); noFill();
+      line(0,HY-HR,0,HY-HR-9);
+      noStroke(); fill(r,g,b,gl*160); circle(0,HY-HR-11,gl*7+3);
+      fill(255,255,255,gl*200); circle(-0.8,HY-HR-12,2.2);
+    }
+
+    // crown
+    if(this.boss){
+      noFill(); stroke(LAMI_GOLD[0],LAMI_GOLD[1],LAMI_GOLD[2],60);
+      strokeWeight(2); circle(0,HY,HR*2+10);
+      fill(LAMI_GOLD[0],LAMI_GOLD[1],LAMI_GOLD[2]); noStroke();
+      beginShape();
+        vertex(-HR*.75,HY-HR*.82); vertex(-HR*.75,HY-HR*1.65);
+        vertex(-HR*.22,HY-HR*1.05); vertex(0,HY-HR*1.88);
+        vertex( HR*.22,HY-HR*1.05); vertex( HR*.75,HY-HR*1.65);
+        vertex( HR*.75,HY-HR*.82);
+      endShape(CLOSE);
+      fill(255,235,100); noStroke();
+      circle(-HR*.5,HY-HR*1.42,4); circle(0,HY-HR*1.68,4); circle(HR*.5,HY-HR*1.42,4);
+    }
+
+    // FACE
+    noStroke();
+    const EY=HY-2;
+    fill(55,35,25); ellipse(-5,EY,5,5.8); ellipse(5,EY,5,5.8);
+    fill(255); ellipse(-4,EY-1.4,2.2,2.2); ellipse(6,EY-1.4,2.2,2.2);
+    fill(255,140,140,80); ellipse(-9,EY+5,4.5,2.5); ellipse(9,EY+5,4.5,2.5);
+    noFill(); stroke(120,60,40); strokeWeight(1.3); strokeCap(ROUND);
+    if(this.st===ST.B||this.st===ST.M){ arc(0,EY+6,5.5,3.5,0,PI); }
+    else if(this.moving){ arc(0,EY+6,4.5,3,0,PI); }
+    else { line(-2.5,EY+6,2.5,EY+6); }
+
+    // icon badge
+    if(!this.boss && this.info.type==='service'){
+      noStroke(); fill(255,255,255,90); ellipse(0,-38,22,15);
+      textAlign(CENTER); textSize(11); fill(80,60,110); noStroke();
+      text(this.icon,0,-34);
+    }
+
+    // state emoji
+    noStroke(); textAlign(CENTER); textSize(12);
+    if(this.st===ST.B) text('☕',0,HY-HR-18);
+    else if(this.st===ST.M) text('💬',0,HY-HR-18);
+    else if(this.boss){
+      const gl=Math.sin(frameCount*.07)*.4+.6;
+      fill(255,220,80,gl*180); textSize(13); text('✨',0,HY-HR-18);
+    }
+
+    // name
+    noStroke(); textAlign(CENTER);
+    if(this.boss){
+      fill(100,60,180); textSize(10); text('Lami',0,HY+HR+10);
+    } else {
+      fill(TXT_M[0],TXT_M[1],TXT_M[2]); textSize(7.5);
+      text(this.label,0,HY+HR+8);
+    }
+
+    pop();
+  }
+}
+
+// ── DRAW FUNCTIONS ───────────────────────────
+function drawBG(){
+  for(let i=0;i<=height;i+=2){
+    const t=i/height;
+    stroke(
+      BGA[0]+t*(BGB[0]-BGA[0]),
+      BGA[1]+t*(BGB[1]-BGA[1]),
+      BGA[2]+t*(BGB[2]-BGA[2])
+    );
+    strokeWeight(2); line(0,i,width,i);
+  }
+  noStroke();
+  fill(FLOOR[0],FLOOR[1],FLOOR[2]); rect(48,56,width-96,height-96,24);
+  const ts=54;
+  for(let x=62;x<width-62;x+=ts){
+    for(let y=70;y<height-50;y+=ts){
+      const c=(floor(x/ts)+floor(y/ts))%2===0?TILE_A:TILE_B;
+      fill(c[0],c[1],c[2]); noStroke(); rect(x,y,ts-2,ts-2,6);
+    }
+  }
+  fill(255,245,240,175); noStroke(); rect(width/2-44,56,88,height-96,8);
+  fill(200,170,155,65); textAlign(CENTER); textSize(18); noStroke();
+  for(let y=155;y<height-80;y+=110) text('↑',width/2,y);
+}
+
+function drawDesk(d, boss){
+  if(boss){
+    for(let i=5;i>0;i--){
+      fill(168,85,247,14*i*.45); noStroke();
+      rect(d.x-d.w/2-i*6,d.y-d.h/2-i*4,d.w+i*12,d.h+i*8,16);
+    }
+    fill(BOSS_SURF[0],BOSS_SURF[1],BOSS_SURF[2]);
+    stroke(255,255,255,200); strokeWeight(1.5);
+    rect(d.x-d.w/2,d.y-d.h/2,d.w,d.h*.52,12);
+    for(const ox of [-22,22]){
+      fill(110,90,160); noStroke(); rect(d.x+ox-14,d.y-d.h/2+5,28,20,5);
+      fill(lerpColor(color(210,185,255),color(255,220,140),(frameCount*.014+ox*.05)%1));
+      rect(d.x+ox-11,d.y-d.h/2+8,22,14,3);
+    }
+    fill(LAMI_GOLD[0],LAMI_GOLD[1],LAMI_GOLD[2]);
+    textAlign(CENTER); textSize(9); noStroke();
+    text('✦ BOSS DESK ✦',d.x,d.y+d.h*.52+14);
+    return;
+  }
+  fill(DESK_SURF[0]-20,DESK_SURF[1]-20,DESK_SURF[2]-20,200);
+  noStroke(); rect(d.x-d.w*.5+7,d.y+d.h*.47-3,d.w-14,d.h*.22,4);
+  fill(0,0,0,12); noStroke(); ellipse(d.x,d.y+d.h*.5+6,d.w*.9,d.h*.25);
+  fill(DESK_SURF[0],DESK_SURF[1],DESK_SURF[2]);
+  stroke(DESK_EDGE[0],DESK_EDGE[1],DESK_EDGE[2],145); strokeWeight(1.2);
+  rect(d.x-d.w*.5,d.y-d.h*.5,d.w,d.h*.55,10);
+  fill(110,140,190); noStroke(); rect(d.x-14,d.y-d.h*.5+5,28,19,4);
+  fill(lerpColor(color(170,205,255),color(255,200,175),(frameCount*.018+d.x*.008)%1));
+  rect(d.x-11,d.y-d.h*.5+8,22,13,3);
+  fill(255,255,255,185); noStroke(); rect(d.x-17,d.y+d.h*.06,34,5.5,3);
+}
+
+function drawMeeting(){
+  const mz=MEET_ZONE;
+  fill(MEET_FILL[0],MEET_FILL[1],MEET_FILL[2],230); noStroke();
+  rect(mz.x-mz.w/2,mz.y-mz.h/2,mz.w,mz.h,20);
+  stroke(MEET_BRD[0],MEET_BRD[1],MEET_BRD[2],100); strokeWeight(1.2); noFill();
+  rect(mz.x-mz.w/2,mz.y-mz.h/2,mz.w,mz.h,20);
+  const sx=mz.x-mz.w/2+14, sy=mz.y-mz.h/2+12;
+  fill(0,0,0,16); noStroke(); rect(sx+2,sy+2,140,86,9);
+  fill(255,255,255,215); stroke(180,150,205,110); strokeWeight(1.5);
+  rect(sx,sy,140,86,8); noStroke();
+  fill(175,135,205,80); rect(sx+4,sy+4,132,20,5);
+  fill(80,50,110); textAlign(LEFT); textSize(10);
+  text(SLIDES[slideIdx].t,sx+10,sy+18);
+  const lc=[color(50,160,110),color(215,155,50),color(200,75,100)];
+  for(let i=0;i<SLIDES[slideIdx].l.length;i++){
+    fill(lc[i]); textSize(9.5);
+    text('▸  '+SLIDES[slideIdx].l[i],sx+10,sy+38+i*16);
+  }
+  if(frameCount%40<20){ fill(50,160,110); noStroke(); rect(sx+126,sy+71,5,8,1); }
+  fill(200,175,220,120); noStroke(); rect(sx+66,sy+86,8,11,2);
+  fill(0,0,0,12); noStroke(); ellipse(mz.x,mz.y+4,124,76);
+  fill(240,196,224); stroke(255,255,255,150); strokeWeight(1.5);
+  ellipse(mz.x,mz.y,120,72);
+  stroke(220,170,195,80); strokeWeight(1); noFill(); ellipse(mz.x,mz.y,80,48);
+  for(const sp of MSPOTS){
+    fill(sp.owner?color(255,255,255,205):color(220,185,210,130));
+    noStroke(); circle(sp.x,sp.y,15);
+    if(sp.owner){ stroke(180,140,200,150); strokeWeight(1); noFill(); circle(sp.x,sp.y,19); }
+  }
+  fill(TXT_M[0],TXT_M[1],TXT_M[2]); noStroke();
+  textAlign(CENTER); textSize(10.5); text('Meeting Room',mz.x,mz.y+mz.h/2+16);
+}
+
+function drawCoffee(){
+  const cz=COFFEE;
+  fill(212,165,165,230); stroke(255,255,255,140); strokeWeight(1.5);
+  rect(cz.x-44,cz.y-22,88,44,13);
+  fill(145,105,105); noStroke(); rect(cz.x-16,cz.y-16,32,28,7);
+  fill(80,60,80); rect(cz.x-8,cz.y-12,16,8,3);
+  const bl=Math.sin(frameCount*.15)*.5+.5;
+  fill(50+bl*50,160+bl*40,80+bl*30); circle(cz.x,cz.y-5,5);
+  fill(100,75,75); noStroke(); rect(cz.x-3,cz.y+7,6,5,2);
+  fill(255,255,255,210); rect(cz.x+18,cz.y-10,9,13,3);
+  rect(cz.x-27,cz.y-10,9,13,3);
+  for(let si=0;si<2;si++){
+    fill(255,255,255,(Math.sin(frameCount*.08+si*2)+1)*.5*100); noStroke();
+    ellipse(cz.x-2+si*6,cz.y-24-si*5,7,5);
+  }
+  fill(TXT_M[0],TXT_M[1],TXT_M[2]); noStroke();
+  textAlign(CENTER); textSize(10.5); text('Coffee Bar',cz.x,cz.y+40);
+}
+
+// ── LAYOUT ───────────────────────────────────
+function buildLayout(){
+  DESKS=[]; MSPOTS=[];
+  const MX=80, DW=(width-MX*2)/4, DH=(height-200)/3;
+  for(let r=0;r<3;r++){
+    for(let c=0;c<4;c++){
+      const x=MX+c*DW+DW/2, y=124+r*DH+DH/2;
+      if(x>width/2-46&&x<width/2+46) continue;
+      DESKS.push({x,y,w:DW*.62,h:DH*.3});
+    }
+  }
+  BOSS_DESK={x:width/2,y:84,w:DW*.85,h:DH*.38};
+  MEET_ZONE={x:width*.22,y:height*.78,w:216,h:162};
+  COFFEE={x:width*.84,y:height*.18};
+  for(let i=0;i<5;i++){
+    const a=(TWO_PI/5)*i-HALF_PI;
+    MSPOTS.push({x:MEET_ZONE.x+Math.cos(a)*56,y:MEET_ZONE.y+Math.sin(a)*35,owner:null});
+  }
+  layoutDone=true;
+}
+
+// ── DATA & WS ────────────────────────────────
+const FALLBACK=[
+  {id:'media',name:'Media',icon:'🎬',type:'service',status:'online'},
+  {id:'search',name:'Search',icon:'🔍',type:'service',status:'online'},
+  {id:'vpn',name:'VPN',icon:'🔒',type:'service',status:'online'},
+  {id:'pdf',name:'PDF',icon:'📄',type:'service',status:'online'},
+  {id:'net',name:'Network',icon:'🌐',type:'service',status:'online'},
+];
+
+function buildChars(agentList, bossInfo){
+  CHARS=[];
+  const shuf=[...DESKS].sort(()=>Math.random()-.5);
+  for(let i=0;i<agentList.length&&i<shuf.length;i++){
+    CHARS.push(new Char(agentList[i], shuf[i], i, false));
+  }
+  const boss=new Char(
+    {...bossInfo, status:'online', type:'boss'},
+    BOSS_DESK, 99, true
+  );
+  boss.x=BOSS_DESK.x; boss.y=BOSS_DESK.y;
+  boss.tx=BOSS_DESK.x; boss.ty=BOSS_DESK.y;
+  CHARS.push(boss);
+}
+
+async function loadData(){
+  let agents=FALLBACK;
+  let bossInfo={id:'lami',name:'Lami',status:'online',type:'boss'};
+  try{
+    const [ra,rb]=await Promise.all([fetch('/api/agents'),fetch('/api/boss')]);
+    const da=await ra.json(), db=await rb.json();
+    agents=da.agents||FALLBACK;
+    bossInfo=db||bossInfo;
+    sysStat={load:da.stats?.load||'—',mem:da.stats?.memory_pct||0};
+  }catch(e){ console.warn('API fallback',e); }
+
+  buildChars(agents, bossInfo);
+  dataDone=true;
+
+  // Hide loader
+  setTimeout(()=>{
+    const ld=document.getElementById('ld');
+    if(ld){ ld.classList.add('out'); setTimeout(()=>ld.remove(),600); }
+  },350);
+
+  loop(); // start draw loop only after chars exist
+}
+
+function startWS(){
+  const proto=location.protocol==='https:'?'wss:':'ws:';
+  try{
+    wsConn=new WebSocket(proto+'//'+location.host+'/ws');
+    wsConn.onopen=()=>{ connected=true; };
+    wsConn.onmessage=(ev)=>{
+      try{
+        const d=JSON.parse(ev.data);
+        if(d.type==='update'){
+          sysStat={load:d.stats?.load||'—',mem:d.stats?.memory_pct||0};
+          for(const nd of (d.agents||[])){
+            const ex=CHARS.find(c=>c.info.id===nd.id&&!c.boss);
+            if(ex) ex.sync(nd);
+          }
+        }
+      }catch(e){}
+    };
+    wsConn.onclose=()=>{ connected=false; setTimeout(startWS,5000); };
+    wsConn.onerror=()=>{ wsConn.close(); };
+  }catch(e){ setTimeout(startWS,5000); }
+}
+
+// ── P5 CORE ──────────────────────────────────
+function setup(){
+  createCanvas(windowWidth,windowHeight);
+  pixelDensity(1);
+  noLoop();       // hold until data ready
+  buildLayout();
+  loadData();
+  startWS();
+}
+
+function draw(){
+  if(!dataDone) return; // safety guard
+  const dt=min(deltaTime/1000,.05);
+  slideT+=dt;
+  if(slideT>5.5){ slideT=0; slideIdx=(slideIdx+1)%SLIDES.length; }
+
+  drawBG();
+  drawMeeting();
+  drawCoffee();
+  drawDesk(BOSS_DESK,true);
+  for(const d of DESKS) drawDesk(d,false);
+
+  // depth sort
+  const sorted=[...CHARS].sort((a,b)=>a.y-b.y);
+  for(const c of sorted){ c.tick(dt); c.show(); }
+
+  BUBBLES=BUBBLES.filter(b=>!b.dead());
+  for(const b of BUBBLES){ b.tick(dt); b.show(); }
+}
+
+let _paused=false;
+function keyPressed(){
+  if(key==='r'||key==='R'){
+    _paused=false;
+    dataDone=false;
+    CHARS=[];
+    buildLayout();
+    loadData();
+  }
+  if(key===' '){ _paused=!_paused; _paused?noLoop():loop(); }
+}
+function windowResized(){
+  resizeCanvas(windowWidth,windowHeight);
+  buildLayout();
+  // reposition chars to new desk positions if data already loaded
+  if(dataDone&&CHARS.length){
+    const shuf=[...DESKS].sort(()=>Math.random()-.5);
+    let di=0;
+    for(const c of CHARS){
+      if(c.boss){ c.desk=BOSS_DESK; c.x=BOSS_DESK.x; c.y=BOSS_DESK.y; c.tx=BOSS_DESK.x; c.ty=BOSS_DESK.y; }
+      else if(di<shuf.length){ c.desk=shuf[di]; c.tx=shuf[di].x; c.ty=shuf[di].y+6; di++; }
+    }
+  }
+}
+</script>
+</body>
+</html>

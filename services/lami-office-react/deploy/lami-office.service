@@ -1,0 +1,17 @@
+[Unit]
+Description=Lami's AI Office Web & Bridge Server (Port 8090)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/AI-Office
+ExecStart=/usr/bin/python3 /opt/AI-Office/server.py
+Restart=always
+RestartSec=3
+Environment=PORT=8090
+Environment=HOST=127.0.0.1
+Environment=PUBLIC_MODE=live
+
+[Install]
+WantedBy=multi-user.target

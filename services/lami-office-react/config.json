@@ -1,0 +1,18 @@
+{
+  "_info": "Semua key boleh di-override pakai env: PORT, HOST, PUBLIC_MODE, HERMES_HOME, INGEST_TOKEN, OFFICE_SOURCE",
+  "host": "127.0.0.1",
+  "port": 8090,
+  "public_mode": "live",
+  "ingest_token": "",
+  "hermes_home": "~/.hermes",
+  "source": "auto",
+  "sqlite_path": "{hermes_home}/state.db",
+  "sessions_glob": "{hermes_home}/sessions/**/*.json*",
+  "antigravity_glob": "~/.gemini/antigravity/brain/*/.system_generated/logs/transcript.jsonl",
+  "poll_interval": 0.5,
+  "subagent_timeout": 900,
+  "max_summary": 40,
+  "show_messages": false,
+  "extra_redact": [],
+  "tool_rooms": {}
+}

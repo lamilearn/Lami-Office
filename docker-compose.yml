@@ -1,0 +1,18 @@
+services:
+  ai-office:
+    build:
+      context: ./services/ai-office
+      dockerfile: Dockerfile
+    container_name: ai-office
+    restart: unless-stopped
+    ports:
+      - "8088:80"
+
+  lami-office-react:
+    build:
+      context: ./services/lami-office-react
+      dockerfile: Dockerfile
+    container_name: lami-office-react
+    restart: unless-stopped
+    ports:
+      - "8090:8090"
