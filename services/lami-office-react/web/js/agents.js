@@ -260,7 +260,6 @@
       } else {
         if (Math.abs(dRow) > 0.001) this.facing = dRow > 0 ? 'S' : 'N';
       }
-      }
 
       const step = Math.min(this.speed * dt, dist);
       this.col += (dCol / dist) * step;
