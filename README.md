@@ -93,3 +93,12 @@ curl -s http://127.0.0.1:13579/api/integration | jq
 
 `watcher.stale: true` means the mounted Hermes home has no fresh activity and
 the cross-host bridge (or `POST /api/event`) is the active path.
+
+To keep the bridge running on the Hermes host, copy
+`services/lami-office-react/deploy/hermes-bridge.service` to
+`~/.config/systemd/user/hermes-bridge.service`, adjust the paths/token, then:
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now hermes-bridge
+```
