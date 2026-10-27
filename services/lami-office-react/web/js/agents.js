@@ -73,6 +73,10 @@
 
       this.idleActionTimer = Math.random() * 5 + 3;
       this.assignedSlot = null;
+      this.pauseTimer = 0;
+      this.socialCooldown = Math.random() * 8 + 4;
+      this.workCycleTimer = Math.random() * 4 + 2;
+      this.workCycleMode = 'type';
     }
 
     getDepth() {
@@ -175,6 +179,13 @@
         this.targetFloor = 0;
       }
 
+      // If paused for social encounter or greeting, pause walking
+      if (this.pauseTimer > 0) {
+        this.pauseTimer -= dt;
+        this.frame = 'idle';
+        return;
+      }
+
       // 0. Destination changed while walking (routine switch, new tool, ...):
       // recompute immediately instead of finishing the stale path.
       if (this.pathGoal &&
@@ -187,14 +198,31 @@
       if (this.path && this.path.length > 0) {
         if (this.state !== 'reporting') this.state = 'walk';
         const targetNode = this.path[0];
-        const dx = targetNode.x - this.col;
-        const dy = targetNode.y - this.row;
-        const dist = Math.hypot(dx, dy);
+        let dx = targetNode.x - this.col;
+        let dy = targetNode.y - this.row;
+        let dist = Math.hypot(dx, dy);
 
+        // Strict Orthogonal Axis Locking:
+        // A* paths are strictly orthogonal (either purely X or purely Y).
+        // Align perpendicular coordinate to eliminate drift and prevent diagonal clipping through doorframes.
         if (Math.abs(dx) >= Math.abs(dy)) {
-          if (Math.abs(dx) > 0.01) this.facing = dx > 0 ? 'E' : 'W';
+          if (Math.abs(dx) > 0.001) {
+            this.facing = dx > 0 ? 'E' : 'W';
+            if (Math.abs(dy) > 0.001) {
+              this.row = targetNode.y;
+              dy = 0;
+              dist = Math.abs(dx);
+            }
+          }
         } else {
-          if (Math.abs(dy) > 0.01) this.facing = dy > 0 ? 'S' : 'N';
+          if (Math.abs(dy) > 0.001) {
+            this.facing = dy > 0 ? 'S' : 'N';
+            if (Math.abs(dx) > 0.001) {
+              this.col = targetNode.x;
+              dx = 0;
+              dist = Math.abs(dy);
+            }
+          }
         }
 
         const step = Math.min(this.speed * dt, dist);
@@ -284,8 +312,34 @@
 
     updateIdleState(dt) {
       if (this.state === 'work') {
-        if (this.assignedSlot && this.assignedSlot.type === 'desk') {
-          this.frame = Math.sin(Date.now() / 320) > 0 ? 'type' : 'idle';
+        this.workCycleTimer -= dt;
+        if (this.workCycleTimer <= 0) {
+          const roll = Math.random();
+          if (roll < 0.60) {
+            this.workCycleMode = 'type';
+            this.workCycleTimer = Math.random() * 5 + 3;
+          } else if (roll < 0.85) {
+            this.workCycleMode = 'think';
+            this.workCycleTimer = Math.random() * 3 + 2;
+            if (Math.random() < 0.4 && !this.bubble) {
+              const thoughts = ['💡', '💭', '⚙️', '📝', '⚡'];
+              this.setEmote(thoughts[Math.floor(Math.random() * thoughts.length)], 2.5);
+            }
+          } else {
+            this.workCycleMode = 'drink';
+            this.workCycleTimer = Math.random() * 2.5 + 2;
+            if (Math.random() < 0.5 && !this.bubble) {
+              this.setEmote('☕', 2.0);
+            }
+          }
+        }
+
+        if (this.workCycleMode === 'type') {
+          this.frame = Math.sin(Date.now() / 240) > 0 ? 'type' : 'idle';
+        } else if (this.workCycleMode === 'think') {
+          this.frame = Math.sin(Date.now() / 600) > 0.8 ? 'blink' : 'idle';
+        } else if (this.workCycleMode === 'drink') {
+          this.frame = 'drink';
         } else {
           this.frame = 'idle';
         }
@@ -757,6 +811,17 @@
 
     updateIdleState(dt) {
       if (this.routineState === 'in_activity') {
+        if (this.currentRoutine) {
+          const id = this.currentRoutine.id;
+          if (id === 'coffee_pantry' || id === 'coffee_break' || id === 'lounge_relax') {
+            this.frame = 'drink';
+            return;
+          }
+          if (id === 'server_mini' || id === 'patrol_rack_a' || id === 'patrol_rack_b' || id === 'cables_patch' || id === 'agenda_board') {
+            this.frame = Math.sin(Date.now() / 280) > 0 ? 'type' : 'idle';
+            return;
+          }
+        }
         this.frame = Math.sin(Date.now() / 600) > 0.85 ? 'blink' : 'idle';
         return;
       }
@@ -957,6 +1022,17 @@
 
     updateIdleState(dt) {
       if (this.routineState === 'in_activity') {
+        if (this.currentRoutine) {
+          const id = this.currentRoutine.id;
+          if (id === 'coffee_pantry' || id === 'coffee_break' || id === 'lounge_relax') {
+            this.frame = 'drink';
+            return;
+          }
+          if (id === 'server_mini' || id === 'patrol_rack_a' || id === 'patrol_rack_b' || id === 'cables_patch' || id === 'agenda_board') {
+            this.frame = Math.sin(Date.now() / 280) > 0 ? 'type' : 'idle';
+            return;
+          }
+        }
         this.frame = Math.sin(Date.now() / 600) > 0.85 ? 'blink' : 'idle';
         return;
       }

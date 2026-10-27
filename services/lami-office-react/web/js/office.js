@@ -168,43 +168,44 @@
     getFurnitureObstacles() {
       return [
         // Boss Office (X: 2..19, Y: 2..14)
-        { x: 10, y: 6, w: 3, h: 1, name: 'Executive Desk' },
-        { x: 3,  y: 3, w: 2, h: 2, name: 'Boss Plant / Monstera' },
+        { x: 9,  y: 6, w: 5, h: 1, name: 'Executive Desk' },
+        { x: 3,  y: 4, w: 1, h: 1, name: 'Boss Plant / Monstera' },
         { x: 14, y: 5, w: 1, h: 1, name: 'Context Trashcan' },
-        { x: 18, y: 3, w: 1, h: 1, name: 'Boss Plant East' },
+        { x: 18, y: 4, w: 1, h: 1, name: 'Boss Plant East' },
 
         // Research Lab (X: 21..39, Y: 2..14)
         { x: 23, y: 7, w: 2, h: 1, name: 'Research Desk 1' },
         { x: 28, y: 7, w: 2, h: 1, name: 'Research Desk 2' },
         { x: 33, y: 7, w: 2, h: 1, name: 'Research Desk 3' },
-        { x: 22, y: 3, w: 3, h: 1, name: 'Lab Equipment Bench' },
-        { x: 36, y: 3, w: 3, h: 1, name: 'Lab Bookshelves' },
+        { x: 22, y: 11, w: 2, h: 1, name: 'Microscope Station' },
+        { x: 34, y: 3, w: 3, h: 1, name: 'Lab Bookshelves' },
 
         // Server Room (X: 41..58, Y: 2..14)
         { x: 43, y: 4, w: 2, h: 2, name: 'Server Rack Cluster 1' },
         { x: 47, y: 4, w: 2, h: 2, name: 'Server Rack Cluster 2' },
         { x: 51, y: 4, w: 2, h: 2, name: 'Server Rack Cluster 3' },
         { x: 55, y: 4, w: 2, h: 2, name: 'Server Rack Cluster 4' },
-        { x: 47, y: 10, w: 3, h: 1, name: 'Mainframe Ops Console' },
+        { x: 46, y: 10, w: 4, h: 1, name: 'Mainframe Ops Console' },
 
         // Engineering Pit (X: 2..21, Y: 19..32)
         { x: 5,  y: 21, w: 2, h: 1, name: 'Dev Desk 1' },
         { x: 9,  y: 21, w: 2, h: 1, name: 'Dev Desk 2' },
         { x: 5,  y: 25, w: 2, h: 1, name: 'Dev Desk 3' },
         { x: 9,  y: 25, w: 2, h: 1, name: 'Dev Desk 4' },
-        { x: 14, y: 23, w: 2, h: 1, name: 'Dev Desk 5' },
+        { x: 15, y: 23, w: 2, h: 1, name: 'Dev Desk 5' },
         { x: 18, y: 23, w: 2, h: 1, name: 'Dev Desk 6' },
         { x: 13, y: 21, w: 1, h: 1, name: 'Mini Server Rig' },
 
         // Meeting Room (X: 23..39, Y: 19..32)
-        { x: 28, y: 24, w: 7, h: 3, name: 'Conference Table' },
+        { x: 28, y: 24, w: 7, h: 2, name: 'Conference Table' },
         { x: 25, y: 19, w: 3, h: 1, name: 'Multi-Mode Whiteboard' },
 
         // Pantry / Lounge (X: 41..58, Y: 19..32)
-        { x: 43, y: 23, w: 3, h: 1, name: 'Espresso Bar Counter' },
+        { x: 43, y: 22, w: 4, h: 1, name: 'Espresso Bar Counter' },
         { x: 51, y: 23, w: 1, h: 1, name: 'Water Cooler' },
-        { x: 55, y: 27, w: 2, h: 1, name: 'Snack Vending Machine' },
-        { x: 46, y: 27, w: 4, h: 1, name: 'Teal Lounge Sofa' }
+        { x: 45, y: 27, w: 4, h: 1, name: 'Teal Lounge Sofa' },
+        { x: 46, y: 29, w: 2, h: 1, name: 'Coffee Table' },
+        { x: 55, y: 27, w: 2, h: 2, name: 'Snack Vending Machine' }
       ];
     }
 
@@ -675,6 +676,68 @@
       }
       for (const sub of this.subagents.values()) {
         sub.update(dt, this);
+      }
+
+      // Check lively coworker hallway encounters & greetings
+      this.updateSocials(dt);
+    }
+
+    updateSocials(dt) {
+      const all = [this.lami, ...this.residents, ...this.subagents.values()].filter(c => c && c.state !== 'spawn');
+      for (const a of all) {
+        if (a.socialCooldown > 0) a.socialCooldown -= dt;
+      }
+
+      for (let i = 0; i < all.length; i++) {
+        const a = all[i];
+        if (a.socialCooldown > 0 || a.pauseTimer > 0 || a.state === 'reporting') continue;
+
+        for (let j = i + 1; j < all.length; j++) {
+          const b = all[j];
+          if (b.socialCooldown > 0 || b.pauseTimer > 0 || b.state === 'reporting') continue;
+
+          const dist = Math.hypot(a.col - b.col, a.row - b.row);
+          if (dist < 2.2) {
+            a.pauseTimer = 1.0;
+            b.pauseTimer = 1.0;
+            a.socialCooldown = 20.0 + Math.random() * 8;
+            b.socialCooldown = 20.0 + Math.random() * 8;
+
+            const dx = b.col - a.col;
+            const dy = b.row - a.row;
+            if (Math.abs(dx) >= Math.abs(dy)) {
+              a.facing = dx > 0 ? 'E' : 'W';
+              b.facing = dx > 0 ? 'W' : 'E';
+            } else {
+              a.facing = dy > 0 ? 'S' : 'N';
+              b.facing = dy > 0 ? 'N' : 'S';
+            }
+
+            const isBoss = a.id === 'lami' || b.id === 'lami';
+            if (isBoss) {
+              const boss = a.id === 'lami' ? a : b;
+              const worker = a.id === 'lami' ? b : a;
+              worker.setEmote('👑', 2.5);
+              worker.setBubble('Pagi Boss Lami! ✨', 3.0);
+              boss.setEmote('🌟', 2.5);
+              boss.setBubble('Semangat kerjanya ya! 👍', 3.0);
+            } else {
+              const dialogues = [
+                ['Halo Kak! Semangat ya! 👋', 'Halo juga! Gass koding! 🚀'],
+                ['Mau ke pantry nih ☕', 'Nitip kopi hangat dong! 🍵'],
+                ['PR-nya udah di-approve ya 👍', 'Mantap, siap deploy! ✨'],
+                ['Ada ide fitur baru nih 💡', 'Bahas di meeting nanti! 📋'],
+                ['Bentar lagi jam makan siang 🍕', 'Wah martabak enak nih! 🎉']
+              ];
+              const d = dialogues[Math.floor(Math.random() * dialogues.length)];
+              a.setEmote('👋', 2.5);
+              a.setBubble(d[0], 3.0);
+              b.setEmote('😊', 2.5);
+              b.setBubble(d[1], 3.0);
+            }
+            break;
+          }
+        }
       }
     }
 

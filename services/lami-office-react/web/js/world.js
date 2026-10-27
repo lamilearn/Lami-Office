@@ -294,23 +294,26 @@
         ctx.fillRect(wx, wy + wallDepth, ww, 6);
       }
 
-      // B. Corridor Partition Walls & Clean Doorways (Y = 14 to 15, and Y = 18 to 19)
-      // Top Rooms South Wall (along Y = 14..15)
+      // B. Corridor Partition Walls & Clean Doorways (Y = 14, and Y = 19)
+      // Top Rooms South Wall (along Y = 14)
       for (const key of ['boss', 'research', 'server']) {
         const r = rooms[key];
         if (!r) continue;
         const b = r.bounds;
         const doorX = r.door ? r.door.x : (b.x1 + Math.floor((b.x2 - b.x1) / 2));
-        const wy = 14.5 * ts;
+        const wy = 14 * ts;
 
         // Left section of wall (before door)
         const leftW = (doorX - b.x1) * ts;
         if (leftW > 0) {
           ctx.fillStyle = r.wall;
-          ctx.fillRect(b.x1 * ts, wy, leftW, 8);
+          ctx.fillRect(b.x1 * ts, wy, leftW, ts);
+          ctx.fillStyle = r.trim || '#6a431a';
+          ctx.fillRect(b.x1 * ts, wy, leftW, 3);
+          ctx.fillRect(b.x1 * ts, wy + ts - 3, leftW, 3);
           ctx.strokeStyle = '#2d2438';
           ctx.lineWidth = 1;
-          ctx.strokeRect(b.x1 * ts + 0.5, wy + 0.5, leftW - 1, 7);
+          ctx.strokeRect(b.x1 * ts + 0.5, wy + 0.5, leftW - 1, ts - 1);
         }
 
         // Right section of wall (after door, door width = 2 tiles = 32px)
@@ -318,33 +321,39 @@
         const rightW = (b.x2 + 1) * ts - rightStartX;
         if (rightW > 0) {
           ctx.fillStyle = r.wall;
-          ctx.fillRect(rightStartX, wy, rightW, 8);
+          ctx.fillRect(rightStartX, wy, rightW, ts);
+          ctx.fillStyle = r.trim || '#6a431a';
+          ctx.fillRect(rightStartX, wy, rightW, 3);
+          ctx.fillRect(rightStartX, wy + ts - 3, rightW, 3);
           ctx.strokeStyle = '#2d2438';
           ctx.lineWidth = 1;
-          ctx.strokeRect(rightStartX + 0.5, wy + 0.5, rightW - 1, 7);
+          ctx.strokeRect(rightStartX + 0.5, wy + 0.5, rightW - 1, ts - 1);
         }
 
         // Clean Cut Doorway Threshold Strip (2 tiles wide)
         ctx.fillStyle = '#d4af37';
-        ctx.fillRect(doorX * ts, wy + 2, 2 * ts, 4);
+        ctx.fillRect(doorX * ts, wy + ts - 4, 2 * ts, 4);
       }
 
-      // Bottom Rooms North Wall (along Y = 18.5..19)
+      // Bottom Rooms North Wall (along Y = 19)
       for (const key of ['engineering', 'meeting', 'pantry']) {
         const r = rooms[key];
         if (!r) continue;
         const b = r.bounds;
         const doorX = r.door ? r.door.x : (b.x1 + Math.floor((b.x2 - b.x1) / 2));
-        const wy = 18.5 * ts;
+        const wy = 19 * ts;
 
         // Left section of wall (before door)
         const leftW = (doorX - b.x1) * ts;
         if (leftW > 0) {
           ctx.fillStyle = r.wall;
-          ctx.fillRect(b.x1 * ts, wy, leftW, 8);
+          ctx.fillRect(b.x1 * ts, wy, leftW, ts);
+          ctx.fillStyle = r.trim || '#1e4b2e';
+          ctx.fillRect(b.x1 * ts, wy, leftW, 3);
+          ctx.fillRect(b.x1 * ts, wy + ts - 3, leftW, 3);
           ctx.strokeStyle = '#2d2438';
           ctx.lineWidth = 1;
-          ctx.strokeRect(b.x1 * ts + 0.5, wy + 0.5, leftW - 1, 7);
+          ctx.strokeRect(b.x1 * ts + 0.5, wy + 0.5, leftW - 1, ts - 1);
         }
 
         // Right section of wall (after door)
@@ -352,15 +361,18 @@
         const rightW = (b.x2 + 1) * ts - rightStartX;
         if (rightW > 0) {
           ctx.fillStyle = r.wall;
-          ctx.fillRect(rightStartX, wy, rightW, 8);
+          ctx.fillRect(rightStartX, wy, rightW, ts);
+          ctx.fillStyle = r.trim || '#1e4b2e';
+          ctx.fillRect(rightStartX, wy, rightW, 3);
+          ctx.fillRect(rightStartX, wy + ts - 3, rightW, 3);
           ctx.strokeStyle = '#2d2438';
           ctx.lineWidth = 1;
-          ctx.strokeRect(rightStartX + 0.5, wy + 0.5, rightW - 1, 7);
+          ctx.strokeRect(rightStartX + 0.5, wy + 0.5, rightW - 1, ts - 1);
         }
 
         // Clean Cut Doorway Threshold Strip (2 tiles wide)
         ctx.fillStyle = '#d4af37';
-        ctx.fillRect(doorX * ts, wy + 2, 2 * ts, 4);
+        ctx.fillRect(doorX * ts, wy, 2 * ts, 4);
       }
 
       // C. Vertical Room Partition Walls (Width: 1 tile = 16px)
@@ -487,12 +499,12 @@
 
     // Specific Room 1: Boss Office
     drawBossOffice(ctx, ts, theme) {
-      // Grand Executive Desk (X: 9..13, Y: 5..6)
-      const dx = 9 * ts, dy = 5 * ts, dw = 5 * ts, dh = 2 * ts;
-      this.draw2DBlock(ctx, dx, dy, dw, dh, 18, '#7a3e2e', '#5a2b1e', '#ffd25e');
+      // Grand Executive Desk (X: 9..13, Y: 6)
+      const dx = 9 * ts, dy = 6 * ts, dw = 5 * ts, dh = 1.2 * ts;
+      this.draw2DBlock(ctx, dx, dy, dw, dh, 14, '#7a3e2e', '#5a2b1e', '#ffd25e');
 
-      // Executive Leather Swivel Chair (X: 11, Y: 4.2)
-      const cx = 11 * ts + 8, cy = 4.2 * ts;
+      // Executive Leather Swivel Chair (X: 11, Y: 4.8)
+      const cx = 11 * ts + 8, cy = 4.8 * ts;
       ctx.fillStyle = '#1f1e24';
       ctx.beginPath();
       ctx.arc(cx, cy + 8, 9, 0, Math.PI * 2);
@@ -502,14 +514,14 @@
       ctx.fillRect(cx + 1, cy + 4, 2, 2);
 
       // Gold Laptop on Desk
-      const lx = 10.5 * ts, ly = 5.2 * ts;
+      const lx = 10.5 * ts, ly = 5.9 * ts;
       ctx.fillStyle = '#ffd25e';
       ctx.fillRect(lx, ly, 14, 8);
       ctx.fillStyle = '#fff9d6';
       ctx.fillRect(lx + 2, ly + 1, 10, 5);
 
       // "Best Boss" Mug
-      const mx = 9.6 * ts, my = 5.3 * ts;
+      const mx = 9.6 * ts, my = 6.0 * ts;
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(mx, my, 6, 6);
       ctx.fillStyle = '#e74c3c';
@@ -517,7 +529,7 @@
 
       // Floating Gold Crown Easter Egg
       const crownBob = Math.sin(this.timeSec * 3) * 2;
-      const crX = 11.5 * ts, crY = 4.6 * ts + crownBob;
+      const crX = 11.5 * ts, crY = 4.1 * ts + crownBob;
       ctx.fillStyle = '#f1c40f';
       ctx.fillRect(crX, crY, 10, 4);
       ctx.fillRect(crX, crY - 3, 2, 3);
@@ -581,86 +593,86 @@
 
     // Specific Room 2: Research Lab
     drawResearchLab(ctx, ts, theme) {
-      // 3 Workstations with Dual Monitors (X: 23, 28, 33 at Y: 7..8)
+      // 3 Workstations with Dual Monitors (X: 23, 28, 33 at Y: 7)
       [23, 28, 33].forEach((dx) => {
-        this.draw2DBlock(ctx, dx * ts, 7 * ts, 2.5 * ts, 1.8 * ts, 14, '#8f7762', '#6b5443');
+        this.draw2DBlock(ctx, dx * ts, 7 * ts, 2 * ts, 1.1 * ts, 12, '#8f7762', '#6b5443');
 
         // Dual Monitors on Desk
-        const m1x = dx * ts + 3, my = 7 * ts + 1;
-        const m2x = dx * ts + 21;
+        const m1x = dx * ts + 2, my = 7 * ts - 2;
+        const m2x = dx * ts + 17;
         [m1x, m2x].forEach((mx) => {
           ctx.fillStyle = '#2c3e50';
-          ctx.fillRect(mx, my, 16, 10);
+          ctx.fillRect(mx, my, 13, 9);
           ctx.fillStyle = '#7ec8f2';
-          ctx.fillRect(mx + 1, my + 1, 14, 8);
+          ctx.fillRect(mx + 1, my + 1, 11, 7);
           // Waveform line
           ctx.strokeStyle = '#38bdf8';
           ctx.lineWidth = 0.8;
           ctx.beginPath();
           ctx.moveTo(mx + 2, my + 5);
-          ctx.lineTo(mx + 6, my + 3);
-          ctx.lineTo(mx + 10, my + 7);
-          ctx.lineTo(mx + 14, my + 4);
+          ctx.lineTo(mx + 5, my + 3);
+          ctx.lineTo(mx + 8, my + 6);
+          ctx.lineTo(mx + 11, my + 4);
           ctx.stroke();
         });
       });
 
       // Microscope Station (X: 22..24, Y: 11..12)
       const scX = 22 * ts, scY = 11 * ts;
-      this.draw2DBlock(ctx, scX, scY, 2.5 * ts, 1.5 * ts, 12, '#ffffff', '#cbd5e1');
+      this.draw2DBlock(ctx, scX, scY, 2 * ts, 1.1 * ts, 10, '#ffffff', '#cbd5e1');
       // Cast-Iron Microscope
       ctx.fillStyle = '#34495e';
-      ctx.fillRect(scX + 12, scY + 1, 6, 9);
+      ctx.fillRect(scX + 8, scY + 1, 5, 8);
       ctx.fillStyle = '#d4af37';
-      ctx.fillRect(scX + 13, scY - 3, 4, 4);
+      ctx.fillRect(scX + 9, scY - 2, 3, 3);
       // Petri Dish Specimen
       ctx.fillStyle = '#00bcd4';
       ctx.beginPath();
-      ctx.arc(scX + 26, scY + 6, 4, 0, Math.PI * 2);
+      ctx.arc(scX + 22, scY + 5, 3.5, 0, Math.PI * 2);
       ctx.fill();
 
       // Journal Stack on Desk
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(29 * ts + 2, 7.8 * ts, 10, 4);
+      ctx.fillRect(29 * ts + 2, 7.2 * ts, 10, 4);
       ctx.fillStyle = '#3498db';
-      ctx.fillRect(29 * ts + 4, 7.8 * ts, 6, 1);
+      ctx.fillRect(29 * ts + 4, 7.2 * ts, 6, 1);
     }
 
     // Specific Room 3: Server Room
     drawServerRoom(ctx, ts, theme) {
-      // 4 Dark Server Racks (X: 43, 47, 51, 55 at Y: 4..6)
+      // 4 Dark Server Racks (X: 43, 47, 51, 55 at Y: 4..5)
       [43, 47, 51, 55].forEach((rx, idx) => {
         const xPx = rx * ts, yPx = 4 * ts;
-        this.draw2DBlock(ctx, xPx, yPx, 2.5 * ts, 2.8 * ts, 10, '#2c2738', '#1c1826');
+        this.draw2DBlock(ctx, xPx, yPx, 2 * ts, 2 * ts, 10, '#2c2738', '#1c1826');
 
         // Blinking LED Status Lights on Racks
         for (let row = 0; row < 3; row++) {
-          const ly = yPx + 14 + row * 8;
+          const ly = yPx + 10 + row * 6;
           const b1 = Math.sin(this.timeSec * 8 + idx + row) > 0;
           const b2 = Math.sin(this.timeSec * 5 + idx * 1.5 + row) > 0;
           ctx.fillStyle = b1 ? '#2ecc71' : '#145a32';
-          ctx.fillRect(xPx + 6, ly, 3, 2);
+          ctx.fillRect(xPx + 5, ly, 3, 2);
           ctx.fillStyle = b2 ? '#38bdf8' : '#0369a1';
-          ctx.fillRect(xPx + 12, ly, 3, 2);
+          ctx.fillRect(xPx + 11, ly, 3, 2);
           ctx.fillStyle = !b1 ? '#f59e0b' : '#78350f';
-          ctx.fillRect(xPx + 18, ly, 3, 2);
+          ctx.fillRect(xPx + 17, ly, 3, 2);
         }
       });
 
-      // Mainframe Ops Console Desk (X: 46..50, Y: 9..10)
-      const cx = 46 * ts, cy = 9 * ts;
-      this.draw2DBlock(ctx, cx, cy, 4 * ts, 1.8 * ts, 14, '#34495e', '#2c3e50');
+      // Mainframe Ops Console Desk (X: 46..49, Y: 10)
+      const cx = 46 * ts, cy = 10 * ts;
+      this.draw2DBlock(ctx, cx, cy, 4 * ts, 1.2 * ts, 12, '#34495e', '#2c3e50');
 
       // 3 Curved Monitoring Screens
       [cx + 4, cx + 24, cx + 44].forEach((mx, i) => {
         ctx.fillStyle = '#111827';
-        ctx.fillRect(mx, cy + 2, 16, 9);
+        ctx.fillRect(mx, cy - 2, 14, 8);
         ctx.fillStyle = i === 0 ? '#2ecc71' : (i === 1 ? '#38bdf8' : '#34d399');
-        ctx.fillRect(mx + 2, cy + 4, 12, 5);
+        ctx.fillRect(mx + 1, cy - 1, 12, 5);
       });
 
       // DevOps Toolkit & Wrench on Desk
-      const tkX = cx + 8, tkY = cy + 8;
+      const tkX = cx + 8, tkY = cy + 4;
       const tkB = Math.sin(this.timeSec * 3 + 4) * 1.2;
       ctx.fillStyle = '#95a5a6';
       ctx.fillRect(tkX, tkY + tkB, 8, 2);
@@ -679,32 +691,32 @@
 
       for (const p of pods) {
         const xPx = p.x * ts, yPx = p.y * ts;
-        this.draw2DBlock(ctx, xPx, yPx, 2.5 * ts, 1.8 * ts, 14, '#453d54', '#322c3e');
+        this.draw2DBlock(ctx, xPx, yPx, 2 * ts, 1.1 * ts, 12, '#453d54', '#322c3e');
 
         // Glowing Green Phosphor Terminal Monitor
         ctx.fillStyle = '#1e1927';
-        ctx.fillRect(xPx + 4, yPx + 1, 18, 10);
+        ctx.fillRect(xPx + 4, yPx - 2, 16, 9);
         ctx.fillStyle = '#0d1117';
-        ctx.fillRect(xPx + 5, yPx + 2, 16, 8);
+        ctx.fillRect(xPx + 5, yPx - 1, 14, 7);
         ctx.fillStyle = '#36d399';
-        ctx.fillRect(xPx + 7, yPx + 4, 10, 1);
-        ctx.fillRect(xPx + 7, yPx + 6, 8, 1);
+        ctx.fillRect(xPx + 7, yPx + 1, 9, 1);
+        ctx.fillRect(xPx + 7, yPx + 3, 7, 1);
         // Blinking cursor
         if (Math.sin(this.timeSec * 8) > 0) {
-          ctx.fillRect(xPx + 15, yPx + 6, 2, 2);
+          ctx.fillRect(xPx + 15, yPx + 3, 2, 2);
         }
       }
 
-      // Yellow Rubber Duck Debugger (Desk at X: 5.5, Y: 21.2)
+      // Yellow Rubber Duck Debugger (Desk at X: 5.5, Y: 21)
       const dkB = Math.sin(this.timeSec * 3 + 2) * 1.5;
-      const dkX = 5.5 * ts, dkY = 21.2 * ts + dkB;
+      const dkX = 5.5 * ts, dkY = 21 * ts + dkB;
       ctx.fillStyle = '#f1c40f';
       ctx.fillRect(dkX, dkY, 6, 5);
       ctx.fillStyle = '#e67e22';
       ctx.fillRect(dkX + 6, dkY + 1, 3, 2); // beak
 
-      // Green Energy Drink Can (Desk at X: 7.2, Y: 21.3)
-      const canX = 7.2 * ts, canY = 21.3 * ts;
+      // Green Energy Drink Can (Desk at X: 7.2, Y: 21.1)
+      const canX = 7.2 * ts, canY = 21.1 * ts;
       ctx.fillStyle = '#2ecc71';
       ctx.fillRect(canX, canY, 4, 6);
       ctx.fillStyle = '#111111';
@@ -712,52 +724,52 @@
 
       // Mini Server Tower / Custom Rig (X: 13, Y: 21)
       const rigX = 13 * ts, rigY = 21 * ts;
-      this.draw2DBlock(ctx, rigX, rigY, 1.2 * ts, 2 * ts, 10, '#221b2c', '#15101c');
+      this.draw2DBlock(ctx, rigX, rigY, 1 * ts, 1.2 * ts, 8, '#221b2c', '#15101c');
       // Cycling RGB Interior
       const rgbColor = ['#ff7675', '#74b9ff', '#55efc4', '#a29bfe'][Math.floor(this.timeSec * 2) % 4];
       ctx.fillStyle = rgbColor;
-      ctx.fillRect(rigX + 3, rigY + 12, 10, 14);
+      ctx.fillRect(rigX + 3, rigY + 6, 8, 8);
     }
 
     // Specific Room 5: Meeting Room
     drawMeetingRoom(ctx, ts, theme) {
-      // Large Conference Table (X: 27..35, Y: 24..26)
-      const tx = 27 * ts, ty = 24 * ts, tw = 8 * ts, th = 2.5 * ts;
-      this.draw2DBlock(ctx, tx, ty, tw, th, 20, '#c7926b', '#9b6e4e');
+      // Large Conference Table (X: 28..34, Y: 24..25)
+      const tx = 28 * ts, ty = 24 * ts, tw = 7 * ts, th = 2 * ts;
+      this.draw2DBlock(ctx, tx, ty, tw, th, 16, '#c7926b', '#9b6e4e');
 
       // 8 Ergonomic Mesh Chairs
-      // 3 North Chairs (Y: 23.4)
-      [28.5, 31, 33.5].forEach((cx) => {
+      // 3 North Chairs (Y: 23.3)
+      [29, 31.5, 33.5].forEach((cx) => {
         ctx.fillStyle = '#334155';
         ctx.beginPath();
-        ctx.arc(cx * ts, 23.4 * ts, 6, 0, Math.PI * 2);
+        ctx.arc(cx * ts, 23.3 * ts, 6, 0, Math.PI * 2);
         ctx.fill();
       });
-      // 3 South Chairs (Y: 27.2)
-      [28.5, 31, 33.5].forEach((cx) => {
+      // 3 South Chairs (Y: 26.2)
+      [29, 31.5, 33.5].forEach((cx) => {
         ctx.fillStyle = '#334155';
         ctx.beginPath();
-        ctx.arc(cx * ts, 27.2 * ts, 6, 0, Math.PI * 2);
+        ctx.arc(cx * ts, 26.2 * ts, 6, 0, Math.PI * 2);
         ctx.fill();
       });
       // 2 Head Chairs (West / East)
       ctx.fillStyle = '#334155';
-      ctx.beginPath(); ctx.arc(26 * ts, 25.2 * ts, 6, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc(36 * ts, 25.2 * ts, 6, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(27.2 * ts, 25 * ts, 6, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(35.8 * ts, 25 * ts, 6, 0, Math.PI * 2); ctx.fill();
 
       // Sakura Flower Vase Centerpiece on Conference Table
       const flB = Math.sin(this.timeSec * 3 + 3) * 1.2;
-      const vsX = 31 * ts, vsY = 24.8 * ts;
+      const vsX = 31.5 * ts, vsY = 24.6 * ts;
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(vsX - 3, vsY - 4, 6, 6);
+      ctx.fillRect(vsX - 3, vsY - 3, 6, 6);
       ctx.fillStyle = '#ff7675';
       ctx.beginPath();
-      ctx.arc(vsX, vsY - 7 + flB, 4, 0, Math.PI * 2);
+      ctx.arc(vsX, vsY - 6 + flB, 4, 0, Math.PI * 2);
       ctx.fill();
 
       // Agenda Binder on Table
       ctx.fillStyle = '#3498db';
-      ctx.fillRect(vsX + 16, vsY - 2, 8, 4);
+      ctx.fillRect(vsX + 14, vsY - 1, 8, 4);
     }
 
     // Interactive Prop: Multi-Mode Whiteboard
@@ -830,12 +842,12 @@
 
     // Specific Room 6: Pantry & Lounge
     drawPantryLounge(ctx, ts, theme) {
-      // Coffee Bar Marble Counter (X: 43..47, Y: 22..23)
+      // Coffee Bar Marble Counter (X: 43..46, Y: 22)
       const cx = 43 * ts, cy = 22 * ts;
-      this.draw2DBlock(ctx, cx, cy, 4.5 * ts, 1.8 * ts, 14, '#ffffff', '#c8b49e');
+      this.draw2DBlock(ctx, cx, cy, 4 * ts, 1.2 * ts, 12, '#ffffff', '#c8b49e');
 
       // Italian Commercial Espresso Machine
-      const kpX = cx + 6, kpY = cy + 2;
+      const kpX = cx + 6, kpY = cy - 2;
       ctx.fillStyle = '#e74c3c';
       ctx.fillRect(kpX, kpY, 14, 10);
       ctx.fillStyle = '#ffffff';
@@ -846,7 +858,7 @@
       ctx.fillRect(kpX + 3, kpY - 3 - steamY, 2, 2);
 
       // Microwave Oven
-      const mwX = cx + 26, mwY = cy + 2;
+      const mwX = cx + 24, mwY = cy - 2;
       ctx.fillStyle = '#2c3e50';
       ctx.fillRect(mwX, mwY, 14, 9);
       ctx.fillStyle = '#34495e';
@@ -855,45 +867,45 @@
       ctx.fillRect(mwX + 10, mwY + 2, 2, 2); // Timer
 
       // Donut Tray
-      const dnX = cx + 46, dnY = cy + 4;
+      const dnX = cx + 44, dnY = cy + 2;
       ctx.fillStyle = '#d35400';
       ctx.fillRect(dnX, dnY, 10, 4);
       ctx.fillStyle = '#ff7675';
       ctx.fillRect(dnX + 2, dnY + 1, 6, 2);
 
-      // Interactive Water Cooler Dispenser (X: 51..52, Y: 22..23)
+      // Interactive Water Cooler Dispenser (X: 51, Y: 23)
       const wc = LO.PROPS?.watercooler || { x: 51, y: 23 };
-      this.drawWaterCooler(ctx, wc.x * ts, (wc.y - 1) * ts, ts);
+      this.drawWaterCooler(ctx, wc.x * ts, wc.y * ts, ts);
 
-      // Pastel Teal Lounge Sofa (X: 45..49, Y: 27..28)
+      // Pastel Teal Lounge Sofa (X: 45..48, Y: 27)
       const sX = 45 * ts, sY = 27 * ts;
-      this.draw2DBlock(ctx, sX, sY, 4.5 * ts, 1.8 * ts, 12, '#7ac9af', '#57aa8f');
+      this.draw2DBlock(ctx, sX, sY, 4 * ts, 1.1 * ts, 10, '#7ac9af', '#57aa8f');
 
-      // Low Wood Coffee Table in Front of Sofa
-      this.draw2DBlock(ctx, sX + 8, sY + 24, 3 * ts, 1.2 * ts, 10, '#c7926b', '#9b6e4e');
+      // Low Wood Coffee Table in Front of Sofa (X: 46..47, Y: 29)
+      this.draw2DBlock(ctx, 46 * ts, 29 * ts, 2 * ts, 1.0 * ts, 8, '#c7926b', '#9b6e4e');
 
-      // Snack Vending Machine along East Wall (X: 55..56, Y: 26..28)
-      const vmX = 55 * ts, vmY = 26 * ts;
-      this.draw2DBlock(ctx, vmX, vmY, 2.2 * ts, 2.8 * ts, 8, '#ff7675', '#d65453');
+      // Snack Vending Machine along East Wall (X: 55..56, Y: 27..28)
+      const vmX = 55 * ts, vmY = 27 * ts;
+      this.draw2DBlock(ctx, vmX, vmY, 2 * ts, 2 * ts, 8, '#ff7675', '#d65453');
       // Glass display with colorful snacks
       ctx.fillStyle = '#1e293b';
-      ctx.fillRect(vmX + 3, vmY + 10, 28, 20);
+      ctx.fillRect(vmX + 3, vmY + 8, 26, 18);
       const snackColors = ['#f59e0b', '#3b82f6', '#10b981', '#ec4899'];
       for (let si = 0; si < 4; si++) {
         ctx.fillStyle = snackColors[si];
-        ctx.fillRect(vmX + 5 + si * 6, vmY + 14, 4, 6);
+        ctx.fillRect(vmX + 4 + si * 6, vmY + 11, 4, 6);
       }
 
       // Pizza / Martabak Event Item on Table
       const office = window.LO?.office;
       if (office && office.pizzaEventTimer > 0) {
-        const pzX = sX + 16, pzY = sY + 26;
+        const pzX = 46 * ts + 2, pzY = 29 * ts + 2;
         ctx.fillStyle = '#e67e22';
-        ctx.fillRect(pzX, pzY, 16, 6);
+        ctx.fillRect(pzX, pzY, 14, 5);
         ctx.strokeStyle = '#d35400';
-        ctx.strokeRect(pzX + 0.5, pzY + 0.5, 15, 5);
+        ctx.strokeRect(pzX + 0.5, pzY + 0.5, 13, 4);
         ctx.fillStyle = '#f39c12';
-        ctx.fillRect(pzX + 4, pzY + 1, 8, 4);
+        ctx.fillRect(pzX + 3, pzY + 1, 8, 3);
       }
     }
 
@@ -901,22 +913,22 @@
     drawWaterCooler(ctx, wx, wy, ts) {
       ts = ts || LO.TILE_SIZE || 16;
       // White Dispenser Cabinet
-      this.draw2DBlock(ctx, wx, wy + 8, 1.2 * ts, 1.4 * ts, 8, '#ecf0f1', '#bdc3c7');
+      this.draw2DBlock(ctx, wx + 1, wy + 4, 14, 12, 6, '#ecf0f1', '#bdc3c7');
 
       // Translucent Blue Water Bottle on Top
       ctx.fillStyle = 'rgba(52, 152, 219, 0.85)';
-      ctx.fillRect(wx + 2, wy - 4, 14, 12);
+      ctx.fillRect(wx + 2, wy - 6, 12, 10);
       ctx.fillStyle = '#2980b9';
-      ctx.fillRect(wx + 4, wy - 7, 10, 3);
+      ctx.fillRect(wx + 4, wy - 9, 8, 3);
 
       // Animated Rising Bubble
-      const bubbleY = (this.timeSec * 8) % 8;
+      const bubbleY = (this.timeSec * 8) % 7;
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(wx + 8, wy + 4 - bubbleY, 2, 2);
+      ctx.fillRect(wx + 7, wy + 1 - bubbleY, 2, 2);
 
       // Red & Blue Taps
-      ctx.fillStyle = '#e74c3c'; ctx.fillRect(wx + 4, wy + 10, 2, 3);
-      ctx.fillStyle = '#3498db'; ctx.fillRect(wx + 10, wy + 10, 2, 3);
+      ctx.fillStyle = '#e74c3c'; ctx.fillRect(wx + 3, wy + 7, 2, 3);
+      ctx.fillStyle = '#3498db'; ctx.fillRect(wx + 9, wy + 7, 2, 3);
     }
 
     // Elevator Lobby & Entrance (East Corridor X: 59..63, Y: 15..18)

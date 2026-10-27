@@ -326,12 +326,12 @@
       { x: 52, y: 6,  col: 52, row: 6,  type: 'stand', facing: 'N' }  // Rack cluster C
     ],
     engineering: [
-      { x: 6,  y: 22, col: 6,  row: 22, type: 'desk',  facing: 'S' }, // Dodo (Senior Coder)
-      { x: 10, y: 22, col: 10, row: 22, type: 'desk',  facing: 'S' }, // Developer 2
-      { x: 6,  y: 26, col: 6,  row: 26, type: 'desk',  facing: 'S' }, // Developer 3
-      { x: 10, y: 26, col: 10, row: 26, type: 'desk',  facing: 'S' }, // Developer 4
-      { x: 15, y: 24, col: 15, row: 24, type: 'desk',  facing: 'S' }, // Developer 5
-      { x: 19, y: 24, col: 19, row: 24, type: 'desk',  facing: 'S' }  // Developer 6
+      { x: 6,  y: 22, col: 6,  row: 22, type: 'desk',  facing: 'N' }, // Dodo (Senior Coder, facing desk & screen)
+      { x: 10, y: 22, col: 10, row: 22, type: 'desk',  facing: 'N' }, // Developer 2
+      { x: 6,  y: 26, col: 6,  row: 26, type: 'desk',  facing: 'N' }, // Developer 3
+      { x: 10, y: 26, col: 10, row: 26, type: 'desk',  facing: 'N' }, // Developer 4
+      { x: 15, y: 24, col: 15, row: 24, type: 'desk',  facing: 'N' }, // Developer 5
+      { x: 19, y: 24, col: 19, row: 24, type: 'desk',  facing: 'N' }  // Developer 6
     ],
     meeting: [
       { x: 29, y: 23, col: 29, row: 23, type: 'sit',   facing: 'S' }, // Sekar (Sekretaris)
