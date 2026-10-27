@@ -1,27 +1,15 @@
 services:
   ai-office:
     build:
-      context: ./services/ai-office
+      context: ./services/lami-office-react
       dockerfile: Dockerfile
     container_name: ${COMPOSE_PROJECT_NAME:-office}-ai-office
     restart: unless-stopped
     ports:
-      - "${AI_OFFICE_PORT:-8088}:80"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    environment:
-      - PYTHONUNBUFFERED=1
-      - ENVIRONMENT=${ENVIRONMENT:-production}
-
-  lami-office-react:
-    build:
-      context: ./services/lami-office-react
-      dockerfile: Dockerfile
-    container_name: ${COMPOSE_PROJECT_NAME:-office}-lami-office
-    restart: unless-stopped
-    ports:
+      - "${AI_OFFICE_PORT:-8088}:8090"
       - "${LAMI_OFFICE_PORT:-8090}:8090"
     volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
       - ${HERMES_HOME:-~/.hermes}:/root/.hermes:ro
     environment:
       - HOST=0.0.0.0
@@ -30,3 +18,4 @@ services:
       - INGEST_TOKEN=${INGEST_TOKEN:-}
       - PYTHONUNBUFFERED=1
       - ENVIRONMENT=${ENVIRONMENT:-production}
+
