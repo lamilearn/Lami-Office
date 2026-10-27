@@ -2,6 +2,9 @@
 __pycache__/
 *.py[cod]
 *$py.class
+.pytest_cache/
+.coverage
+htmlcov/
 
 # Node / JS
 node_modules/
@@ -11,19 +14,33 @@ yarn-error.log*
 
 # Environment & credentials
 .env
-.env.*
-!.env.example
+.env.local
+.env.*.local
 *.pem
 *.key
+*.cert
+*.crt
+
+# Allow tracked env configuration profiles
+!.env.example
+!.env.production
+!.env.development
 
 # OS / IDE artifacts
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
+*.swp
+*~
 
 # Build & test outputs
 dist/
 build/
 *.egg-info/
-.pytest_cache/
+
+# Logs & temp files
+*.log
+logs/
+tmp/
+temp/

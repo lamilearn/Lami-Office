@@ -3,16 +3,29 @@ services:
     build:
       context: ./services/ai-office
       dockerfile: Dockerfile
-    container_name: ai-office
+    container_name: ${COMPOSE_PROJECT_NAME:-office}-ai-office
     restart: unless-stopped
     ports:
-      - "8088:80"
+      - "${AI_OFFICE_PORT:-8088}:80"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - PYTHONUNBUFFERED=1
+      - ENVIRONMENT=${ENVIRONMENT:-production}
 
   lami-office-react:
     build:
       context: ./services/lami-office-react
       dockerfile: Dockerfile
-    container_name: lami-office-react
+    container_name: ${COMPOSE_PROJECT_NAME:-office}-lami-office
     restart: unless-stopped
     ports:
-      - "8090:8090"
+      - "${LAMI_OFFICE_PORT:-8090}:8090"
+    volumes:
+      - ${HERMES_HOME:-~/.hermes}:/root/.hermes:ro
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8090
+      - PUBLIC_MODE=${PUBLIC_MODE:-live}
+      - PYTHONUNBUFFERED=1
+      - ENVIRONMENT=${ENVIRONMENT:-production}

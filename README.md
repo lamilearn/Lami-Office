@@ -1,4 +1,4 @@
-# Lami AI Office
+# Lami AI Office Suite
 
 Unified workspace & monorepo containing services for **AI Office** and **Lami Office**.
 
@@ -6,21 +6,56 @@ Unified workspace & monorepo containing services for **AI Office** and **Lami Of
 
 ```
 .
+├── .dockerignore
+├── .gitignore
+├── .env.example
+├── .env.production
+├── .env.development
 ├── docker-compose.yml
-├── services/
-│   ├── ai-office/           # Web app running on port 8088 (office.fatihrumi.id)
-│   └── lami-office-react/   # Interactive office running on port 8090 (lami.fatihrumi.id)
+├── scripts/
+│   ├── smoke_test.sh        # Probes all 7 health endpoints
+│   └── push_to_github.sh    # Push master and dev branches to GitHub
+└── services/
+    ├── ai-office/           # Python FastAPI app running on port 8088 (office.fatihrumi.id)
+    └── lami-office-react/   # Interactive office app running on port 8090 (lami.fatihrumi.id)
 ```
 
 ## Branching Strategy
 
-- **`master`**: Production release and stable branch.
-- **`dev`**: Active development branch. All feature work and experiments happen here before being merged to `master`.
+- **`master`**: Production release and stable baseline branch.
+- **`dev`**: Active development branch. All feature work and staging tests happen here.
+
+## Environment Profiles
+
+- **Production (`.env.production`)**:
+  - Ports: 8088 (`ai-office`), 8090 (`lami-office-react`)
+  - Project name: `office-prod`
+  - Mode: `live`
+- **Development / Staging (`.env.development`)**:
+  - Ports: 18088 (`ai-office`), 18090 (`lami-office-react`)
+  - Project name: `office-dev`
+  - Mode: `demo`
 
 ## Getting Started
 
-To run all services with Docker Compose:
+To run services with Docker Compose:
 
 ```bash
-docker compose up -d --build
+# Production environment (standard ports 8088/8090)
+docker compose --env-file .env.production up -d --build
+
+# Development environment (isolated ports 18088/18090)
+docker compose --env-file .env.development up -d --build
+```
+
+## Smoke Testing
+
+To verify service health across all 7 endpoints:
+
+```bash
+# Test local instance
+./scripts/smoke_test.sh 127.0.0.1 8088 8090
+
+# Test remote host
+./scripts/smoke_test.sh 192.168.3.33 8088 8090
 ```
