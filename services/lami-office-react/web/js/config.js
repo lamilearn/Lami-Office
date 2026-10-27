@@ -7,15 +7,15 @@
   LO.ISO_TILE_H = 13;   // tile height in pixels (2:1 ratio)
   LO.GRID_COLS = 8;     // col axis goes Down-Right (SE)
   LO.GRID_ROWS = 5;     // row axis goes Down-Left (SW)
-  LO.FLOOR_DY = 66;     // vertical distance between stacked floors
-  LO.ROOF_OFFSET = 32;  // top margin for roof banner & sky
+  LO.FLOOR_DY = 82;     // vertical distance between stacked floors (spacious, no overlap)
+  LO.ROOF_OFFSET = 60;  // top margin for roof banner & sky (leaves room for HUD & sign)
   LO.NF = 6;            // number of floors
 
-  LO.CONTENT_W = 340;
-  LO.CONTENT_H = LO.ROOF_OFFSET + (LO.NF - 1) * LO.FLOOR_DY + (LO.GRID_COLS + LO.GRID_ROWS) * (LO.ISO_TILE_H / 2) + 60;
+  LO.CONTENT_W = 380;
+  LO.CONTENT_H = LO.ROOF_OFFSET + (LO.NF - 1) * LO.FLOOR_DY + (LO.GRID_COLS + LO.GRID_ROWS) * (LO.ISO_TILE_H / 2) + 90;
 
   // Center X for isometric origin
-  LO.ORIGIN_X = 170;
+  LO.ORIGIN_X = 190;
 
   // Calculate Screen (X, Y) from Isometric (col, row, floor)
   LO.isoToScreen = function (col, row, floor) {

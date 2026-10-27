@@ -119,28 +119,28 @@
     drawRoofBanner(ctx) {
       const topPt = LO.isoToScreen(0, 0, 0);
       const bx = LO.ORIGIN_X;
-      const by = topPt.y - 28;
+      const by = topPt.y - 34;
       const office = window.LO?.office;
       const isTheOffice = Boolean(office && office.theOfficeMode);
 
       // Cute Mall Signboard
       ctx.fillStyle = isTheOffice ? '#dff9fb' : '#ffd25e';
-      ctx.fillRect(bx - 55, by, 110, 14);
+      ctx.fillRect(bx - 60, by, 120, 16);
       ctx.strokeStyle = '#3a2838';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(bx - 54.5, by + 0.5, 109, 13);
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(bx - 59.5, by + 0.5, 119, 15);
 
       ctx.fillStyle = '#3a2838';
-      ctx.font = '6.5px "Press Start 2P", monospace';
+      ctx.font = '7px "Press Start 2P", monospace';
       ctx.textAlign = 'center';
-      ctx.fillText(isTheOffice ? '📄 DUNDER MIFFLIN' : '👑 LAMI CORP', bx, by + 10);
+      ctx.fillText(isTheOffice ? '📄 DUNDER MIFFLIN' : '👑 LAMI OFFICE', bx, by + 11);
 
       // Small antenna beacon
       ctx.fillStyle = '#55445c';
-      ctx.fillRect(bx - 58, by - 10, 2, 10);
+      ctx.fillRect(bx - 64, by - 12, 2, 12);
       const beacon = Math.sin(this.timeSec * 4) > 0;
       ctx.fillStyle = beacon ? '#ff3344' : '#661122';
-      ctx.fillRect(bx - 59, by - 12, 4, 3);
+      ctx.fillRect(bx - 65, by - 14, 4, 3);
     }
 
     drawIsometricFloor(ctx, floorIndex, theme) {
