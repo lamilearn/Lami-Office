@@ -61,6 +61,7 @@ async function main() {
   }
   if (selectedTiers.includes(4)) {
     require('./e2e/tier4_real_world_scenarios.test.js');
+    require('./e2e/tier4_http_integration.test.js');
   }
 
   // Run the tests

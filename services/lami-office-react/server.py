@@ -1192,12 +1192,27 @@ class Handler(BaseHTTPRequestHandler):
     def mode_for_client(self) -> str:
         return "demo" if (self.is_public() and CFG["public_mode"] == "demo") else "live"
 
+    def _has_unread_body(self) -> bool:
+        """True when the request declared a body this handler never consumed."""
+        try:
+            declared = int(self.headers.get("Content-Length", 0) or 0)
+        except (TypeError, ValueError):
+            return False
+        return declared > 0 and not getattr(self, "_body_read", False)
+
     def send_json(self, code: int, obj):
         body = json.dumps(obj).encode()
+        # An early rejection (403/413/400) can leave the request body unread. On a
+        # keep-alive connection the leftover bytes would be parsed as the next
+        # request (HTTP 501), so close the connection instead of reusing it.
+        if self._has_unread_body():
+            self.close_connection = True
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        if self.close_connection:
+            self.send_header("Connection", "close")
         self.end_headers()
         self.wfile.write(body)
 
@@ -1320,6 +1335,7 @@ class Handler(BaseHTTPRequestHandler):
             return [], f"body terlalu besar (maks {self.MAX_BODY} byte)", 413
         try:
             raw = self.rfile.read(declared) if declared else b"{}"
+            self._body_read = True
             data = json.loads(raw)
         except Exception:  # noqa: BLE001
             return [], "json tidak valid", 400
@@ -1343,7 +1359,9 @@ class Handler(BaseHTTPRequestHandler):
         if declared > 32_000:
             return self.send_json(413, {"error": "body terlalu besar (maks 32000 byte)"})
         try:
-            data = json.loads(self.rfile.read(declared) if declared else b"{}")
+            raw = self.rfile.read(declared) if declared else b"{}"
+            self._body_read = True
+            data = json.loads(raw)
         except Exception:  # noqa: BLE001
             return self.send_json(400, {"error": "json tidak valid"})
         if not isinstance(data, dict):
