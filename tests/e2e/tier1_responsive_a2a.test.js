@@ -404,3 +404,37 @@ describe('Tier 1 — Feature 19: Overlay Footprint (notifications must not cover
     assert.ok(/tickerList\.innerHTML = ''/.test(body), 'addTicker must clear before rendering one toast');
   });
 });
+
+describe('Tier 1 — Feature 20: Mesh Sidecar Roles & Recipient Mapping', () => {
+  const fsx = require('node:fs');
+  const pathx = require('node:path');
+  const SERVER = pathx.join(REPO, 'services/lami-office-react/server.py');
+
+  it('F20.1: Sidecar rooms match their real roles (security->server, devops->engineering)', () => {
+    const src = fsx.readFileSync(SERVER, 'utf8');
+    assert.ok(/"id": "kira",\s+"name": "Kira",\s+"host": "192\.168\.3\.93",\s+"port": 8000,\s+"room": "server"/.test(src),
+      'Kira (security) must sit in the Server Room');
+    assert.ok(/"id": "cyro",\s+"name": "Cyro",\s+"host": "192\.168\.3\.94",\s+"port": 8000,\s+"room": "engineering"/.test(src),
+      'Cyro (DevOps) must sit in the Engineering Pit');
+    assert.ok(/"id": "aurora"[\s\S]{0,160}"room": "meeting"/.test(src), 'Aurora (PM) must sit in the Meeting Room');
+  });
+
+  it('F20.2: A peer can send to a mesh-registered recipient distinct from its display id', () => {
+    const src = fsx.readFileSync(SERVER, 'utf8');
+    assert.ok(/self\.recipient = str\(spec\.get\("recipient"\) or self\.id\)/.test(src),
+      'A2APeer must support a recipient override');
+    assert.ok(/"recipient": peer\.recipient or peer\.id/.test(src),
+      'Outgoing messages must use the mesh recipient id');
+    assert.ok(/"id": "aurora"[\s\S]{0,220}"recipient": "clark"/.test(src),
+      'Aurora must map to the mesh id "clark"');
+  });
+
+  it('F20.3: No sidecar secret is committed to the repository', () => {
+    const tracked = ['README.md', 'PROJECT.md', '.env.example', 'docker-compose.yml',
+      'services/lami-office-react/server.py'];
+    for (const f of tracked) {
+      const txt = fsx.readFileSync(pathx.join(REPO, f), 'utf8');
+      assert.ok(!/a2a_secret_mesh_ebi_2026/.test(txt), `${f} must not contain the mesh secret`);
+    }
+  });
+});

@@ -76,11 +76,25 @@ Four Hermes **A2A sidecars** are shown in their specialty rooms:
 
 | Agent | Host | Room | Protocol |
 |---|---|---|---|
-| Lami 👑 | `192.168.3.31:9900` | Boss Office | official A2A v1.0 (Agent Card + JSON-RPC) |
-| Yuna 🔬 | `192.168.3.91:8000` | Research Lab | legacy sidecar |
-| Aurora 📐 | `192.168.3.92:8000` | Meeting Room | legacy sidecar |
-| Kira ⚙️ | `192.168.3.93:8000` | Engineering Pit | legacy sidecar |
-| Cyro 🛰️ | `192.168.3.94:8000` | Server Room | legacy sidecar |
+| Agent | Role | Host | Room | Protocol |
+|---|---|---|---|---|
+| Lami 👑 | Orchestrator | `192.168.3.31:9900` | Boss Office | official A2A v1.0 (Agent Card + JSON-RPC) |
+| Yuna 💰 | Finance | `192.168.3.91:8000` | Research Lab | A2A sidecar (mesh) |
+| Aurora 📐 | PM (mesh id `clark`) | `192.168.3.92:8000` | Meeting Room | A2A sidecar (mesh) |
+| Kira 🛡️ | Security | `192.168.3.93:8000` | Server Room | A2A sidecar (mesh) |
+| Cyro 🛠️ | Engineer / DevOps | `192.168.3.94:8000` | Engineering Pit | A2A sidecar (mesh) |
+
+The mesh sidecars live at `~ebi/a2a-mesh` (`hermes-a2a.service`) and share one
+secret token; it is stored **only** in `.env.development` / `.env.production` as
+`A2A_SECRET` (never committed). Read it on a sidecar with:
+
+```bash
+ssh ebi@192.168.3.91 'grep ^SECRET ~/a2a-mesh/a2a_daemon.py'
+```
+
+Messages accepted by a sidecar are appended to
+`~ebi/a2a-mesh/logs/inbox_<date>.jsonl`; read them with `~/a2a-mesh/read_inbox.py`.
+There is no automatic poller feeding those inboxes into a Hermes turn yet.
 
 The dialect is auto-detected per peer: the official A2A endpoint is probed with
 `GET /.well-known/agent-card.json` and sent JSON-RPC `SendMessage`; anything else
