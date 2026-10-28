@@ -6,7 +6,11 @@ Wants=network-online.target
 [Service]
 Type=simple
 # Adjust these three lines to the real paths/values on the Hermes host.
-Environment=OFFICE_URL=http://192.168.3.33:13579
+# IMPORTANT: point this at the OFFICE YOU WANT FED.
+#   production : http://192.168.3.33:8090
+#   staging    : http://192.168.3.33:13579
+# A bridge aimed at staging leaves production with an empty, non-realtime floor.
+Environment=OFFICE_URL=http://192.168.3.33:8090
 Environment=OFFICE_INGEST_TOKEN=CHANGE_ME
 Environment=HERMES_STATE_DB=%h/.hermes/state.db
 ExecStart=/usr/bin/python3 %h/lami-office/deploy/hermes_bridge.py

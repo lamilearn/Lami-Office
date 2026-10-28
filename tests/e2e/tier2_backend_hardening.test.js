@@ -207,3 +207,23 @@ print(S.clean_text('user@example.com', 200))
     assert.strictEqual(lines[3], '[email]', 'Email must be masked');
   });
 });
+
+describe('Tier 2 — Backend Hardening: Bridge Target (F-6)', () => {
+  const fsx = require('node:fs');
+  const pathx = require('node:path');
+  const REPO = pathx.resolve(__dirname, '..', '..');
+
+  it('H6.1: The shipped bridge unit targets production, not staging', () => {
+    const unit = fsx.readFileSync(
+      pathx.join(REPO, 'services/lami-office-react/deploy/hermes-bridge.service'), 'utf8');
+    const env = unit.split('\n').find((l) => l.startsWith('Environment=OFFICE_URL=')) || '';
+    assert.ok(env.includes(':8090'), `bridge unit must target production (:8090), got: ${env}`);
+    assert.ok(!env.includes(':13579'), 'bridge unit must not target staging by default');
+  });
+
+  it('H6.2: The README documents the bridge target pitfall', () => {
+    const readme = fsx.readFileSync(pathx.join(REPO, 'README.md'), 'utf8');
+    assert.ok(/OFFICE_URL=http:\/\/192\.168\.3\.33:8090/.test(readme), 'README must show the prod URL');
+    assert.ok(/last_event_age_s/.test(readme), 'README must explain how to detect a misaimed bridge');
+  });
+});
