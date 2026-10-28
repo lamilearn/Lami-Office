@@ -312,12 +312,10 @@ class Hub:
                 except (TypeError, ValueError):
                     pass
         self.events_total = int(data.get("events_total") or 0)
-        try:
-            if isinstance(data.get("world"), dict):
-                SIM.restore(data["world"])
-                print(f"[world] posisi karakter dipulihkan ({len(SIM.subagents)} sub-agent)")
-        except Exception as exc:  # noqa: BLE001 - a bad world block must not block startup
-            print(f"[world] gagal memulihkan posisi: {exc}", file=sys.stderr)
+        # Held until the simulation object exists (it is created after the Hub, so
+        # restoring here would fail with "SIM is not defined" and silently reset
+        # everyone to their desks).
+        self.pending_world = data.get("world") if isinstance(data.get("world"), dict) else None
         if hist:
             self.last_event_ts = float(hist[-1].get("ts") or 0)
         # Rebuild "who is working now": replay the WHOLE feed (including
@@ -1180,6 +1178,13 @@ def watcher_loop():
 # World simulation - ONE shared office for every visitor
 # --------------------------------------------------------------------------------------
 SIM = office_world.Sim()
+try:
+    if getattr(HUB, "pending_world", None):
+        SIM.restore(HUB.pending_world)
+        print(f"[world] posisi karakter dipulihkan ({len(SIM.subagents)} sub-agent)")
+    HUB.pending_world = None
+except Exception as exc:  # noqa: BLE001 - a bad world block must not block startup
+    print(f"[world] gagal memulihkan posisi: {exc}", file=sys.stderr)
 SIM_STATS = {"ticks": 0, "last_tick_ms": 0.0, "clients_broadcast": 0, "narrated": 0}
 
 

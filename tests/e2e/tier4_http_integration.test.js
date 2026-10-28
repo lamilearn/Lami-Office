@@ -660,3 +660,71 @@ describe('Tier 4 — HTTP Integration: World survives a server restart', () => {
     }
   }, { timeout: 120000 });
 });
+
+describe('Tier 4 — HTTP Integration: World restore on boot', () => {
+  let dir = null;
+
+  afterAll(async () => {
+    if (dir) fs.rmSync(dir, { recursive: true, force: true });
+    dir = null;
+  });
+
+  it('W8: a saved mid-walk position is resumed instead of reseated at the desk', async () => {
+    if (!HAVE_PY) return;
+    dir = H.tmpDir('lami-world-boot-');
+    const stateFile = path.join(dir, 'office-state.json');
+    // A fixture captured mid-walk: Lami heading to the window, Rina to the
+    // corkboard. Regression for a boot-order bug where the world block was
+    // restored before the Sim existed, silently resetting everyone to a desk.
+    fs.writeFileSync(stateFile, JSON.stringify({
+      day: null,
+      stats: {},
+      events_total: 0,
+      history: [],
+      world: {
+        ts: Date.now() / 1000,
+        lami: {
+          col: 20, row: 4, targetCol: 24, targetRow: 5, facing: 'E', state: 'walk',
+          path: [{ x: 24, y: 5 }], goal: { x: 24, y: 5 }, slot: null,
+          bubble: null, emote: null, carry: null,
+          routineState: 'moving_to_activity', routineId: 'window',
+          routineTimer: 0, activityDuration: 0, task: 'Menatap Kota', tool: 'delegate'
+        },
+        residents: {
+          'res-rina': {
+            col: 45, row: 10, targetCol: 32, targetRow: 6, facing: 'W', state: 'walk',
+            path: [{ x: 32, y: 10 }, { x: 32, y: 6 }], goal: { x: 32, y: 6 },
+            slot: { roomId: 'research', index: 0, type: 'desk', facing: 'N' },
+            bubble: null, emote: null, carry: null,
+            routineState: 'moving_to_activity', routineId: 'corkboard',
+            routineTimer: 0, activityDuration: 0, task: 'Cek Papan Catatan', tool: 'search'
+          }
+        },
+        cat: { col: 72, row: 36, targetCol: 72, targetRow: 36, state: 'sit', facing: 'W' },
+        subagents: {},
+        pizzaTimer: 0,
+        randomEventTimer: 45
+      }
+    }));
+
+    const srv = await H.startServer({ dir, keepDir: true, env: { OFFICE_STATE_FILE: stateFile } });
+    try {
+      const w = await srv.get('/api/world');
+      const chars = new Map(w.json.chars.map((c) => [c.id, c]));
+      const lami = chars.get('lami');
+      const rina = chars.get('res-rina');
+      const dist = (c, x, y) => Math.hypot(c.col - x, c.row - y);
+
+      // Resumed near the saved tile (a couple of ticks of walking, not a jump).
+      assert.ok(dist(lami, 20, 4) < 4, `Lami must resume near the window walk, got ${lami.col},${lami.row}`);
+      assert.ok(dist(rina, 45, 10) < 4, `Rina must resume near the hallway walk, got ${rina.col},${rina.row}`);
+      // Far from the desk it would have been reseated to.
+      assert.ok(dist(rina, 34, 10) > 5, 'Rina must NOT be back at her desk');
+      // The routine survived, so the walk continues instead of restarting.
+      assert.strictEqual(rina.routineState, 'moving_to_activity');
+      assert.strictEqual(rina.task, 'Cek Papan Catatan');
+    } finally {
+      await srv.stop();
+    }
+  }, { timeout: 90000 });
+});
