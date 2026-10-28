@@ -154,7 +154,10 @@ _SECRETS = [
     r"\b\d{6,}:[A-Za-z0-9_\-]{20,}\b",                       # telegram bot token
     r"(?i)\b(?:api[_-]?key|token|secret|password|passwd|pwd|auth)\b\s*[:=]\s*\S+",
     r"\b[A-Fa-f0-9]{32,}\b",
-    r"\b[A-Za-z0-9+/_\-]{40,}={0,2}",
+    # Base64-ish blobs only: require mixed case AND digits so plain prose or
+    # long lowercase/uppercase words are not mangled.
+    r"(?<![A-Za-z0-9+/_\-])(?=[A-Za-z0-9+/_\-]*[a-z])(?=[A-Za-z0-9+/_\-]*[A-Z])"
+    r"(?=[A-Za-z0-9+/_\-]*[0-9])[A-Za-z0-9+/_\-]{40,}={0,2}(?![A-Za-z0-9+/_\-])",
 ]
 _SECRET_RE = [re.compile(p) for p in _SECRETS + list(CFG.get("extra_redact") or [])]
 _WIN_PATH = re.compile(r"[A-Za-z]:\\(?:[^\\\s\"']+\\)*([^\\\s\"']+)")
@@ -401,8 +404,16 @@ class A2ARegistry:
             return {"ok": True, "status": 200, "peer": peer.to_dict(), "response": body}
         except urllib.error.HTTPError as exc:
             detail = exc.read()[:200].decode("utf-8", "ignore")
+            if exc.code >= 500:
+                peer.online = False
+                peer.error = f"HTTP {exc.code}"
+                peer.checked_at = time.time()
             return {"ok": False, "status": exc.code, "error": detail, "peer": peer.to_dict()}
         except Exception as exc:  # noqa: BLE001
+            # Unreachable peer: stop advertising it as online until the next probe.
+            peer.online = False
+            peer.error = str(exc)[:80]
+            peer.checked_at = time.time()
             return {"ok": False, "status": 502, "error": str(exc)[:120], "peer": peer.to_dict()}
 
 
@@ -850,6 +861,14 @@ class AntigravitySource:
                 pub({"type": "agent_done", "agentId": aid, "ok": ok, "result": "selesai" if ok else "gagal"})
 
 
+# Watcher health surfaced through /api/integration so ops can see a dead source.
+WATCHER = {"active": [], "errors": {}, "ticks": 0, "last_tick": 0.0}
+
+
+def _source_names(sources):
+    return [type(s).__name__ for s in sources]
+
+
 def watcher_loop():
     tracker = Tracker(HUB)
     sources = []
@@ -871,14 +890,21 @@ def watcher_loop():
         try:
             if s.setup():
                 sources.append(s)
-        except sqlite3.Error as exc:
-            print(f"[sqlite] error: {exc}")
+        except Exception as exc:  # noqa: BLE001 - a corrupt/locked DB must not kill the watcher
+            WATCHER["errors"]["sqlite"] = f"{type(exc).__name__}: {str(exc)[:100]}"
+            print(f"[sqlite] error: {exc}", file=sys.stderr)
 
     # 3. Hermes Sessions
     if mode == "sessions" or (mode == "auto" and not sources):
         s = SessionFilesSource(CFG["sessions_glob"], tracker)
-        if s.setup():
-            sources.append(s)
+        try:
+            if s.setup():
+                sources.append(s)
+        except Exception as exc:  # noqa: BLE001
+            WATCHER["errors"]["sessions"] = f"{type(exc).__name__}: {str(exc)[:100]}"
+            print(f"[sessions] error: {exc}", file=sys.stderr)
+
+    WATCHER["active"] = _source_names(sources)
 
     if not sources:
         print("[watcher] tidak ada sumber aktif yang ketemu. Office tetap jalan (ingest API / demo mode).")
@@ -891,6 +917,9 @@ def watcher_loop():
                 s.poll()
             except Exception as exc:  # noqa: BLE001
                 print(f"[watcher] {type(s).__name__}: {exc}", file=sys.stderr)
+                WATCHER["errors"][type(s).__name__] = f"{type(exc).__name__}: {str(exc)[:100]}"
+        WATCHER["ticks"] += 1
+        WATCHER["last_tick"] = time.time()
         HUB.reap(float(CFG["subagent_timeout"]))
         time.sleep(float(CFG["poll_interval"]))
 
@@ -985,6 +1014,13 @@ class Handler(BaseHTTPRequestHandler):
                     "sessions_dir": str(sess_path),
                     "sessions_age_s": age_of(sess_path),
                     "stale": (db_age is None or db_age > 600),
+                    "sources": WATCHER["active"],
+                    "errors": WATCHER["errors"],
+                    "ticks": WATCHER["ticks"],
+                    "health": (
+                        "ok" if WATCHER["active"] and not WATCHER["errors"]
+                        else ("degraded" if WATCHER["active"] else "idle")
+                    ),
                 }
             return self.send_json(200, out)
         if path == "/api/a2a":
@@ -1022,15 +1058,46 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(403, {"error": "ingest hanya dari host lokal/LAN terpercaya atau gunakan header X-Office-Token yang valid"})
         if has_token and not has_valid_token and not self.is_trusted():
             return self.send_json(401, {"error": "token salah"})
-        try:
-            length = min(int(self.headers.get("Content-Length", 0)), 256_000)
-            data = json.loads(self.rfile.read(length) or b"{}")
-        except Exception:  # noqa: BLE001
-            return self.send_json(400, {"error": "json tidak valid"})
-        events = data if isinstance(data, list) else [data]
+        events, error, code = self.read_events()
+        if error:
+            return self.send_json(code, {"error": error})
+        # Report what was actually accepted, not merely received, so a bridge can
+        # detect dropped events instead of assuming success.
+        accepted = 0
+        rejected = 0
         for ev in events:
+            if not isinstance(ev, dict) or sanitize_event(ev) is None:
+                rejected += 1
+                continue
             HUB.publish(ev)
-        return self.send_json(200, {"ok": True, "count": len(events)})
+            accepted += 1
+        return self.send_json(200, {
+            "ok": True, "received": len(events), "accepted": accepted, "rejected": rejected,
+        })
+
+    MAX_BODY = 256_000
+
+    def read_events(self):
+        """Parse the ingest body. Returns (events, error, http_code)."""
+        try:
+            declared = int(self.headers.get("Content-Length", 0) or 0)
+        except (TypeError, ValueError):
+            return [], "Content-Length tidak valid", 400
+        if declared < 0:
+            return [], "Content-Length tidak valid", 400
+        if declared > self.MAX_BODY:
+            return [], f"body terlalu besar (maks {self.MAX_BODY} byte)", 413
+        try:
+            raw = self.rfile.read(declared) if declared else b"{}"
+            data = json.loads(raw)
+        except Exception:  # noqa: BLE001
+            return [], "json tidak valid", 400
+        if data is None:
+            data = []
+        events = data if isinstance(data, list) else [data]
+        if len(events) > 2000:
+            return [], "terlalu banyak event dalam satu request (maks 2000)", 413
+        return events, None, 200
 
     def handle_a2a_send(self):
         # Public/tunnel callers must never be able to drive another agent.
@@ -1039,10 +1106,17 @@ class Handler(BaseHTTPRequestHandler):
         if not self.is_trusted():
             return self.send_json(403, {"error": "hanya host lokal/LAN terpercaya"})
         try:
-            length = min(int(self.headers.get("Content-Length", 0)), 32_000)
-            data = json.loads(self.rfile.read(length) or b"{}")
+            declared = int(self.headers.get("Content-Length", 0) or 0)
+        except (TypeError, ValueError):
+            return self.send_json(400, {"error": "Content-Length tidak valid"})
+        if declared > 32_000:
+            return self.send_json(413, {"error": "body terlalu besar (maks 32000 byte)"})
+        try:
+            data = json.loads(self.rfile.read(declared) if declared else b"{}")
         except Exception:  # noqa: BLE001
             return self.send_json(400, {"error": "json tidak valid"})
+        if not isinstance(data, dict):
+            return self.send_json(400, {"error": "body harus objek JSON"})
         peer_id = str(data.get("peer") or data.get("peerId") or "").strip()
         text = str(data.get("text") or data.get("message") or "").strip()
         if not peer_id or not text:

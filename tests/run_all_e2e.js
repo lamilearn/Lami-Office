@@ -54,6 +54,7 @@ async function main() {
   }
   if (selectedTiers.includes(2)) {
     require('./e2e/tier2_boundary_corner.test.js');
+    require('./e2e/tier2_backend_hardening.test.js');
   }
   if (selectedTiers.includes(3)) {
     require('./e2e/tier3_cross_feature.test.js');
