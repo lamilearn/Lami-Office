@@ -130,6 +130,47 @@ describe('Tier 1 — Feature 15: Responsive Layout & Phone Camera', () => {
     assert.ok(Math.abs(world.x - 400) < 1e-6 && Math.abs(world.y - 240) < 1e-6, 'Round trip must be exact');
     assert.ok(view.zoom > 0);
   });
+
+  it('F15.8: The shell is full-bleed — no 100vw sizing and no vertical letterbox', () => {
+    const css = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/css/style.css'), 'utf8');
+    const stage = css.slice(css.indexOf('#stage {'), css.indexOf('#office {'));
+
+    assert.ok(!/width:\s*100vw/.test(stage), '#stage must not size with 100vw (ignores scrollbar/visual viewport)');
+    assert.ok(/width:\s*100%/.test(stage), '#stage must fill its container width');
+    assert.ok(/height:\s*var\(--vvh,\s*100%\)/.test(stage), '#stage must honour the visual-viewport height');
+
+    assert.ok(!/body\.vertical/.test(css), 'the vertical letterbox mode must be removed');
+    assert.ok(!/calc\(100dvh \* 9 \/ 16\)/.test(css), 'the hard-coded 9:16 letterbox must be gone');
+  });
+
+  it('F15.9: The HUD grows for safe-area insets instead of clipping', () => {
+    const css = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/css/style.css'), 'utf8');
+    const hud = css.slice(css.indexOf('#hud {'), css.indexOf('.hud-brand, .hud-stats'));
+
+    assert.ok(/min-height:\s*var\(--header-height\)/.test(hud), 'HUD must use min-height');
+    assert.ok(!/^\s*height:\s*var\(--header-height\)/m.test(hud), 'HUD must not use a fixed height');
+    assert.ok(/env\(safe-area-inset-top\)/.test(hud), 'HUD must respect the top safe area');
+    assert.ok(/flex-wrap:\s*wrap/.test(hud), 'HUD must wrap on narrow screens');
+  });
+
+  it('F15.10: The ?vertical=1 override is gone from both CSS and camera mode', () => {
+    const main = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/js/main.js'), 'utf8');
+    const office = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/js/office.js'), 'utf8');
+
+    assert.ok(!/classList\.add\('vertical'\)/.test(main), 'main.js must not toggle the vertical class');
+    const isPhone = office.slice(office.indexOf('isPhoneMode() {'), office.indexOf('isPhoneMode() {') + 200);
+    assert.ok(!/vertical/.test(isPhone), 'isPhoneMode must not branch on the vertical param');
+    assert.ok(/return LO\.isPhoneMode\(\)/.test(isPhone), 'phone mode must come from device detection only');
+  });
+
+  it('F15.11: The Android soft keyboard resizes the shell via visualViewport', () => {
+    const office = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/js/office.js'), 'utf8');
+    assert.ok(/window\.visualViewport/.test(office), 'visualViewport must be used');
+    assert.ok(/setupVisualViewport\(\)/.test(office), 'a visualViewport setup hook must exist');
+    assert.ok(/setProperty\('--vvh'/.test(office), 'the visual viewport height must feed --vvh');
+    assert.ok(/vv\.addEventListener\('resize'/.test(office), 'resize listener required');
+    assert.ok(/recompute\(\)/.test(office), 'viewport changes must recompute the view');
+  });
 });
 
 describe('Tier 1 — Feature 16: Floorplan Decoration', () => {

@@ -16,7 +16,7 @@
 | **Tier 2** | Boundary & Corner Cases | 9 Degenerate & Edge Categories | `tests/e2e/tier2_boundary_corner.test.js` | 45 | **PASSED** (45/45) |
 | **Tier 3** | Cross-Feature Combinations | Pairwise Interactions & Modals | `tests/e2e/tier3_cross_feature.test.js` | 9 | **PASSED** (9/9) |
 | **Tier 4** | Real-World Application Scenarios | End-to-End Office Workflows | `tests/e2e/tier4_real_world_scenarios.test.js` | 5 | **PASSED** (5/5) |
-| **Total** | **Comprehensive Suite** | **All Core Requirements** | — | **176** | **PASSED** (176/176) |
+| **Total** | **Comprehensive Suite** | **All Core Requirements** | — | **180** | **PASSED** (180/180) |
 
 ---
 

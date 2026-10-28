@@ -713,20 +713,53 @@
       }
 
       // Keep the view correct across resizes, rotations and drawer changes.
-      const onResize = () => {
-        this.refreshMode();
-        this.reclampCamera();
-      };
+      const onResize = () => this.recompute();
       if (typeof window !== 'undefined' && window.addEventListener) {
         window.addEventListener('resize', onResize);
         window.addEventListener('orientationchange', onResize);
       }
+
+      // Android soft keyboard shrinks the *visual* viewport without firing a
+      // window resize. Mirror its height into --vvh (consumed by #stage) so the
+      // chat input stays visible and the canvas re-fits.
+      this.setupVisualViewport();
       this.refreshMode();
     }
 
+    setupVisualViewport() {
+      const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+      if (!vv || typeof document === 'undefined') return;
+
+      let timer = null;
+      const apply = () => {
+        const root = document.documentElement;
+        if (!root || !root.style) return;
+        // Only shrink: a browser toolbar retracting (vv taller than layout)
+        // must not blow the shell past the layout viewport.
+        root.style.setProperty('--vvh', `${Math.round(vv.height)}px`);
+        root.style.setProperty('--vv-offset', `${Math.round(vv.offsetTop)}px`);
+      };
+      const onVV = () => {
+        apply();
+        clearTimeout(timer);
+        timer = setTimeout(() => this.recompute(), 150); // debounce camera jitter
+      };
+
+      apply();
+      vv.addEventListener('resize', onVV);
+      vv.addEventListener('scroll', onVV);
+    }
+
+    // Re-evaluate mode, view transform and camera bounds after a viewport change.
+    recompute() {
+      this.refreshMode();
+      this.reclampCamera();
+    }
+
     // ---- Camera Mode (phones / touch-first devices) ----
+    // Driven purely by device capability + viewport width; the old ?vertical=1
+    // override letterboxed the whole app, so it was removed.
     isPhoneMode() {
-      if (LO.params && LO.params.get('vertical') === '1') return true;
       return LO.isPhoneMode();
     }
 
