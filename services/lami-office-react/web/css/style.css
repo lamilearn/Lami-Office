@@ -225,6 +225,10 @@ body.vertical #stage {
   left: 16px;
   bottom: 16px;
   max-width: min(380px, calc(100vw - 32px));
+  /* Hard cap: the toast dock must never grow tall enough to cover the
+     floorplan's left side (e.g. if many items are queued at once). */
+  max-height: 22vh;
+  overflow: hidden;
   z-index: 12;
   pointer-events: none;
 }

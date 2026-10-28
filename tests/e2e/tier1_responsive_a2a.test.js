@@ -372,3 +372,69 @@ describe('Tier 1 — Feature 18: Live State Persistence Across Reloads', () => {
     assert.ok(/"history": list\(self\.history/.test(snap), 'Snapshot must expose recent history');
   });
 });
+
+describe('Tier 1 — Feature 19: Overlay Footprint (notifications must not cover the floorplan)', () => {
+  const fsx = require('node:fs');
+  const pathx = require('node:path');
+  const CSS = pathx.join(REPO, 'services/lami-office-react/web/css/style.css');
+  const UI = pathx.join(REPO, 'services/lami-office-react/web/js/ui.js');
+
+  it('F19.1: The activity ticker is height-capped so it cannot cover the left page', () => {
+    const css = fsx.readFileSync(CSS, 'utf8');
+    const block = css.slice(css.indexOf('#ticker {'), css.indexOf('#ticker-list'));
+    assert.ok(/max-height:\s*22vh/.test(block), 'Ticker must cap its height');
+    assert.ok(/overflow:\s*hidden/.test(block), 'Ticker must clip overflow');
+  });
+
+  it('F19.2: Restoring history shows at most one toast, not a stack', () => {
+    const src = fsx.readFileSync(UI, 'utf8');
+    const start = src.indexOf('restoreActivity(history)');
+    const body = src.slice(start, src.indexOf('\n    describeHistoryEvent(', start));
+    // It must delegate to addTicker (which renders exactly one item) and must
+    // not bulk-append list items.
+    assert.ok(/this\.addTicker\(/.test(body), 'restoreActivity should reuse the single-toast renderer');
+    assert.ok(!/appendChild/.test(body), 'restoreActivity must not bulk-append toasts');
+    assert.ok(!/innerHTML\s*=\s*''/.test(body), 'restoreActivity must not clear/rebuild the list itself');
+  });
+
+  it('F19.3: A normal ticker call replaces the previous toast', () => {
+    const src = fsx.readFileSync(UI, 'utf8');
+    const start = src.indexOf('addTicker(icon, htmlText)');
+    const body = src.slice(start, start + 1200);
+    assert.ok(/tickerList\.innerHTML = ''/.test(body), 'addTicker must clear before rendering one toast');
+  });
+});
+
+describe('Tier 1 — Feature 20: Mesh Sidecar Roles & Recipient Mapping', () => {
+  const fsx = require('node:fs');
+  const pathx = require('node:path');
+  const SERVER = pathx.join(REPO, 'services/lami-office-react/server.py');
+
+  it('F20.1: Sidecar rooms match their real roles (security->server, devops->engineering)', () => {
+    const src = fsx.readFileSync(SERVER, 'utf8');
+    assert.ok(/"id": "kira",\s+"name": "Kira",\s+"host": "192\.168\.3\.93",\s+"port": 8000,\s+"room": "server"/.test(src),
+      'Kira (security) must sit in the Server Room');
+    assert.ok(/"id": "cyro",\s+"name": "Cyro",\s+"host": "192\.168\.3\.94",\s+"port": 8000,\s+"room": "engineering"/.test(src),
+      'Cyro (DevOps) must sit in the Engineering Pit');
+    assert.ok(/"id": "aurora"[\s\S]{0,160}"room": "meeting"/.test(src), 'Aurora (PM) must sit in the Meeting Room');
+  });
+
+  it('F20.2: A peer can send to a mesh-registered recipient distinct from its display id', () => {
+    const src = fsx.readFileSync(SERVER, 'utf8');
+    assert.ok(/self\.recipient = str\(spec\.get\("recipient"\) or self\.id\)/.test(src),
+      'A2APeer must support a recipient override');
+    assert.ok(/"recipient": peer\.recipient or peer\.id/.test(src),
+      'Outgoing messages must use the mesh recipient id');
+    assert.ok(/"id": "aurora"[\s\S]{0,220}"recipient": "clark"/.test(src),
+      'Aurora must map to the mesh id "clark"');
+  });
+
+  it('F20.3: No sidecar secret is committed to the repository', () => {
+    const tracked = ['README.md', 'PROJECT.md', '.env.example', 'docker-compose.yml',
+      'services/lami-office-react/server.py'];
+    for (const f of tracked) {
+      const txt = fsx.readFileSync(pathx.join(REPO, f), 'utf8');
+      assert.ok(!/a2a_secret_mesh_ebi_2026/.test(txt), `${f} must not contain the mesh secret`);
+    }
+  });
+});

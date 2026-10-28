@@ -486,24 +486,21 @@
     }
 
     // Rebuild the activity feed from a server snapshot (authoritative, newest last).
+    // The floating ticker is a single-line toast dock, not a history panel.
+    // Full history is restored into the chat drawer by net.js; here we only
+    // surface the most recent event so a reload never stacks toasts over the
+    // left side of the floorplan.
     restoreActivity(history) {
       if (!Array.isArray(history) || !history.length) return;
       const items = history.filter((ev) => ev && ev.type !== 'snapshot').slice(-25);
       if (!items.length) return;
-      this.tickerList.innerHTML = '';
-      const feed = [];
-      for (const ev of items) {
-        const desc = this.describeHistoryEvent(ev);
-        if (!desc) continue;
-        const when = new Date((ev.ts || 0) * 1000);
-        const timeStr = `${String(when.getHours()).padStart(2, '0')}:${String(when.getMinutes()).padStart(2, '0')}`;
-        const li = document.createElement('li');
-        li.className = 'ticker-old';
-        li.innerHTML = `<span class="t-icon">${desc.icon}</span><span class="t-text">${desc.html}</span><span class="t-time">${timeStr}</span>`;
-        this.tickerList.appendChild(li);
-        feed.push(desc);
-      }
-      this.tickerHistory = feed.slice(-20);
+      const latest = items
+        .slice()
+        .reverse()
+        .map((ev) => this.describeHistoryEvent(ev))
+        .find(Boolean);
+      if (!latest) return;
+      this.addTicker(latest.icon, latest.html);
     }
 
     describeHistoryEvent(ev) {

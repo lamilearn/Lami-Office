@@ -66,10 +66,12 @@ DEFAULT_CONFIG = {
     "a2a_peers": [
         # Official A2A v1.0 endpoint served by the Hermes gateway on this LAN.
         {"id": "lami",   "name": "Lami",   "host": "192.168.3.31", "port": 9900, "room": "boss",        "icon": "👑", "color": "#c084fc", "protocol": "a2a"},
-        {"id": "yuna",   "name": "Yuna",   "host": "192.168.3.91", "port": 8000, "room": "research",    "icon": "🔬", "color": "#60a5fa"},
-        {"id": "aurora", "name": "Aurora", "host": "192.168.3.92", "port": 8000, "room": "meeting",     "icon": "📐", "color": "#f472b6"},
-        {"id": "kira",   "name": "Kira",   "host": "192.168.3.93", "port": 8000, "room": "engineering", "icon": "⚙️", "color": "#34d399"},
-        {"id": "cyro",   "name": "Cyro",   "host": "192.168.3.94", "port": 8000, "room": "server",      "icon": "🛰️", "color": "#a78bfa"}
+        # Rooms follow each sidecar's real role: Yuna=finance (analysis),
+        # Aurora/Clark=PM (meeting), Kira=security (server room), Cyro=DevOps (engineering).
+        {"id": "yuna",   "name": "Yuna",   "host": "192.168.3.91", "port": 8000, "room": "research",    "icon": "💰", "color": "#60a5fa"},
+        {"id": "aurora", "name": "Aurora", "host": "192.168.3.92", "port": 8000, "room": "meeting",     "icon": "📐", "color": "#f472b6", "recipient": "clark"},
+        {"id": "kira",   "name": "Kira",   "host": "192.168.3.93", "port": 8000, "room": "server",      "icon": "🛡️", "color": "#34d399"},
+        {"id": "cyro",   "name": "Cyro",   "host": "192.168.3.94", "port": 8000, "room": "engineering", "icon": "🛠️", "color": "#a78bfa"}
     ],
 }
 
@@ -413,6 +415,9 @@ class A2APeer:
         self.icon = str(spec.get("icon") or "🔗")
         self.color = str(spec.get("color") or "#94a3b8")
         self.protocol = str(spec.get("protocol") or "auto")
+        # The mesh registry may know this peer under a different id (e.g. the
+        # .92 host is "agent-aurora" but the A2A registry calls it "clark").
+        self.recipient = str(spec.get("recipient") or self.id)
         self.online = False
         self.hostname = ""
         self.protocol_detected = ""
@@ -433,7 +438,7 @@ class A2APeer:
             "online": self.online, "hostname": self.hostname,
             "latency_ms": self.latency_ms, "error": self.error,
             "endpoint": self.base, "protocol": self.protocol_detected or self.protocol,
-            "skills": self.skills, "card_url": self.card_url,
+            "skills": self.skills, "card_url": self.card_url, "recipient": self.recipient,
         }
 
     def _get_json(self, path: str, timeout: float = 3):
@@ -602,7 +607,7 @@ class A2ARegistry:
         payload = {
             "message_id": f"office-{int(time.time() * 1000)}-{os.urandom(3).hex()}",
             "sender": sender,
-            "recipient": peer.id,
+            "recipient": peer.recipient or peer.id,
             "task_id": f"office-{int(time.time())}",
             "intent": intent or "chat",
             "title": (title or text or "")[:60],
