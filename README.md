@@ -114,6 +114,29 @@ Check the Hermes bridge wiring on the agent host:
 python3 deploy/hermes_bridge.py --endpoint http://192.168.3.33:13579 --verify
 ```
 
+## Wiring Hermes to the office (bridge)
+
+The bridge on the Hermes host (`192.168.3.31`) is what makes the office
+**real-time** — it tails `~/.hermes/state.db` and POSTs events to the office.
+
+```bash
+# which office gets fed (check this before enabling!)
+OFFICE_URL=http://192.168.3.33:8090     # production
+# OFFICE_URL=http://192.168.3.33:13579  # staging
+```
+
+Verify it end to end:
+
+```bash
+python3 deploy/hermes_bridge.py --endpoint http://192.168.3.33:8090 --verify
+systemctl --user status hermes-bridge
+curl -s http://192.168.3.33:8090/api/integration | jq .last_event_age_s
+```
+
+If `last_event_age_s` keeps growing while agents are working, the bridge is
+aimed at the wrong office (this shipped as a bug once: the bridge pointed at
+staging, so production looked idle).
+
 ## Live State
 
 The office shows what the agents are doing **right now**, and that state is not
