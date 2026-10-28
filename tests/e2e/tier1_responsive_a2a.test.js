@@ -372,3 +372,35 @@ describe('Tier 1 — Feature 18: Live State Persistence Across Reloads', () => {
     assert.ok(/"history": list\(self\.history/.test(snap), 'Snapshot must expose recent history');
   });
 });
+
+describe('Tier 1 — Feature 19: Overlay Footprint (notifications must not cover the floorplan)', () => {
+  const fsx = require('node:fs');
+  const pathx = require('node:path');
+  const CSS = pathx.join(REPO, 'services/lami-office-react/web/css/style.css');
+  const UI = pathx.join(REPO, 'services/lami-office-react/web/js/ui.js');
+
+  it('F19.1: The activity ticker is height-capped so it cannot cover the left page', () => {
+    const css = fsx.readFileSync(CSS, 'utf8');
+    const block = css.slice(css.indexOf('#ticker {'), css.indexOf('#ticker-list'));
+    assert.ok(/max-height:\s*22vh/.test(block), 'Ticker must cap its height');
+    assert.ok(/overflow:\s*hidden/.test(block), 'Ticker must clip overflow');
+  });
+
+  it('F19.2: Restoring history shows at most one toast, not a stack', () => {
+    const src = fsx.readFileSync(UI, 'utf8');
+    const start = src.indexOf('restoreActivity(history)');
+    const body = src.slice(start, src.indexOf('\n    describeHistoryEvent(', start));
+    // It must delegate to addTicker (which renders exactly one item) and must
+    // not bulk-append list items.
+    assert.ok(/this\.addTicker\(/.test(body), 'restoreActivity should reuse the single-toast renderer');
+    assert.ok(!/appendChild/.test(body), 'restoreActivity must not bulk-append toasts');
+    assert.ok(!/innerHTML\s*=\s*''/.test(body), 'restoreActivity must not clear/rebuild the list itself');
+  });
+
+  it('F19.3: A normal ticker call replaces the previous toast', () => {
+    const src = fsx.readFileSync(UI, 'utf8');
+    const start = src.indexOf('addTicker(icon, htmlText)');
+    const body = src.slice(start, start + 1200);
+    assert.ok(/tickerList\.innerHTML = ''/.test(body), 'addTicker must clear before rendering one toast');
+  });
+});
