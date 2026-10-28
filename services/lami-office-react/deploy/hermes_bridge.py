@@ -121,15 +121,28 @@ class Bridge:
                 "SELECT rowid AS _rowid, session_id, role, content, tool_name, tool_calls, timestamp "
                 "FROM messages ORDER BY rowid DESC LIMIT ?", (limit,))
             data = list(reversed(cur.fetchall()))
+        elif self.last_rowid <= 0:
+            # No state yet: start at the live end of the log instead of replaying
+            # the whole history (a fresh DB has ~16k rows, far past the ingest cap).
+            cur.execute("SELECT COALESCE(MAX(rowid), 0) AS m FROM messages")
+            latest = cur.fetchone()["m"]
+            self.last_rowid = latest - self.opts.backlog
+            if self.last_rowid < 0:
+                self.last_rowid = 0
+            data = self._select_after(cur, self.last_rowid, limit if limit and limit < self.opts.backlog else self.opts.backlog)
         else:
-            cur.execute(
-                "SELECT rowid AS _rowid, session_id, role, content, tool_name, tool_calls, timestamp "
-                "FROM messages WHERE rowid > ? ORDER BY rowid ASC" + (" LIMIT ?" if limit else ""),
-                ((self.last_rowid, limit) if limit else (self.last_rowid,)),
-            )
-            data = cur.fetchall()
+            data = self._select_after(cur, self.last_rowid, limit)
         con.close()
         return data
+
+    @staticmethod
+    def _select_after(cur, after: int, limit: int | None):
+        cur.execute(
+            "SELECT rowid AS _rowid, session_id, role, content, tool_name, tool_calls, timestamp "
+            "FROM messages WHERE rowid > ? ORDER BY rowid ASC" + (" LIMIT ?" if limit else ""),
+            ((after, limit) if limit else (after,)),
+        )
+        return cur.fetchall()
 
     def session_task(self, session: str) -> str:
         try:
@@ -207,6 +220,30 @@ class Bridge:
             log(f"POST {self.url} gagal: {exc}")
         return False
 
+    MAX_BATCH_BYTES = 60_000
+
+    def send_batches(self, last_rowid: int, events: list[dict]) -> int:
+        chunk: list[dict] = []
+        size = 0
+        sent = 0
+        for ev in events + [None]:
+            if ev is None:
+                break
+            ev_size = len(json.dumps(ev, ensure_ascii=False).encode()) + 2
+            if chunk and size + ev_size > self.MAX_BATCH_BYTES:
+                if not self.send(chunk):
+                    return sent
+                sent += len(chunk)
+                chunk, size = [], 0
+            chunk.append(ev)
+            size += ev_size
+        if chunk and not self.send(chunk):
+            return sent
+        sent += len(chunk)
+        self.last_rowid = last_rowid
+        self._save_state()
+        return sent
+
     def reap(self):
         now = time.time()
         for aid, seen in list(self.last_seen.items()):
@@ -222,6 +259,10 @@ class Bridge:
         batch: list[dict] = []
         for row in rows:
             batch.extend(self.parse(row))
+        # Split the batch so a large backlog never exceeds the server's body cap
+        # (256 KB) and gets rejected as one oversized request.
+        if not self.opts.probe:
+            return self.send_batches(rows[-1]["_rowid"], batch)
         if self.opts.probe:
             for ev in batch:
                 print(json.dumps(ev, ensure_ascii=False))
@@ -310,6 +351,8 @@ def main():
     ap.add_argument("--db", default=os.environ.get("HERMES_STATE_DB", DEFAULT_DB))
     ap.add_argument("--state-file", default="~/.hermes/office_bridge_state.json")
     ap.add_argument("--poll", type=float, default=1.0)
+    ap.add_argument("--backlog", type=int, default=200,
+                    help="events to replay on first start when no state file exists")
     ap.add_argument("--timeout", type=float, default=90.0, help="idle seconds before agent_done")
     ap.add_argument("--boss-session", action="append", default=[], help="session id(s) shown as Lami")
     ap.add_argument("--include-cron", action="store_true")
