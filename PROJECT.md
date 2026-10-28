@@ -89,10 +89,13 @@ A complete 2D Top-Down / RPG pixel art office (Pokemon / Zelda GBA / RPG Maker a
 - `Office.isPhoneMode()`: `true` for `?vertical=1` or `LO.isPhoneMode()`.
 
 ### `server.py` ↔ A2A peers (Feature 17)
-- `GET /api/a2a` → `{ peers: [{ id, name, host, port, room, icon, color, online, hostname, latency_ms, error, endpoint }], online, total, can_send }`.
+- `GET /api/a2a` → `{ peers: [{ id, name, host, port, room, icon, color, online, hostname, latency_ms, error, endpoint, protocol, skills, card_url }], online, total, can_send }`.
 - `POST /api/a2a/send` `{ peer, text, intent? }` → `{ ok, status, peer, response? }`. Local/LAN only; public tunnel traffic is rejected.
 - Peer roster defaults live in `DEFAULT_CONFIG["a2a_peers"]`, overridable with `A2A_PEERS` (JSON).
-- `A2A_SECRET`: shared secret sent as `x-a2a-token` to each sidecar. Empty = presence only.
+- `A2A_SECRET`: shared secret sent as `x-a2a-token` to legacy sidecars. Empty = presence only.
+- `A2A_PEER_TOKENS`: per-peer credentials (`id:token,…` or JSON). Used as `Authorization: Bearer` for official A2A peers.
+- `A2A_REPLY_TIMEOUT`: seconds to await an official A2A task reply (default 120).
+- Dialects: `protocol` per peer is `a2a` | `custom` | `auto` (default). `auto` probes `/.well-known/agent-card.json` first, then `/health`. Official sends use JSON-RPC `SendMessage`; the task state and artifact text come back as `state`/`reply`.
 - `A2A_POLL_INTERVAL`: seconds between `/health` probes (default 10).
 
 ### Backend ↔ Hermes ingest

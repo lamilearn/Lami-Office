@@ -74,14 +74,17 @@ docker compose --env-file .env.development up -d --build
 
 Four Hermes **A2A sidecars** are shown in their specialty rooms:
 
-| Agent | Host | Room |
-|---|---|---|
-| Yuna 🔬 | `192.168.3.91:8000` | Research Lab |
-| Aurora 📐 | `192.168.3.92:8000` | Meeting Room |
-| Kira ⚙️ | `192.168.3.93:8000` | Engineering Pit |
-| Cyro 🛰️ | `192.168.3.94:8000` | Server Room |
+| Agent | Host | Room | Protocol |
+|---|---|---|---|
+| Lami 👑 | `192.168.3.31:9900` | Boss Office | official A2A v1.0 (Agent Card + JSON-RPC) |
+| Yuna 🔬 | `192.168.3.91:8000` | Research Lab | legacy sidecar |
+| Aurora 📐 | `192.168.3.92:8000` | Meeting Room | legacy sidecar |
+| Kira ⚙️ | `192.168.3.93:8000` | Engineering Pit | legacy sidecar |
+| Cyro 🛰️ | `192.168.3.94:8000` | Server Room | legacy sidecar |
 
-Presence comes from each sidecar's `GET /health` (polled every `A2A_POLL_INTERVAL`
+The dialect is auto-detected per peer: the official A2A endpoint is probed with
+`GET /.well-known/agent-card.json` and sent JSON-RPC `SendMessage`; anything else
+falls back to the legacy sidecar. Presence comes from the card or `GET /health` (polled every `A2A_POLL_INTERVAL`
 seconds); the office sidebar chip `🔗` opens a panel with status, latency and a
 message box.
 
@@ -89,7 +92,8 @@ Sending messages needs the shared secret the sidecars expect in `x-a2a-token`:
 
 ```bash
 # .env.development / .env.production
-A2A_SECRET=<shared-secret>
+A2A_PEER_TOKENS=lami:<bearer-token>   # official A2A (192.168.3.31:9900)
+A2A_SECRET=<sidecar-token>            # legacy sidecars (.91-.94)
 ```
 
 Leave it empty to keep presence-only mode. Endpoints:
