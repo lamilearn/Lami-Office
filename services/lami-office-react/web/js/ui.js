@@ -236,13 +236,13 @@
       office.setDrawerOpen(open, width);
     }
 
-    appendChatMessage(sender, role, text, icon = '💬', color = '#555', isUser = false, isSystem = false) {
+    appendChatMessage(sender, role, text, icon = '💬', color = '#555', isUser = false, isSystem = false, tsMs = null) {
       if (!this.chatMessages) return;
 
       const msg = document.createElement('div');
       msg.className = `chat-msg ${isUser ? 'user' : ''} ${isSystem ? 'system' : ''}`;
 
-      const now = new Date();
+      const now = tsMs ? new Date(tsMs) : new Date();
       const pad = (n) => String(n).padStart(2, '0');
       const timeStr = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
 
@@ -475,6 +475,57 @@
       this.coinsEl.textContent = coins;
     }
 
+    _rememberTicker(li, icon, htmlText) {
+      if (!this.tickerHistory) this.tickerHistory = [];
+      this.tickerHistory.push({ icon, html: htmlText, ts: Date.now() });
+      if (this.tickerHistory.length > 40) this.tickerHistory.shift();
+      // Persist a short feed so a page reload shows recent activity immediately.
+      try {
+        localStorage.setItem('lo_ticker_history', JSON.stringify(this.tickerHistory.slice(-20)));
+      } catch (e) { /* storage may be blocked */ }
+    }
+
+    // Rebuild the activity feed from a server snapshot (authoritative, newest last).
+    restoreActivity(history) {
+      if (!Array.isArray(history) || !history.length) return;
+      const items = history.filter((ev) => ev && ev.type !== 'snapshot').slice(-25);
+      if (!items.length) return;
+      this.tickerList.innerHTML = '';
+      const feed = [];
+      for (const ev of items) {
+        const desc = this.describeHistoryEvent(ev);
+        if (!desc) continue;
+        const when = new Date((ev.ts || 0) * 1000);
+        const timeStr = `${String(when.getHours()).padStart(2, '0')}:${String(when.getMinutes()).padStart(2, '0')}`;
+        const li = document.createElement('li');
+        li.className = 'ticker-old';
+        li.innerHTML = `<span class="t-icon">${desc.icon}</span><span class="t-text">${desc.html}</span><span class="t-time">${timeStr}</span>`;
+        this.tickerList.appendChild(li);
+        feed.push(desc);
+      }
+      this.tickerHistory = feed.slice(-20);
+    }
+
+    describeHistoryEvent(ev) {
+      const who = ev.agentId === 'lami' ? 'Boss Lami' : (ev.agentId || 'Agent');
+      switch (ev.type) {
+        case 'agent_spawn':
+          return { icon: '✨', html: `<b>${who}</b> mulai: ${ev.task || 'tugas baru'}` };
+        case 'tool_start':
+          return { icon: '⚡', html: `<b>${who}</b>: ${ev.summary || ev.tool || 'jalan'}` };
+        case 'tool_end':
+          return { icon: ev.ok === false ? '⚠️' : '✅', html: `<b>${who}</b> selesai: ${ev.tool || 'tool'}` };
+        case 'message':
+          return { icon: '💬', html: `<b>${who}</b>: ${ev.text || ''}` };
+        case 'agent_done':
+          return { icon: '🎉', html: `<b>${who}</b> tugas selesai` };
+        case 'agent_status':
+          return null;
+        default:
+          return null;
+      }
+    }
+
     addTicker(icon, htmlText) {
       this.tickerList.innerHTML = '';
 
@@ -489,6 +540,7 @@
       `;
 
       this.tickerList.appendChild(li);
+      this._rememberTicker(li, icon, htmlText);
 
       clearTimeout(this.tickerTimer);
       this.tickerTimer = setTimeout(() => {

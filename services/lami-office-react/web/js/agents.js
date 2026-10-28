@@ -1238,9 +1238,10 @@
 
   // ---- Dynamic Sub-Agent ----
   class SubAgent extends Character {
-    constructor(id, name, task, room = 'coding') {
-      const look = LO.randomLook();
-      super(id, name, 'Sub-Agent', look, LO.GROUND, LO.DOOR_COL, LO.DOOR_ROW);
+    constructor(id, name, task, room = 'coding', look = null) {
+      // Identity is derived from the agent id so a reload never reskins anyone.
+      const finalLook = look || (LO.lookForAgent ? LO.lookForAgent(id) : LO.randomLook());
+      super(id, name, 'Sub-Agent', finalLook, LO.GROUND, LO.DOOR_COL, LO.DOOR_ROW);
       this.task = task || 'Tugas Baru';
       this.room = room;
       this.currentTool = null;

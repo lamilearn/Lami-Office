@@ -120,17 +120,43 @@
             LO.ui.setStats(data.stats.doneToday || 0, data.stats.coins || 0);
           }
           if (Array.isArray(data.agents)) {
+            // This snapshot is the authoritative "who is working right now".
+            // Rebuild those agents in place (no entrance animation) and drop any
+            // local sub-agent the server no longer reports, so a reloaded page
+            // shows the real current state instead of a fresh empty office.
+            const live = new Set();
             data.agents.forEach((a) => {
+              live.add(a.id);
               const sub = this.office.spawnSubAgent({
                 agentId: a.id,
                 name: a.name,
                 task: a.task,
                 tool: a.tool,
-              });
-              if (a.tool) {
-                sub.startWork(a.tool, a.summary || a.tool);
-              }
+                summary: a.summary,
+                since: a.since
+              }, { restore: true });
+              if (a.tool) sub.startWork(a.tool, a.summary || a.tool);
+              sub.reported = false;
             });
+            for (const id of [...this.office.subagents.keys()]) {
+              if (!live.has(id)) {
+                const stale = this.office.subagents.get(id);
+                this.office.freeSlot(stale);
+                this.office.subagents.delete(id);
+              }
+            }
+            LO.ui.updateStaffCount(this.office.residents.length + this.office.subagents.size);
+          }
+          // Show recent activity from the server so a fresh page is not empty.
+          if (Array.isArray(data.history) && LO.ui) {
+            if (LO.ui.restoreActivity) LO.ui.restoreActivity(data.history);
+            const msgs = data.history.filter((ev) => ev && ev.type === 'message').slice(-15);
+            if (msgs.length && LO.ui.appendChatMessage) {
+              for (const ev of msgs) {
+                const who = ev.agentId === 'lami' ? 'Boss Lami' : (ev.agentId || 'Agent');
+                LO.ui.appendChatMessage(who, 'Agent', ev.text || '', '💬', '#8b5cf6', false, false, (ev.ts || 0) * 1000);
+              }
+            }
           }
           break;
 

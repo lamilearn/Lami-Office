@@ -11,6 +11,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ${HERMES_HOME:-~/.hermes}:/root/.hermes:ro
+      - office-state:/data
     environment:
       - HOST=0.0.0.0
       - PORT=8090
@@ -19,8 +20,13 @@ services:
       - A2A_SECRET=${A2A_SECRET:-}
       - A2A_POLL_INTERVAL=${A2A_POLL_INTERVAL:-10}
       - A2A_PEERS=${A2A_PEERS:-}
+      - OFFICE_STATE_FILE=${OFFICE_STATE_FILE:-/data/office-state.json}
       - A2A_PEER_TOKENS=${A2A_PEER_TOKENS:-}
       - A2A_REPLY_TIMEOUT=${A2A_REPLY_TIMEOUT:-120}
       - PYTHONUNBUFFERED=1
       - ENVIRONMENT=${ENVIRONMENT:-production}
 
+volumes:
+  # per-project so prod and staging never share office state
+  office-state:
+    name: ${COMPOSE_PROJECT_NAME:-office}-state

@@ -305,3 +305,70 @@ describe('Tier 1 — Feature 17: A2A Peer Agents & Backend Wiring', () => {
     assert.strictEqual(office.peerAgents.size, 0, 'Peers no longer reported must be removed');
   });
 });
+
+describe('Tier 1 — Feature 18: Live State Persistence Across Reloads', () => {
+  const fsx = require('node:fs');
+  const pathx = require('node:path');
+  const SERVER = pathx.join(REPO, 'services/lami-office-react/server.py');
+
+  it('F18.1: Agent identity is deterministic — the same id always gets the same name and look', () => {
+    const { LO } = loadConfig(1400, false);
+    const ids = ['sa-abc123', 'sa-77f2a1', 'sa-1', 'sa-zzz'];
+    for (const id of ids) {
+      const name1 = LO.nameForAgent(id, null);
+      const name2 = LO.nameForAgent(id, null);
+      const look1 = LO.lookForAgent(id);
+      const look2 = LO.lookForAgent(id);
+      assert.strictEqual(name1, name2, `Name for ${id} must be stable`);
+      assert.deepStrictEqual(look1, look2, `Look for ${id} must be stable`);
+    }
+    // A provided name always wins (the server can label an agent explicitly)
+    assert.strictEqual(LO.nameForAgent('sa-x', 'Rina'), 'Rina');
+  });
+
+  it('F18.2: Different agent ids map to different slot indices', () => {
+    const { LO } = loadConfig(1400, false);
+    const seen = new Set();
+    for (const id of ['sa-aaa', 'sa-bbb', 'sa-ccc', 'sa-ddd', 'sa-eee']) {
+      seen.add(LO.slotIndexForAgent(id, 6));
+    }
+    assert.ok(seen.size > 1, 'Slot assignment must spread agents across slots');
+    for (const idx of seen) {
+      assert.ok(idx >= 0 && idx < 6, `Slot index ${idx} must be in range`);
+    }
+  });
+
+  it('F18.3: Sub-agents are spawned in restore mode without an entrance animation', () => {
+    const src = fsx.readFileSync(pathx.join(REPO, 'services/lami-office-react/web/js/office.js'), 'utf8');
+    assert.ok(/opts\.restore|restore = Boolean/.test(src), 'spawnSubAgent must accept a restore option');
+    assert.ok(/agent\.state = 'work'/.test(src), 'Restored agents resume in the work state');
+    assert.ok(/preferredSlot === 'auto'/.test(src), 'Restore uses deterministic auto placement');
+  });
+
+  it('F18.4: A snapshot rebuilds agents in place and prunes stale ones', () => {
+    const src = fsx.readFileSync(pathx.join(REPO, 'services/lami-office-react/web/js/net.js'), 'utf8');
+    assert.ok(/restore: true/.test(src), 'Snapshot restore must use restore mode');
+    assert.ok(/live\.has\(id\)/.test(src), 'Agents missing from the snapshot must be dropped');
+  });
+
+  it('F18.5: Server persists and reloads office state', () => {
+    const src = fsx.readFileSync(SERVER, 'utf8');
+    assert.ok(/def _load_state/.test(src) && /def _save_state/.test(src), 'Hub must persist state');
+    assert.ok(/state_file/.test(src), 'State file must be configurable');
+    assert.ok(/OFFICE_STATE_FILE/.test(src), 'OFFICE_STATE_FILE env must be honoured');
+    assert.ok(/self\.history\.append/.test(src), 'Recent activity must be recorded');
+  });
+
+  it('F18.6: Restoring replays agent_done so finished agents are not resurrected', () => {
+    const src = fsx.readFileSync(SERVER, 'utf8');
+    const load = src.slice(src.indexOf('def _load_state'), src.indexOf('def _save_state'));
+    assert.ok(/for ev in self\.history:\s*\n\s*self\._apply\(ev\)/.test(load),
+      'Restore must replay every event, including agent_done');
+  });
+
+  it('F18.7: Snapshot includes the recent history feed', () => {
+    const src = fsx.readFileSync(SERVER, 'utf8');
+    const snap = src.slice(src.indexOf('def snapshot(self) -> dict'), src.indexOf('def _load_state'));
+    assert.ok(/"history": list\(self\.history/.test(snap), 'Snapshot must expose recent history');
+  });
+});

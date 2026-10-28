@@ -278,12 +278,23 @@
       }
     }
 
+    // Resolve a room slot. 'auto' picks a deterministic slot from the character
+    // id so a reconnected page rebuilds the same seating arrangement.
     assignToSlot(char, roomId, preferredSlot = null) {
       const slots = LO.SLOTS[roomId];
       const occ = this.slotOccupancy[roomId];
       if (!slots || !occ) return;
 
-      let idx = preferredSlot !== null && !occ[preferredSlot] ? preferredSlot : -1;
+      let idx = -1;
+      if (preferredSlot === 'auto') {
+        const start = LO.slotIndexForAgent(char.id, slots.length);
+        for (let i = 0; i < slots.length; i++) {
+          const candidate = (start + i) % slots.length;
+          if (!occ[candidate]) { idx = candidate; break; }
+        }
+      } else if (preferredSlot !== null && !occ[preferredSlot]) {
+        idx = preferredSlot;
+      }
       if (idx === -1) {
         idx = occ.findIndex((c) => c === null);
       }
@@ -305,6 +316,13 @@
       char.targetX = char.targetCol;
       char.targetY = char.targetRow;
       if (slotDef.facing) char.facing = slotDef.facing;
+      // Restored characters are already seated; jumping straight to the slot
+      // avoids a whole-office "everyone walks in again" replay on reconnect.
+      if (preferredSlot === 'auto') {
+        char.col = char.targetCol;
+        char.row = char.targetRow;
+        char.path = [];
+      }
     }
 
     freeSlot(char) {
@@ -370,16 +388,30 @@
     }
 
     // ---- Event Ingest Handlers ----
-    spawnSubAgent(data) {
+    // opts.restore: rebuilding from a server snapshot after a reconnect. The
+    // agent is placed straight at its slot instead of walking in from the door,
+    // and nothing is announced as if it had just arrived.
+    spawnSubAgent(data, opts = {}) {
       const id = data.agentId || `sa-${Date.now()}`;
       if (this.subagents.has(id)) return this.subagents.get(id);
 
-      const name = data.name || LO.NAMES[Math.floor(Math.random() * LO.NAMES.length)];
+      const restore = Boolean(opts.restore);
+      const name = LO.nameForAgent(id, data.name);
       const room = LO.roomForTool(data.tool) || 'engineering';
-      const agent = new LO.SubAgent(id, name, data.task, room);
+      const agent = new LO.SubAgent(id, name, data.task, room, LO.lookForAgent(id));
 
       this.subagents.set(id, agent);
-      this.assignToSlot(agent, room);
+      this.assignToSlot(agent, room, restore ? 'auto' : null);
+
+      if (restore) {
+        // Resumed agent: already on the floor, mid-task, no entrance animation.
+        agent.state = 'work';
+        agent.frame = 'type';
+        if (data.tool) agent.startWork(data.tool, data.summary || data.tool);
+        if (data.since) agent.startTime = data.since * 1000;
+        LO.ui.updateStaffCount(this.residents.length + this.subagents.size);
+        return agent;
+      }
 
       const roomIdx = LO.FLOOR_INDEX[room] !== undefined ? LO.FLOOR_INDEX[room] : 2;
       const floorLabel = LO.FLOORS[roomIdx]?.label || room;

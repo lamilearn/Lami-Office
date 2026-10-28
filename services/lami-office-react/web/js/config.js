@@ -496,6 +496,44 @@
 
   LO.NAMES = ['Budi', 'Sari', 'Joko', 'Wulan', 'Tono', 'Putri', 'Agus', 'Mega', 'Rudi', 'Intan', 'Bayu', 'Dewi',
     'Fajar', 'Nina', 'Gilang', 'Ayu', 'Eko', 'Lala', 'Raka', 'Citra', 'Dimas', 'Tika', 'Yoga', 'Kiki'];
+
+  // Deterministic identity for an agent id: the same agentId always maps to the
+  // same name/look, so a page reload never renames or reskins anyone.
+  LO.hashString = function (value) {
+    let h = 0;
+    const s = String(value || '');
+    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+    return Math.abs(h);
+  };
+  LO.nameForAgent = function (agentId, provided) {
+    if (provided) return provided;
+    return LO.NAMES[LO.hashString(agentId) % LO.NAMES.length];
+  };
+  LO.lookForAgent = function (agentId) {
+    const looks = LO.AGENT_LOOKS || [];
+    if (!looks.length) return LO.randomLook();
+    return looks[LO.hashString(agentId) % looks.length];
+  };
+
+  // A fixed palette of sub-agent looks; index is chosen by agent id hash.
+  LO.AGENT_LOOKS = [
+    { hair: 0, skin: 1, cloth: 0, long: false, glasses: false },
+    { hair: 1, skin: 2, cloth: 1, long: true,  glasses: true  },
+    { hair: 2, skin: 0, cloth: 2, long: false, glasses: false },
+    { hair: 3, skin: 3, cloth: 3, long: true,  glasses: false },
+    { hair: 4, skin: 1, cloth: 4, long: false, glasses: true  },
+    { hair: 5, skin: 2, cloth: 5, long: true,  glasses: false },
+    { hair: 6, skin: 0, cloth: 1, long: false, glasses: false },
+    { hair: 0, skin: 3, cloth: 3, long: true,  glasses: true  }
+  ];
+
+  // Deterministic slot for a sub-agent inside its room, so a reconnected client
+  // rebuilds the same arrangement instead of scattering characters again.
+  LO.slotIndexForAgent = function (agentId, slotCount) {
+    if (!slotCount) return 0;
+    return LO.hashString(agentId) % slotCount;
+  };
+
   LO.ROLE_BY_ROOM = { research: 'Researcher', engineering: 'Coder', coding: 'Coder', meeting: 'Planner', server: 'Ops', pantry: 'Santai', boss: 'Lapor Boss' };
 
   // ---- Floorplan Helpers (single source of truth for walls, doors & rooms) ----
