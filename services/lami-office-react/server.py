@@ -36,6 +36,9 @@ ROOT = Path(__file__).resolve().parent
 WEB_DIR = ROOT / "web"
 CONFIG_PATH = ROOT / "config.json"
 
+sys.path.insert(0, str(ROOT))
+import world as office_world  # noqa: E402  (server-side office simulation)
+
 # --------------------------------------------------------------------------------------
 # Config
 # --------------------------------------------------------------------------------------
@@ -208,8 +211,10 @@ def clean_text(value, limit: int | None = None) -> str:
     return s
 
 
-ALLOWED_KEYS = {"type", "agentId", "parentId", "task", "tool", "summary", "ok", "status", "result", "text", "name", "ts"}
-ALLOWED_TYPES = {"agent_spawn", "tool_start", "tool_end", "agent_status", "agent_done", "message"}
+ALLOWED_KEYS = {"type", "agentId", "parentId", "task", "tool", "summary", "ok", "status", "result", "text", "name", "ts",
+                "who", "role", "icon", "color", "title", "desc"}
+ALLOWED_TYPES = {"agent_spawn", "tool_start", "tool_end", "agent_status", "agent_done", "message",
+                 "ticker", "event_banner"}
 
 
 def sanitize_event(ev: dict) -> dict | None:
@@ -307,6 +312,12 @@ class Hub:
                 except (TypeError, ValueError):
                     pass
         self.events_total = int(data.get("events_total") or 0)
+        try:
+            if isinstance(data.get("world"), dict):
+                SIM.restore(data["world"])
+                print(f"[world] posisi karakter dipulihkan ({len(SIM.subagents)} sub-agent)")
+        except Exception as exc:  # noqa: BLE001 - a bad world block must not block startup
+            print(f"[world] gagal memulihkan posisi: {exc}", file=sys.stderr)
         if hist:
             self.last_event_ts = float(hist[-1].get("ts") or 0)
         # Rebuild "who is working now": replay the WHOLE feed (including
@@ -324,6 +335,7 @@ class Hub:
                 "stats": self.stats,
                 "events_total": self.events_total,
                 "history": self.history[-self.HISTORY_LIMIT:],
+                "world": SIM.state_snapshot(),
             }
             self.state_path.parent.mkdir(parents=True, exist_ok=True)
             tmp = self.state_path.with_suffix(".tmp")
@@ -349,6 +361,15 @@ class Hub:
             for q in list(self.subs):
                 try:
                     q.put_nowait(ev)
+                except queue.Full:
+                    pass
+
+    def publish_world(self, frame: dict):
+        """Broadcast a simulated world frame. Stream-only: not persisted, not counted."""
+        with self.lock:
+            for q in list(self.subs):
+                try:
+                    q.put_nowait(frame)
                 except queue.Full:
                     pass
 
@@ -1156,6 +1177,59 @@ def watcher_loop():
 
 
 # --------------------------------------------------------------------------------------
+# World simulation - ONE shared office for every visitor
+# --------------------------------------------------------------------------------------
+SIM = office_world.Sim()
+SIM_STATS = {"ticks": 0, "last_tick_ms": 0.0, "clients_broadcast": 0, "narrated": 0}
+
+
+def sim_loop():
+    """Advance the office at a fixed rate and broadcast it to every client.
+
+    Runs continuously, so the office keeps living even with no browser open.
+    Broadcast is throttled (>= 200 ms between frames) and only when something
+    meaningful changed, keeping idle traffic close to zero.
+    """
+    period = 1.0 / office_world.Sim.TICK_HZ
+    broadcast_every = period * 2  # ~5 Hz
+    MAX_IDLE_REFRESH = 5.0        # a late joiner still gets a frame within 5 s
+    last_frame = None
+    last_broadcast = 0.0
+    last_sample = 0.0
+    while True:
+        started = time.time()
+        try:
+            SIM.tick(period)
+            for ev in SIM.drain_outbox():
+                HUB.publish(ev)
+                SIM_STATS["narrated"] += 1
+            SIM_STATS["ticks"] += 1
+
+            now = time.time()
+            if now - last_sample >= broadcast_every:
+                # Sample at 5 Hz whether or not anything changed; only *send* when
+                # it did. (Resetting the clock only on send would freeze the
+                # office whenever it went idle for one sample.)
+                last_sample = now
+                frame = SIM.world_frame()
+                comparable = [(c["id"], c["col"], c["row"], c["facing"], c["state"], c["frame"],
+                               c.get("bubble"), c.get("emote"), c.get("routineState")) for c in frame["chars"]]
+                rider = frame.get("rider") or {}
+                comparable.append(("__rider", rider.get("col"), rider.get("row"), rider.get("phase")))
+                comparable.append(("__cat", frame["cat"]["col"], frame["cat"]["row"], frame["cat"]["state"]))
+                if comparable != last_frame or now - last_broadcast > MAX_IDLE_REFRESH:
+                    HUB.publish_world(frame)
+                    last_frame = comparable
+                    last_broadcast = now
+                    SIM_STATS["clients_broadcast"] += 1
+        except Exception as exc:  # noqa: BLE001 - the office must survive a bad tick
+            print(f"[world] tick error: {exc}", file=sys.stderr)
+        elapsed = time.time() - started
+        SIM_STATS["last_tick_ms"] = round(elapsed * 1000, 2)
+        time.sleep(max(0.0, period - elapsed))
+
+
+# --------------------------------------------------------------------------------------
 # HTTP server
 # --------------------------------------------------------------------------------------
 MIME = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
@@ -1247,6 +1321,13 @@ class Handler(BaseHTTPRequestHandler):
                 "events_total": HUB.events_total,
                 "last_event_age_s": round(time.time() - HUB.last_event_ts, 1) if HUB.last_event_ts else None,
                 "agents_online": len(HUB.agents),
+                "world": {
+                    "ticks": SIM_STATS["ticks"],
+                    "last_tick_ms": SIM_STATS["last_tick_ms"],
+                    "frames": SIM_STATS["clients_broadcast"],
+                    "narrated": SIM_STATS["narrated"],
+                    "characters": len(SIM.all_moving()),
+                },
                 "clients": len(HUB.subs),
                 "ingest_token_required": bool(CFG["ingest_token"]),
             }
@@ -1277,6 +1358,10 @@ class Handler(BaseHTTPRequestHandler):
                 "total": len(peers),
                 "can_send": bool(str(CFG.get("a2a_secret") or "") or CFG.get("a2a_peer_tokens")),
             })
+        if path == "/api/world":
+            frame = SIM.world_frame()
+            frame["flags"] = SIM.flags()
+            return self.send_json(200, frame)
         if path == "/api/agents":
             snap = HUB.snapshot()
             return self.send_json(200, {
@@ -1458,6 +1543,7 @@ def main():
         threading.Thread(target=watcher_loop, daemon=True).start()
     else:
         threading.Thread(target=_persist_loop, daemon=True).start()
+    threading.Thread(target=sim_loop, daemon=True).start()
     if A2A.peers:
         threading.Thread(target=a2a_loop, daemon=True).start()
         print(f"[a2a] {len(A2A.peers)} peer: " + ", ".join(f"{p.name}@{p.host}" for p in A2A.peers))

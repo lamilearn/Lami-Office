@@ -14,6 +14,7 @@ A complete 2D Top-Down / RPG pixel art office (Pokemon / Zelda GBA / RPG Maker a
 - **Wall/Floor Rendering**: A committed tilemap (`assets/map/office.map.json`) + tileset spritesheet (`assets/tiles/tileset.png`) rendered by `js/tilemap.js`, generated from `config.js` by `scripts/generate_tilemap.py` / `scripts/generate_tileset.py`. Wall faces are extruded; wall tops & doorway frames are drawn after characters so rooms read as enclosed boxes while collision stays 1 tile.
 - **Agent System**: 4 cardinal movement directions (South/Front, North/Back, East/Right, West/Left) with 3/4-frame step cycles, orthogonal A* pathfinding avoiding collision obstacles, and canvas-rendered speech bubbles / inspect modals.
 - **Viewport & UI**: Responsive desktop scaling with side chat drawer width dynamic subtraction, avoiding HUD overlap.
+- **Simulasi Terpusat (server-authoritative)**: The office is ONE shared world simulated by `services/lami-office-react/world.py` inside `server.py`, not by each browser tab. The simulation thread (`sim_loop`) ticks at 10 Hz, broadcasts a `world` frame over SSE at ~5 Hz (only when something changed, plus a 5 s idle refresh), and the browser only renders and interpolates those frames. Consequences: every visitor sees the same characters in the same places, the office keeps living while nobody is watching, and a browser refresh no longer resets anyone to their desk because positions live in the server state file.
 - **Environment**: Branch `dev` on local repo `/home/fatih/Vault/Ecobytes/Project/Lami/ai-office`, remote GitHub repo `git@github.com:lamilearn/Lami-Office.git`, and live staging deployment at `http://192.168.3.33:13579`.
 
 ---
@@ -121,6 +122,24 @@ A complete 2D Top-Down / RPG pixel art office (Pokemon / Zelda GBA / RPG Maker a
 
 ---
 
+## Interface Contracts
+
+### Simulasi terpusat (server-authoritative world)
+| Endpoint / frame | Shape | Notes |
+|---|---|---|
+| `GET /api/world` | `{t, seq, chars[], cat, rider?, flags}` | Full snapshot for a fresh page or a reconnect. Public, read-only, like `/api/agents`. |
+| SSE `world` | `{type:"world", t, seq, chars[], cat, rider?}` | Broadcast ~5 Hz to every `/events` subscriber. Stream-only: never stored in `history`, never counted in `events_total`. |
+| `char` | `{id, col, row, facing, state, frame, bubble, emote, carry, slot?, path?, goal?, kind?, name?, role?, task?, routineState?, tool?, summary?}` | `col`/`row` are sub-tile floats rounded to 2 decimals. `kind` is `lami`, `resident`, `sub`, or `rider`. |
+| SSE `ticker` | `{type:"ticker", icon, text}` | Narrated by the server (spawn, tool start, completion). |
+| SSE `event_banner` | `{type:"event_banner", icon, title, desc}` | Random office events (martabak, power flicker, coffee, printer jam). |
+
+Rules:
+- The browser must NOT simulate characters while `office.simulatedExternally` is true; it calls `applyWorld(frame)` and eases toward the target (`applyWorldTargets`).
+- Local simulation is the fallback only: `?demo=1`, or an unavailable/failed SSE stream. Demo mode sets `simulatedExternally = false`.
+- Narration (`message`, `ticker`, `event_banner`) is authored once by the server, so the client prints it verbatim instead of also reacting to it.
+- `world.py` mirrors the floorplan from `web/js/config.js`; `scripts/check_world_sync.py` fails the suite when they drift, and `tests/e2e/tier1_world_authority.test.js` asserts the collision grid and A* routes stay equivalent.
+- Positions are persisted in `OFFICE_STATE_FILE` under the `world` key every ~5 s; on boot `Sim.restore()` resumes the exact walk (remaining `path` included). Entries older than the staleness window or standing on a now-solid tile fall back safely.
+
 ## Code & Asset Layout
 - Target Repository: `/home/fatih/Vault/Ecobytes/Project/Lami/ai-office`
 - Active Branch: `dev`
@@ -130,10 +149,11 @@ A complete 2D Top-Down / RPG pixel art office (Pokemon / Zelda GBA / RPG Maker a
   - `tilemap.js`: Tilemap + tileset loader and layered renderer.
   - `world.js`: scene composition — sky header, tilemap draw, carpets, furniture, ambient light, procedural fallback.
   - `agents.js`: Character base class, resident staff, Boss Lami, SubAgents, MochiCat, DeliveryRider.
-  - `office.js`: Game simulation loop, collision grid, viewport scaling, click handling.
+  - `office.js`: Render loop, collision grid, viewport scaling, click handling, `applyWorld()` interpolation (live mode).
   - `ui.js`: DOM UI overlays, character cards, whiteboard modal, context modal.
 - Frontend Assets: `services/lami-office-react/web/assets/`
   - `tiles/tileset.png` + `tiles/tileset.json`: 16x16 spritesheet + index.
   - `map/office.map.json`: RLE floor/walls/decor layers + meta derived from `config.js`.
+- Server Simulation: `services/lami-office-react/world.py` (stdlib only) — floorplan data, A*, collision grid, character kinematics, staff/boss routines, sub-agents, Mochi, delivery rider, socials, random events. Parity guard: `scripts/check_world_sync.py`.
 - Asset Generators (stdlib Python): `scripts/generate_tileset.py`, `scripts/generate_tilemap.py` (both support `--check`).
 - Smoke Tests: `scripts/smoke_test.sh`

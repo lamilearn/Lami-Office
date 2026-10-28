@@ -338,8 +338,24 @@ function readBridgeState(stateFile) {
   }
 }
 
+// Runs a python snippet inside services/lami-office-react (so `import world`
+// works) and returns its parsed JSON stdout. argv goes through sys.argv.
+function pythonJson(script, args = [], timeout = 60000) {
+  const res = spawnSync(pythonBin(), ['-c', script, ...args], {
+    cwd: path.join(REPO, 'services', 'lami-office-react'),
+    encoding: 'utf8',
+    timeout
+  });
+  if (res.status !== 0) {
+    throw new Error(`python helper failed:\n${(res.stderr || res.stdout || '').slice(-1200)}`);
+  }
+  const lines = (res.stdout || '').trim().split('\n');
+  return JSON.parse(lines[lines.length - 1]);
+}
+
 module.exports = {
   REPO,
+  pythonJson,
   SERVER,
   BRIDGE,
   pythonAvailable,

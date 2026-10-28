@@ -18,7 +18,9 @@
         return;
       }
 
-      // 2. Connect to Server-Sent Events stream (/events) immediately
+      // 2. Connect to Server-Sent Events stream (/events) immediately. The server
+      //    simulates the office for everyone, so positions come from the stream.
+      this.office.simulatedExternally = true;
       this.startEventSource();
 
       // 3. Fetch runtime config from server in parallel
@@ -59,6 +61,20 @@
       }
     }
 
+    // Fetch the authoritative world once (page load / reconnect).
+    async loadWorld() {
+      try {
+        const res = await fetch('/api/world');
+        if (!res.ok) return;
+        const frame = await res.json();
+        if (frame && Array.isArray(frame.chars) && typeof this.office.applyWorld === 'function') {
+          this.office.applyWorld(frame);
+        }
+      } catch (e) {
+        /* the stream will supply frames shortly */
+      }
+    }
+
     startEventSource() {
       if (this.evtSource) {
         this.evtSource.close();
@@ -69,6 +85,8 @@
 
         this.evtSource.onopen = () => {
           this.retryDelay = 2000;
+          this.office.simulatedExternally = true;
+          this.loadWorld();
           LO.ui.setStatus('live');
           LO.ui.addTicker('🟢', 'Tersambung ke aktivitas <b>Hermes Live</b>.');
         };
@@ -89,7 +107,9 @@
           this.evtSource.close();
           this.evtSource = null;
 
-          // If offline and no agents exist, run demo so screen isn't empty
+          // The server is the world owner; without it this page has to simulate
+          // locally again, otherwise everyone would freeze in place.
+          this.office.simulatedExternally = false;
           if (this.office.subagents.size === 0 && !this.demoCtrl.active) {
             this.demoCtrl.start();
           }
@@ -153,11 +173,15 @@
             const msgs = data.history.filter((ev) => ev && ev.type === 'message').slice(-15);
             if (msgs.length && LO.ui.appendChatMessage) {
               for (const ev of msgs) {
-                const who = ev.agentId === 'lami' ? 'Boss Lami' : (ev.agentId || 'Agent');
-                LO.ui.appendChatMessage(who, 'Agent', ev.text || '', '💬', '#8b5cf6', false, false, (ev.ts || 0) * 1000);
+                const who = ev.who || (ev.agentId === 'lami' ? 'Boss Lami' : (ev.agentId || 'Agent'));
+                LO.ui.appendChatMessage(who, ev.role || 'Agent', ev.text || '', ev.icon || '💬',
+                  ev.color || '#8b5cf6', false, false, (ev.ts || 0) * 1000);
               }
             }
           }
+          // Ask for a world snapshot so the first paint already matches the
+          // server, then let the `world` frames keep it current.
+          this.loadWorld();
           break;
 
         case 'agent_spawn':
@@ -181,9 +205,29 @@
           break;
 
         case 'message':
-          if (data.agentId === 'lami') {
-            this.office.lami.setBubble(data.text, 4.0);
+          // The server authors every character message, so print it verbatim
+          // instead of also reacting to it (that would double the bubbles).
+          if (LO.ui && LO.ui.appendChatMessage && data.text) {
+            LO.ui.appendChatMessage(
+              data.who || (data.agentId === 'lami' ? 'Boss Lami' : data.agentId || 'Agent'),
+              data.role || 'Agent', data.text, data.icon || '💬', data.color || '#8b5cf6',
+              false, false, (data.ts || 0) * 1000
+            );
           }
+          break;
+
+        case 'ticker':
+          if (LO.ui && LO.ui.addTicker) LO.ui.addTicker(data.icon || '•', data.text || '');
+          break;
+
+        case 'event_banner':
+          if (LO.ui && LO.ui.triggerEventBanner) {
+            LO.ui.triggerEventBanner(data.icon || '✨', data.title || '', data.desc || '');
+          }
+          break;
+
+        case 'world':
+          if (typeof this.office.applyWorld === 'function') this.office.applyWorld(data);
           break;
       }
     }

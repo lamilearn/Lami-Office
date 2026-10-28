@@ -504,3 +504,159 @@ describe('Tier 4 — HTTP Integration: Hermes bridge end-to-end', () => {
   }, LONG);
 });
 
+
+describe('Tier 4 — HTTP Integration: Server-authoritative world', () => {
+  let srv = null;
+
+  beforeAll(async () => { srv = await H.startServer({ keepDir: true }); });
+  afterAll(async () => {
+    if (srv) {
+      await srv.stop();
+      fs.rmSync(srv.dir, { recursive: true, force: true });
+    }
+    srv = null;
+  });
+
+  it('W1: GET /api/world returns every character plus the cat', async () => {
+    if (!HAVE_PY) return;
+    const res = await srv.get('/api/world');
+    assert.strictEqual(res.status, 200);
+    const ids = res.json.chars.map((c) => c.id);
+    assert.ok(ids.includes('lami'), 'the boss must be in the world');
+    assert.ok(ids.filter((id) => id.startsWith('res-')).length >= 13, 'all residents must be present');
+    assert.strictEqual(res.json.cat.id, 'mochi');
+    assert.ok(res.json.flags && typeof res.json.flags.chars === 'number');
+  }, LONG);
+
+  it('W2: characters are never inside a solid tile', async () => {
+    if (!HAVE_PY) return;
+    // Let the office walk for a while so the check also covers mid-route positions.
+    await H.sleep(3000);
+    const res = await srv.get('/api/world');
+    const bad = H.pythonJson(`
+import json, sys, world
+chars = json.loads(sys.argv[1])
+print(json.dumps([c["id"] for c in chars if not world.is_walkable(c["col"], c["row"])]))
+`, [JSON.stringify(res.json.chars)]);
+    assert.deepStrictEqual(bad, [], `characters on solid tiles: ${JSON.stringify(bad)}`);
+  }, LONG);
+
+  it('W3: the world streams over SSE with no browser driving it', async () => {
+    if (!HAVE_PY) return;
+    const sse = await srv.sse();
+    try {
+      await sse.waitFor((ev) => ev.type === 'snapshot', 5000);
+      const frame = await sse.waitFor((ev) => ev.type === 'world', 6000);
+      assert.ok(Array.isArray(frame.chars) && frame.chars.length > 0, 'frames must carry characters');
+      assert.ok(frame.t > 0, 'frames must be timestamped');
+    } finally {
+      sse.close();
+    }
+  }, LONG);
+
+  it('W4: two independent clients see identical character positions', async () => {
+    if (!HAVE_PY) return;
+    const a = await srv.sse();
+    const b = await srv.sse();
+    try {
+      await srv.post('/api/event', { type: 'agent_spawn', agentId: 'wm-sync', parentId: 'lami', task: 'sync probe' });
+      const fa = await a.waitFor((ev) => ev.type === 'world', 6000);
+      const fb = await b.waitFor((ev) => ev.type === 'world', 6000);
+      const proj = (f) => f.chars.map((c) => [c.id, c.col, c.row]);
+      assert.deepStrictEqual(proj(fa), proj(fb), 'every visitor must see the same office');
+    } finally {
+      a.close();
+      b.close();
+    }
+  }, LONG);
+
+  it('W5: the office keeps moving while nobody is watching', async () => {
+    if (!HAVE_PY) return;
+    const before = await srv.get('/api/world');
+    const seen = new Map(before.json.chars.map((c) => [c.id, `${c.col},${c.row}`]));
+    let moved = 0;
+    for (let i = 0; i < 20 && moved === 0; i++) {
+      await H.sleep(1500);
+      const now = await srv.get('/api/world');
+      moved = now.json.chars.filter((c) => seen.get(c.id) !== `${c.col},${c.row}`).length;
+    }
+    assert.ok(moved > 0, 'positions must change with no client open');
+    const integ = await srv.get('/api/integration');
+    assert.ok(integ.json.world.ticks > 0, 'the simulation thread must be ticking');
+    assert.ok(integ.json.world.last_tick_ms < 50, `a tick must stay cheap, got ${integ.json.world.last_tick_ms}ms`);
+  }, LONG);
+
+  it('W6: world frames do not pollute history or the event counter', async () => {
+    if (!HAVE_PY) return;
+    const before = await srv.get('/api/integration');
+    await H.sleep(2500);
+    const after = await srv.get('/api/integration');
+    // World frames and narration must not touch the Hermes ingest counter: only
+    // the difference between frames and narration counts as "real" events.
+    assert.strictEqual(after.json.events_total - before.json.events_total,
+      after.json.world.narrated - before.json.world.narrated,
+      'world frames are stream-only; only narration events are counted as events');
+    // Neither /api/agents nor the snapshot may carry a world frame.
+    const snap = await srv.get('/api/agents');
+    assert.ok(snap.json && Array.isArray(snap.json.agents), '/api/agents still answers');
+    assert.ok(!JSON.stringify(snap.json).includes('"type":"world"'), 'no world frame may enter a state endpoint');
+    const sse = await srv.sse();
+    try {
+      const initial = await sse.waitFor((ev) => ev.type === 'snapshot', 5000);
+      assert.ok(!JSON.stringify(initial).includes('"type":"world"'), 'the snapshot must stay a real event feed');
+    } finally {
+      sse.close();
+    }
+  }, LONG);
+});
+
+describe('Tier 4 — HTTP Integration: World survives a server restart', () => {
+  let dir = null;
+
+  afterAll(async () => {
+    if (dir) fs.rmSync(dir, { recursive: true, force: true });
+    dir = null;
+  });
+
+  it('W7: character positions resume from the saved state after a restart', async () => {
+    if (!HAVE_PY) return;
+    dir = H.tmpDir('lami-world-restart-');
+    const stateFile = path.join(dir, 'office-state.json');
+    const env = { OFFICE_STATE_FILE: stateFile };
+
+    const first = await H.startServer({ dir, keepDir: true, env });
+    let saved = null;
+    try {
+      for (let i = 0; i < 20; i++) {
+        await H.sleep(1500);
+        const w = await first.get('/api/world');
+        if (w.json.chars.some((c) => c.state === 'walk')) {
+          saved = w.json.chars;
+          break;
+        }
+      }
+      assert.ok(saved, 'a character must start walking before the restart');
+      await H.sleep(6000); // let the hub flush the world block
+    } finally {
+      first.child.kill('SIGTERM');
+      await new Promise((r) => first.child.once('exit', r));
+    }
+
+    const second = await H.startServer({ dir, keepDir: true, env });
+    try {
+      const w = await second.get('/api/world');
+      const now = new Map(w.json.chars.map((c) => [c.id, c]));
+      let matched = 0;
+      for (const c of saved) {
+        const restored = now.get(c.id);
+        if (!restored) continue;
+        // The office keeps ticking after boot, so allow a little live drift.
+        if (Math.abs(restored.col - c.col) <= 3 && Math.abs(restored.row - c.row) <= 3) matched++;
+      }
+      assert.ok(matched >= Math.min(saved.length, 14) - 1,
+        `positions must resume from the saved state (matched ${matched}/${saved.length})`);
+    } finally {
+      await second.stop();
+    }
+  }, { timeout: 120000 });
+});

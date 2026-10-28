@@ -57,6 +57,7 @@ Project/Lami/ai-office/
         ├── tier1_feature_coverage.test.js    # Tier 1: 18 Features (87 tests)
         ├── tier2_boundary_corner.test.js     # Tier 2: 9 Edge Categories (45 tests)
         ├── tier3_cross_feature.test.js       # Tier 3: Pairwise Combinations (9 tests)
+        ├── tier1_world_authority.test.js  # Tier 1: server-authoritative world parity (10 tests)
         ├── tier4_real_world_scenarios.test.js# Tier 4: E2E Scenarios (5 tests)
         └── tier4_http_integration.test.js # Tier 4: HTTP integration (34 tests)
 ```
@@ -67,12 +68,13 @@ Project/Lami/ai-office/
 
 | Tier | Suite Name | File | Test Count | Description |
 |------|------------|------|------------|-------------|
-| **Tier 1** | Feature Coverage | `tests/e2e/tier1_feature_coverage.test.js` + `tier1_responsive_a2a.test.js` | 87 | Validates primary happy-path behavior across all 18 core features: map/collision, responsive camera, drawer-aware layout, floorplan decoration and A2A peers. |
+| **Tier 1** | World Authority | `tests/e2e/tier1_world_authority.test.js` + `scripts/check_world_sync.py` | 10 | Python `world.py` vs client engine parity: identical collision grid, equal-cost A* routes, config sync (rooms/slots/residents/routines/furniture), every desk and routine spot reachable, and the browser stays render-only in live mode. |
+| **Tier 1** | Feature Coverage | `tests/e2e/tier1_feature_coverage.test.js` + `tier1_responsive_a2a.test.js` + `tier1_world_authority.test.js` | 97 | Validates primary happy-path behavior across all 18 core features: map/collision, responsive camera, drawer-aware layout, floorplan decoration and A2A peers. |
 | **Tier 2** | Boundary & Corner Cases | `tests/e2e/tier2_boundary_corner.test.js` | 45 | Exercises degenerate inputs, extreme viewports (0x0 to 8K), zero/max coordinates, obstacle trapping, text overflow, and error handling. |
 | **Tier 3** | Cross-Feature Combinations | `tests/e2e/tier3_cross_feature.test.js` | 9 | Verifies pairwise interactions: Pathfinding across sealed doorways, viewport resize with drawer, tool event slotting, task completion reporting, modal conflicts, tribute mode skinning. |
 | **Tier 4** | Real-World Application Scenarios | `tests/e2e/tier4_real_world_scenarios.test.js` | 5 | Validates realistic end-to-end office workflows: Full day office cycle, 6-agent concurrency storm, user interactive session, tool fault recovery, and dual-service smoke probes. |
-| **Tier 4** | HTTP Integration | `tests/e2e/tier4_http_integration.test.js` + `tests/http_helpers.js` | 34 | Boots the real `server.py` subprocess and drives it over real HTTP: ingest auth matrix, 413/400 body limits, keep-alive poisoning, SSE fan-out, A2A custom + official protocol via stub peers, and the real Hermes bridge (spawn/tool events, state advance, 60 KB batching). Fully offline on 127.0.0.1. |
-| **Total** | **Complete Suite** | — | **219** | Comprehensive automated acceptance gate. |
+| **Tier 4** | HTTP Integration | `tests/e2e/tier4_http_integration.test.js` + `tests/http_helpers.js` | 41 | Boots the real `server.py` subprocess and drives it over real HTTP: ingest auth matrix, 413/400 body limits, keep-alive poisoning, SSE fan-out, A2A custom + official protocol via stub peers, the real Hermes bridge, and the server-authoritative world (`/api/world`, identical positions across two clients, movement with no browser open, restart persistence). Fully offline on 127.0.0.1. |
+| **Total** | **Complete Suite** | — | **236** | Comprehensive automated acceptance gate. |
 
 ---
 
@@ -119,4 +121,4 @@ node tests/run_all_e2e.js --json > test_results.json
 - **Milestone 1 Gate**: Passing Tier 1 (Features 1-4) and Tier 2 (Categories 1, 4, 8).
 - **Milestone 2 Gate**: Passing Tier 1 (Features 5-10), Tier 2 (Categories 5, 6, 7), and Tier 3 (Scenarios X1-X6).
 - **Milestone 3 Gate**: Passing Tier 1 (Features 11-12), Tier 2 (Categories 2, 3, 9), and Tier 4 (Scenario S5).
-- **Milestone 4 Gate (Final Acceptance)**: 100% pass rate across all 219 tests in Tiers 1–4.
+- **Milestone 4 Gate (Final Acceptance)**: 100% pass rate across all 236 tests in Tiers 1–4.

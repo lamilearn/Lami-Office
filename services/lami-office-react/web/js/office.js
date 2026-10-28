@@ -67,6 +67,15 @@
       this.initResidents();
       if (LO.ui && LO.ui.updateStaffCount) LO.ui.updateStaffCount(this.residents.length);
 
+      // Server-authoritative world. When true the server simulates every
+      // character and this page only renders `applyWorld()` frames, so all
+      // visitors see the same office. It flips to false only when the stream is
+      // unavailable and the local demo controller takes over.
+      this.simulatedExternally = false;
+      this.lastWorldAt = 0;
+      this.worldTargets = new Map();
+      this.pendingWorld = null;
+
       this.lastTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
       this.scale = 1;
       this.offsetX = 0;
@@ -1032,6 +1041,123 @@
       }
     }
 
+    // ---- Server-authoritative world (live mode) ------------------------------
+    // The server simulates every character; this page interpolates between the
+    // 5 Hz frames so motion stays smooth at 60 fps without a local simulation.
+    findChar(id) {
+      if (!id) return null;
+      if (id === 'lami') return this.lami;
+      if (id === 'mochi') return this.cat;
+      if (id === 'delivery-rider') return this.deliveryRider;
+      if (this.subagents.has(id)) return this.subagents.get(id);
+      return this.residents.find((r) => r.id === id) || null;
+    }
+
+    // Rebuild sub-agents from a world frame so a later visitor sees whoever is
+    // actually working, not an empty office.
+    syncWorldAgents(frame) {
+      if (!Array.isArray(frame.chars)) return;
+      const live = new Set();
+      for (const c of frame.chars) {
+        if (c.kind !== 'sub') continue;
+        live.add(c.id);
+        if (this.subagents.has(c.id)) continue;
+        const agent = this.spawnSubAgent({
+          agentId: c.id,
+          name: c.name,
+          task: c.task,
+          tool: c.tool,
+          summary: c.summary
+        }, { restore: true });
+        if (c.tool) agent.startWork(c.tool, c.summary || c.tool);
+        agent.reported = false;
+      }
+      for (const id of [...this.subagents.keys()]) {
+        if (live.has(id)) continue;
+        this.freeSlot(this.subagents.get(id));
+        this.subagents.delete(id);
+      }
+      if (LO.ui && LO.ui.updateStaffCount) {
+        LO.ui.updateStaffCount(this.residents.length + this.subagents.size);
+      }
+    }
+
+    applyWorld(frame) {
+      if (!frame || !Array.isArray(frame.chars)) return;
+      this.pendingWorld = frame;
+      this.lastWorldAt = Date.now();
+      this.syncWorldAgents(frame);
+
+      // Characters: remember the target, let applyWorldTargets() ease toward it.
+      for (const data of frame.chars) {
+        const char = this.findChar(data.id);
+        if (!char) continue;
+        this.worldTargets.set(data.id, data);
+        if (char.col === undefined || this.worldTargets.size === 1) {
+          char.col = data.col;
+          char.row = data.row;
+        }
+        char.facing = data.facing || char.facing;
+        char.state = data.state || char.state;
+        char.frame = data.frame || char.frame;
+        char.bubble = data.bubble || null;
+        char.bubbleTimer = data.bubble ? 1 : 0;
+        char.emote = data.emote || null;
+        char.emoteTimer = data.emote ? 1 : 0;
+        char.carriedItem = data.carry || null;
+        if (data.kind && char.kind === undefined) char.kind = data.kind;
+        if (data.routineState) char.routineState = data.routineState;
+        if (data.task) char.task = data.task;
+        if (data.name && char.name !== data.name) char.name = data.name;
+        if (data.slot) char.assignedSlot = data.slot;
+      }
+
+      // The delivery rider is created and destroyed by the server's random events.
+      if (frame.rider && !this.deliveryRider) {
+        this.deliveryRider = new LO.DeliveryRider();
+      } else if (!frame.rider && this.deliveryRider) {
+        this.deliveryRider = null;
+      }
+      if (frame.cat) {
+        const cat = this.cat;
+        cat.col = frame.cat.col;
+        cat.row = frame.cat.row;
+        cat.state = frame.cat.state || cat.state;
+        cat.facing = frame.cat.facing || cat.facing;
+        cat.bubble = frame.cat.bubble || null;
+      }
+      if (frame.flags) {
+        if (typeof frame.flags.pizzaTimer === 'number') this.pizzaEventTimer = frame.flags.pizzaTimer;
+        if (typeof frame.flags.flickerTimer === 'number') this.flickerTimer = frame.flags.flickerTimer;
+      }
+    }
+
+    // Ease every character toward its last server position (~120 ms catch-up).
+    applyWorldTargets(dt) {
+      if (!this.worldTargets.size) return;
+      const ease = Math.min(1, dt * 9);
+      for (const [id, target] of this.worldTargets) {
+        const char = this.findChar(id);
+        if (!char) continue;
+        const dc = target.col - char.col;
+        const dr = target.row - char.row;
+        if (Math.abs(dc) < 0.01 && Math.abs(dr) < 0.01) {
+          char.col = target.col;
+          char.row = target.row;
+        } else if (Math.hypot(dc, dr) > 8) {
+          char.col = target.col; // a fresh page or a jumped character: no slide
+          char.row = target.row;
+        } else {
+          char.col += dc * ease;
+          char.row += dr * ease;
+        }
+        // Timers count down locally so bubbles fade between 5 Hz frames.
+        if (char.bubbleTimer > 0) char.bubbleTimer -= dt;
+        if (char.emoteTimer > 0) char.emoteTimer -= dt;
+      }
+      if (this.cat && this.cat.bubbleTimer > 0) this.cat.bubbleTimer -= dt;
+    }
+
     // ---- Loop ----
     start() {
       const loop = (now) => {
@@ -1050,6 +1176,13 @@
       this.updateCamera(dt);
       this.world.update(dt);
       this.elevator.update(dt, this);
+
+      // Live mode: the server owns positions, routines and narration. Animating
+      // them here as well would double-bill every event and let the tabs drift.
+      if (this.simulatedExternally) {
+        this.applyWorldTargets(dt);
+        return;
+      }
 
       this.lami.update(dt, this);
       this.cat.update(dt, this);

@@ -45,8 +45,10 @@
       }, 400);
     }
 
-    // Initial greeting
+    // Initial greeting. In live mode the server owns every character's narration
+    // (bubbles arrive in the world frames), so the local greeting is demo-only.
     setTimeout(() => {
+      if (office.simulatedExternally) return;
       office.lami.setBubble('Selamat datang di kantor Lami! 👑', 4.0);
     }, 1200);
   });
