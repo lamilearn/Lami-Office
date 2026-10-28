@@ -121,15 +121,28 @@ class Bridge:
                 "SELECT rowid AS _rowid, session_id, role, content, tool_name, tool_calls, timestamp "
                 "FROM messages ORDER BY rowid DESC LIMIT ?", (limit,))
             data = list(reversed(cur.fetchall()))
+        elif self.last_rowid <= 0:
+            # No state yet: start at the live end of the log instead of replaying
+            # the whole history (a fresh DB has ~16k rows, far past the ingest cap).
+            cur.execute("SELECT COALESCE(MAX(rowid), 0) AS m FROM messages")
+            latest = cur.fetchone()["m"]
+            self.last_rowid = latest - self.opts.backlog
+            if self.last_rowid < 0:
+                self.last_rowid = 0
+            data = self._select_after(cur, self.last_rowid, limit if limit and limit < self.opts.backlog else self.opts.backlog)
         else:
-            cur.execute(
-                "SELECT rowid AS _rowid, session_id, role, content, tool_name, tool_calls, timestamp "
-                "FROM messages WHERE rowid > ? ORDER BY rowid ASC" + (" LIMIT ?" if limit else ""),
-                ((self.last_rowid, limit) if limit else (self.last_rowid,)),
-            )
-            data = cur.fetchall()
+            data = self._select_after(cur, self.last_rowid, limit)
         con.close()
         return data
+
+    @staticmethod
+    def _select_after(cur, after: int, limit: int | None):
+        cur.execute(
+            "SELECT rowid AS _rowid, session_id, role, content, tool_name, tool_calls, timestamp "
+            "FROM messages WHERE rowid > ? ORDER BY rowid ASC" + (" LIMIT ?" if limit else ""),
+            ((after, limit) if limit else (after,)),
+        )
+        return cur.fetchall()
 
     def session_task(self, session: str) -> str:
         try:
@@ -207,6 +220,30 @@ class Bridge:
             log(f"POST {self.url} gagal: {exc}")
         return False
 
+    MAX_BATCH_BYTES = 60_000
+
+    def send_batches(self, last_rowid: int, events: list[dict]) -> int:
+        chunk: list[dict] = []
+        size = 0
+        sent = 0
+        for ev in events + [None]:
+            if ev is None:
+                break
+            ev_size = len(json.dumps(ev, ensure_ascii=False).encode()) + 2
+            if chunk and size + ev_size > self.MAX_BATCH_BYTES:
+                if not self.send(chunk):
+                    return sent
+                sent += len(chunk)
+                chunk, size = [], 0
+            chunk.append(ev)
+            size += ev_size
+        if chunk and not self.send(chunk):
+            return sent
+        sent += len(chunk)
+        self.last_rowid = last_rowid
+        self._save_state()
+        return sent
+
     def reap(self):
         now = time.time()
         for aid, seen in list(self.last_seen.items()):
@@ -222,6 +259,10 @@ class Bridge:
         batch: list[dict] = []
         for row in rows:
             batch.extend(self.parse(row))
+        # Split the batch so a large backlog never exceeds the server's body cap
+        # (256 KB) and gets rejected as one oversized request.
+        if not self.opts.probe:
+            return self.send_batches(rows[-1]["_rowid"], batch)
         if self.opts.probe:
             for ev in batch:
                 print(json.dumps(ev, ensure_ascii=False))
@@ -255,6 +296,54 @@ def log(msg: str):
     sys.stderr.write(f"[bridge] {time.strftime('%H:%M:%S')} {msg}\n")
 
 
+def verify(opts) -> int:
+    """Check Hermes db + office endpoint wiring without sending real events."""
+    import sqlite3
+    ok = True
+
+    db = os.path.expanduser(opts.db)
+    if not os.path.exists(db):
+        print(f"FAIL db      : {db} tidak ada")
+        ok = False
+    else:
+        try:
+            con = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=2)
+            n = con.execute("SELECT COUNT(*) FROM messages").fetchone()[0]
+            con.close()
+            print(f"OK   db      : {db} ({n} pesan)")
+        except Exception as exc:  # noqa: BLE001
+            print(f"FAIL db      : {exc}")
+            ok = False
+
+    base = opts.endpoint.rstrip("/")
+    for path in ("/healthz", "/api/config"):
+        try:
+            with urllib.request.urlopen(base + path, timeout=5) as resp:
+                print(f"OK   {path:<12}: HTTP {resp.status}")
+        except Exception as exc:  # noqa: BLE001
+            print(f"FAIL {path:<12}: {exc}")
+            ok = False
+
+    # Ingest probe: a single harmless status event the office answers with 200.
+    probe = json.dumps([{"type": "agent_status", "agentId": "lami", "status": "online"}]).encode()
+    req = urllib.request.Request(base + "/api/event", data=probe, method="POST")
+    req.add_header("Content-Type", "application/json")
+    if opts.token:
+        req.add_header("X-Office-Token", opts.token)
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            print(f"OK   ingest  : HTTP {resp.status} {resp.read()[:80].decode('utf-8', 'ignore')}")
+    except urllib.error.HTTPError as exc:
+        print(f"FAIL ingest  : HTTP {exc.code} {exc.read()[:120].decode('utf-8', 'ignore')}")
+        ok = False
+    except Exception as exc:  # noqa: BLE001
+        print(f"FAIL ingest  : {exc}")
+        ok = False
+
+    print("PASSED" if ok else "FAILED")
+    return 0 if ok else 1
+
+
 def main():
     ap = argparse.ArgumentParser(description="Mirror Hermes activity into Lami's AI Office.")
     ap.add_argument("--endpoint", default=os.environ.get("OFFICE_URL", "http://127.0.0.1:8090"))
@@ -262,14 +351,19 @@ def main():
     ap.add_argument("--db", default=os.environ.get("HERMES_STATE_DB", DEFAULT_DB))
     ap.add_argument("--state-file", default="~/.hermes/office_bridge_state.json")
     ap.add_argument("--poll", type=float, default=1.0)
+    ap.add_argument("--backlog", type=int, default=200,
+                    help="events to replay on first start when no state file exists")
     ap.add_argument("--timeout", type=float, default=90.0, help="idle seconds before agent_done")
     ap.add_argument("--boss-session", action="append", default=[], help="session id(s) shown as Lami")
     ap.add_argument("--include-cron", action="store_true")
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--once", action="store_true")
     ap.add_argument("--probe", action="store_true")
+    ap.add_argument("--verify", action="store_true", help="cek db + endpoint office lalu keluar")
     ap.add_argument("--dry-run", action="store_true")
     opts = ap.parse_args()
+    if opts.verify:
+        raise SystemExit(verify(opts))
     Bridge(opts).run()
 
 

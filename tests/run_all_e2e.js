@@ -50,9 +50,11 @@ async function main() {
   // Load selected tier suites
   if (selectedTiers.includes(1)) {
     require('./e2e/tier1_feature_coverage.test.js');
+    require('./e2e/tier1_responsive_a2a.test.js');
   }
   if (selectedTiers.includes(2)) {
     require('./e2e/tier2_boundary_corner.test.js');
+    require('./e2e/tier2_backend_hardening.test.js');
   }
   if (selectedTiers.includes(3)) {
     require('./e2e/tier3_cross_feature.test.js');

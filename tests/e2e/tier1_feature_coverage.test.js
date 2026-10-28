@@ -10,17 +10,29 @@ const { createBrowserEnvironment, loadScriptIntoEnv } = require('../harness');
 const fs = require('node:fs');
 const path = require('node:path');
 
+// Build the real collision grid straight from config.js + office.js.
+function liveCollisionGrid() {
+  const env = createBrowserEnvironment();
+  const LO = loadScriptIntoEnv(env, 'config.js');
+  loadScriptIntoEnv(env, 'office.js');
+  const grid = LO.Office.prototype.buildCollisionGrid.call({
+    getFurnitureObstacles: LO.Office.prototype.getFurnitureObstacles
+  });
+  return { LO, grid };
+}
+
 describe('Tier 1 — Feature 1: Orthogonal Grid & Math', () => {
-  it('F1.1: Grid dimensions verify exactly 64 columns and 36 rows', () => {
-    assert.strictEqual(ORACLE.GRID.GRID_COLS, 64, 'Grid columns must be exactly 64');
-    assert.strictEqual(ORACLE.GRID.GRID_ROWS, 36, 'Grid rows must be exactly 36');
+  it('F1.1: Grid dimensions verify exactly 88 columns and 50 rows', () => {
+    assert.strictEqual(ORACLE.GRID.GRID_COLS, 88, 'Grid columns must be exactly 88');
+    assert.strictEqual(ORACLE.GRID.GRID_ROWS, 50, 'Grid rows must be exactly 50');
   });
 
-  it('F1.2: Tile size is 16px yielding 1024x576 base resolution (16:9 ratio)', () => {
+  it('F1.2: Tile size is 16px yielding 1408x800 base resolution', () => {
     assert.strictEqual(ORACLE.GRID.TILE_SIZE, 16, 'Tile size must be 16px');
-    assert.strictEqual(ORACLE.GRID.CONTENT_W, 1024, 'Base content width must be 1024');
-    assert.strictEqual(ORACLE.GRID.CONTENT_H, 576, 'Base content height must be 576');
-    assert.strictEqual(1024 / 576, 16 / 9, 'Aspect ratio must be strictly 16:9');
+    assert.strictEqual(ORACLE.GRID.CONTENT_W, 1408, 'Base content width must be 1408');
+    assert.strictEqual(ORACLE.GRID.CONTENT_H, 800, 'Base content height must be 800');
+    assert.strictEqual(ORACLE.GRID.CONTENT_W, ORACLE.GRID.GRID_COLS * 16, 'Width must be cols * tile size');
+    assert.strictEqual(ORACLE.GRID.CONTENT_H, ORACLE.GRID.GRID_ROWS * 16, 'Height must be rows * tile size');
   });
 
   it('F1.3: tileToScreen transforms tile (x, y) to (x*16, y*16) without isometric shearing', () => {
@@ -75,13 +87,13 @@ describe('Tier 1 — Feature 2: 6 Themed Office Rooms', () => {
     assert.strictEqual(engDef.alias, 'coding');
   });
 
-  it('F2.3: All room boundaries lie within grid limits [0, 63] x [0, 35]', () => {
+  it('F2.3: All room boundaries lie within grid limits [0, 87] x [0, 49]', () => {
     for (const [id, def] of Object.entries(ORACLE.ROOM_DEFINITIONS)) {
       const b = def.bounds;
-      assert.ok(b.x1 >= 0 && b.x1 <= 63, `${id} x1=${b.x1} out of bounds`);
-      assert.ok(b.x2 >= 0 && b.x2 <= 63, `${id} x2=${b.x2} out of bounds`);
-      assert.ok(b.y1 >= 0 && b.y1 <= 35, `${id} y1=${b.y1} out of bounds`);
-      assert.ok(b.y2 >= 0 && b.y2 <= 35, `${id} y2=${b.y2} out of bounds`);
+      assert.ok(b.x1 >= 0 && b.x1 <= 87, `${id} x1=${b.x1} out of bounds`);
+      assert.ok(b.x2 >= 0 && b.x2 <= 87, `${id} x2=${b.x2} out of bounds`);
+      assert.ok(b.y1 >= 0 && b.y1 <= 49, `${id} y1=${b.y1} out of bounds`);
+      assert.ok(b.y2 >= 0 && b.y2 <= 49, `${id} y2=${b.y2} out of bounds`);
       assert.ok(b.x1 < b.x2, `${id} x1 must be less than x2`);
       assert.ok(b.y1 < b.y2, `${id} y1 must be less than y2`);
     }
@@ -104,43 +116,87 @@ describe('Tier 1 — Feature 2: 6 Themed Office Rooms', () => {
       const b = def.bounds;
       const d = def.door;
       assert.ok(d.x >= b.x1 && d.x <= b.x2, `${id} door x=${d.x} not along room width`);
-      const onBorder = d.y === b.y1 || d.y === b.y2 || d.y === b.y1 - 1 || d.y === b.y2 + 1;
-      assert.ok(onBorder, `${id} door y=${d.y} not on perimeter`);
+      const onBorder = d.y === b.y1 - 1 || d.y === b.y2 + 1;
+      assert.ok(onBorder, `${id} door y=${d.y} not on the shared wall just outside the interior`);
+      const side = def.door.side;
+      assert.ok(side === 'N' || side === 'S', `${id} door must face N or S toward a hallway band`);
+      const expected = b.y2 <= 22 ? 'S' : 'N';
+      assert.strictEqual(side, expected, `${id} door must face the hallway on its side of the plan`);
     }
   });
 });
 
 describe('Tier 1 — Feature 3: Top-Down Walls, Doors & Floors', () => {
-  it('F3.1: Room partitions generate non-zero wall boundary tiles between rooms', () => {
+  it('F3.1: Adjacent rooms share partition walls with no open gap between them', () => {
+    // Single enclosed floorplan: boss|research and research|server are separated
+    // by exactly the 1-2 tile wall thickness, never an open corridor gap.
     const boss = ORACLE.ROOM_DEFINITIONS.boss.bounds;
     const research = ORACLE.ROOM_DEFINITIONS.research.bounds;
-    const gap = research.x1 - boss.x2;
-    assert.ok(gap >= 1, 'Wall gap between boss and research must be at least 1 tile');
-  });
+    const server = ORACLE.ROOM_DEFINITIONS.server.bounds;
+    const engineering = ORACLE.ROOM_DEFINITIONS.engineering.bounds;
+    const meeting = ORACLE.ROOM_DEFINITIONS.meeting.bounds;
+    const pantry = ORACLE.ROOM_DEFINITIONS.pantry.bounds;
 
-  it('F3.2: Doorway coordinates are marked as walkable (0) in collision grid', () => {
-    const grid = Array.from({ length: 36 }, () => new Array(64).fill(0));
-    for (const def of Object.values(ORACLE.ROOM_DEFINITIONS)) {
-      grid[def.door.y][def.door.x] = 0; // Doorway must be walkable
-      assert.strictEqual(grid[def.door.y][def.door.x], 0, `Doorway ${def.id} must be walkable`);
+    const gapAB = research.x1 - boss.x2;   // must be the shared wall band
+    const gapBC = server.x1 - research.x2;
+    const gapDE = meeting.x1 - engineering.x2;
+    const gapEF = pantry.x1 - meeting.x2;
+    for (const [name, gap] of [['boss|research', gapAB], ['research|server', gapBC],
+                               ['engineering|meeting', gapDE], ['meeting|pantry', gapEF]]) {
+      assert.ok(gap >= 1 && gap <= 3, `${name} must share a 1-3 tile wall, got gap=${gap}`);
     }
+    // Rooms on the same row share the same vertical extent (a real plan, not a strip mall)
+    assert.strictEqual(boss.y1, research.y1);
+    assert.strictEqual(research.y1, server.y1);
+    assert.strictEqual(boss.y2, server.y2);
+    assert.strictEqual(engineering.y1, pantry.y1);
+    assert.strictEqual(engineering.y2, meeting.y2);
+    // The two rows are mirrors of each other, split by the central hallway.
+    assert.strictEqual(boss.y1, engineering.y1 - 21, 'Bottom row mirrors the top row across the hallway');
+    assert.ok(engineering.y1 > boss.y2, 'Bottom row sits below the top row');
   });
 
-  it('F3.3: Outer room walls can be marked as obstacles (1) in collision grid', () => {
-    const grid = Array.from({ length: 36 }, () => new Array(64).fill(0));
-    const b = ORACLE.ROOM_DEFINITIONS.boss.bounds;
-    for (let x = b.x1; x <= b.x2; x++) {
-      grid[b.y1][x] = 1;
-    }
-    assert.strictEqual(grid[b.y1][b.x1], 1, 'Wall tile must be solid obstacle');
-  });
-
-  it('F3.4: Central horizontal hallway spans continuously across rows 16 to 19 connecting rooms', () => {
-    const hallwayY = 17;
-    assert.ok(hallwayY >= 16 && hallwayY <= 19, 'Hallway row must be between 16 and 19');
+  it('F3.2: Doorway tiles are walkable (0) in the live collision grid', () => {
+    const { LO, grid } = liveCollisionGrid();
+    const cols = ORACLE.GRID.GRID_COLS;
     for (const def of Object.values(ORACLE.ROOM_DEFINITIONS)) {
-      const distToHallway = Math.abs(def.door.y - hallwayY);
-      assert.ok(distToHallway <= 4, `Door for ${def.id} is accessible from hallway`);
+      for (let ox = 0; ox < 2; ox++) {
+        const x = def.door.x + ox;
+        const y = def.door.y;
+        assert.ok(x < cols, `Doorway ${def.id} within grid width`);
+        assert.strictEqual(grid[y][x], 0, `Doorway ${def.id} tile (${x},${y}) must be walkable`);
+      }
+    }
+    assert.ok(LO.GRID_COLS === cols);
+  });
+
+  it('F3.3: Shared partition wall tiles are solid (1) in the live collision grid', () => {
+    const { grid } = liveCollisionGrid();
+    const boss = ORACLE.ROOM_DEFINITIONS.boss.bounds;
+    const research = ORACLE.ROOM_DEFINITIONS.research.bounds;
+    // Inspect the wall column between boss and research at a row away from any door.
+    const wallX = boss.x2 + 1;
+    const row = boss.y1 + 4;
+    assert.ok(wallX < research.x1, 'Partition column must sit between the two interiors');
+    assert.strictEqual(grid[row][wallX], 1, `Partition tile (${wallX},${row}) must be solid`);
+    // And the outer envelope must be solid too.
+    assert.strictEqual(grid[boss.y1 - 1][boss.x1], 1, 'North outer wall must be solid');
+  });
+
+  it('F3.4: The central hallway band runs continuously and borders every doorway', () => {
+    const hall = ORACLE.HALLWAY_NORTH;
+    assert.ok(hall.x1 < hall.x2 && hall.y1 <= hall.y2, 'Hallway band must be continuous');
+    const doorRowTop = hall.y1 - 1;    // top rooms punch the wall just above the band
+    const doorRowBottom = hall.y2 + 1; // bottom rooms punch the wall just below the band
+
+    for (const def of Object.values(ORACLE.ROOM_DEFINITIONS)) {
+      const door = def.door;
+      if (def.bounds.y2 <= hall.y1) {
+        assert.strictEqual(door.y, doorRowTop, `${def.id} door must punch the wall above the hallway`);
+      } else {
+        assert.strictEqual(door.y, doorRowBottom, `${def.id} door must punch the wall below the hallway`);
+      }
+      assert.ok(door.x >= hall.x1 && door.x <= hall.x2, `${def.id} door must lie within the hallway span`);
     }
   });
 
@@ -451,10 +507,15 @@ describe('Tier 1 — Feature 10: Interactive Props Modals', () => {
 });
 
 describe('Tier 1 — Feature 11: Desktop-First Viewport & Scaling', () => {
-  it('F11.1: 16:9 desktop viewport (1920x1080) scales canvas to 1.875 with zero vertical letterbox', () => {
+  const BASE_W = ORACLE.GRID.CONTENT_W;
+  const BASE_H = ORACLE.GRID.CONTENT_H;
+  const ratio = BASE_W / BASE_H;
+
+  it('F11.1: Desktop viewport (1920x1080) scales canvas to fit with zero vertical letterbox', () => {
     const res = ORACLE.calculateViewport(1920, 1080, false, 0);
-    assert.strictEqual(res.scale, 1.875, 'Scale should be exactly 1.875');
-    assert.strictEqual(res.offsetY, 0, 'Vertical letterboxing must be 0 on 16:9 screen');
+    const expected = Math.min(1920 / BASE_W, 1080 / BASE_H);
+    assert.strictEqual(res.scale, expected, 'Scale must fit the base canvas');
+    assert.strictEqual(res.offsetY, 0, 'Vertical letterboxing must be 0 on a tall-enough screen');
   });
 
   it('F11.2: Dynamic chat drawer opening subtracts drawer width from available canvas width', () => {
@@ -475,23 +536,23 @@ describe('Tier 1 — Feature 11: Desktop-First Viewport & Scaling', () => {
     const canvasX = (clientX - vp.offsetX) / vp.scale;
     const canvasY = (clientY - vp.offsetY) / vp.scale;
 
-    assert.strictEqual(Math.round(canvasX), 512, 'Canvas X should map to content center (512)');
-    assert.strictEqual(Math.round(canvasY), 288, 'Canvas Y should map to content center (288)');
+    assert.strictEqual(Math.round(canvasX), Math.round(BASE_W / 2), 'Canvas X should map to content center');
+    assert.strictEqual(Math.round(canvasY), Math.round(BASE_H / 2), 'Canvas Y should map to content center');
   });
 
-  it('F11.5: Base content maintains fixed 16:9 aspect ratio across any window size', () => {
+  it('F11.5: Base content maintains a fixed aspect ratio across any window size', () => {
     const resNarrow = ORACLE.calculateViewport(800, 600, false, 0);
-    assert.strictEqual(resNarrow.renderedW / resNarrow.renderedH, 16 / 9);
+    assert.ok(Math.abs(resNarrow.renderedW / resNarrow.renderedH - ratio) < 1e-9);
 
     const resWide = ORACLE.calculateViewport(2560, 1080, false, 0);
-    assert.strictEqual(resWide.renderedW / resWide.renderedH, 16 / 9);
+    assert.ok(Math.abs(resWide.renderedW / resWide.renderedH - ratio) < 1e-9);
   });
 });
 
 describe('Tier 1 — Feature 12: Server Endpoints & Smoke Probes', () => {
-  it('F12.1: Syntax check passes on all 10 frontend JavaScript files', () => {
+  it('F12.1: Syntax check passes on all 11 frontend JavaScript files', () => {
     const root = path.resolve(__dirname, '..', '..', 'services', 'lami-office-react', 'web', 'js');
-    const files = ['config.js', 'sprites.js', 'audio.js', 'world.js', 'agents.js', 'office.js', 'ui.js', 'demo.js', 'net.js', 'main.js'];
+    const files = ['config.js', 'sprites.js', 'audio.js', 'tilemap.js', 'world.js', 'agents.js', 'office.js', 'ui.js', 'demo.js', 'net.js', 'main.js'];
 
     for (const f of files) {
       const full = path.join(root, f);
@@ -527,7 +588,7 @@ describe('Tier 1 — Feature 12: Server Endpoints & Smoke Probes', () => {
 });
 
 describe('Tier 1 — Feature 7b: Live Map Path Integrity', () => {
-  const HOME = { rina: [24, 8], dodo: [6, 22], sekar: [29, 23], bima: [48, 11], lami: [11, 5] };
+  const HOME = { rina: [35, 11], dodo: [8, 28], sekar: [42, 30], bima: [72, 16], lami: [15, 7] };
   const OWNER = {
     corkboard: 'rina', stretch: 'rina', reading: 'rina', coffee_pantry: 'rina', consult_boss: 'rina',
     server_mini: 'dodo', arch_board: 'dodo', peer_review: 'dodo', pantry_snack: 'dodo',
@@ -559,22 +620,22 @@ describe('Tier 1 — Feature 7b: Live Map Path Integrity', () => {
 
   it('F7b.1: Routed path is orthogonal, walkable and collinear-compressed', () => {
     const { LO, grid } = liveMap();
-    const path = LO.findOrthogonalPath({ x: 1, y: 16 }, { x: 44, y: 24 }, grid);
+    const path = LO.findOrthogonalPath({ x: 2, y: 21 }, { x: 70, y: 30 }, grid);
     assertCleanPath(LO, grid, path);
     assert.ok(path.length < 20, `Compressed path should be a few runs, got ${path.length} waypoints`);
     const end = path[path.length - 1];
-    assert.strictEqual(end.x, 44);
-    assert.strictEqual(end.y, 24);
+    assert.strictEqual(end.x, 70);
+    assert.strictEqual(end.y, 30);
   });
 
   it('F7b.2: A goal inside furniture snaps to the nearest walkable tile instead of failing', () => {
     const { LO, grid } = liveMap();
-    // (11,6) is the executive desk tile.
-    assert.strictEqual(grid[6][11], 1, 'Executive desk tile must be solid');
-    const path = LO.findOrthogonalPath({ x: 11, y: 9 }, { x: 11, y: 6 }, grid);
+    // (14,7) is the executive desk tile in the boss office layout.
+    assert.strictEqual(grid[7][14], 1, 'Executive desk tile must be solid');
+    const path = LO.findOrthogonalPath({ x: 14, y: 10 }, { x: 14, y: 7 }, grid);
     assertCleanPath(LO, grid, path);
     const end = path[path.length - 1];
-    assert.ok(Math.abs(end.x - 11) + Math.abs(end.y - 6) <= 2, 'Goal must snap to an adjacent tile');
+    assert.ok(Math.abs(end.x - 14) + Math.abs(end.y - 7) <= 2, 'Goal must snap to an adjacent tile');
   });
 
   it('F7b.3: Every resident boss routine destination is reachable from its home desk', () => {
@@ -638,6 +699,87 @@ describe('Tier 1 — Feature 13: Staff Roster & Shared Room Routines', () => {
       for (const rt of LO.ROOM_ROUTINES[res.room] || []) {
         const p = LO.findOrthogonalPath({ x: slot.col, y: slot.row }, { x: rt.col, y: rt.row }, grid);
         assert.ok(p, `${res.name} cannot reach ${res.room}/${rt.id} (${rt.col},${rt.row})`);
+      }
+    }
+  });
+});
+
+describe('Tier 1 — Feature 14: Tilemap Floorplan & Collision Consistency', () => {
+  const MAP_PATH = path.resolve(__dirname, '..', '..', 'services', 'lami-office-react', 'web', 'assets', 'map', 'office.map.json');
+  const TILESET_PATH = path.resolve(__dirname, '..', '..', 'services', 'lami-office-react', 'web', 'assets', 'tiles', 'tileset.json');
+
+  function decodeLayer(layer, cols, rows) {
+    const flat = [];
+    for (const [value, run] of layer.data) {
+      for (let k = 0; k < run; k++) flat.push(value);
+    }
+    assert.strictEqual(flat.length, cols * rows, `Layer ${layer.name} must cover the whole grid`);
+    const out = [];
+    for (let y = 0; y < rows; y++) out.push(flat.slice(y * cols, (y + 1) * cols));
+    return out;
+  }
+
+  function loadMap() {
+    const map = JSON.parse(fs.readFileSync(MAP_PATH, 'utf8'));
+    const tiers = {};
+    for (const layer of map.layers) tiers[layer.name] = decodeLayer(layer, map.cols, map.rows);
+    return { map, tiers };
+  }
+
+  it('F14.1: Tilemap grid matches the config grid and every tile exists in the tileset', () => {
+    const { LO } = liveCollisionGrid();
+    const { map, tiers } = loadMap();
+    assert.strictEqual(map.cols, LO.GRID_COLS, 'Tilemap cols must match config');
+    assert.strictEqual(map.rows, LO.GRID_ROWS, 'Tilemap rows must match config');
+    assert.strictEqual(map.tileSize, LO.TILE_SIZE, 'Tilemap tile size must match config');
+
+    const names = new Set(JSON.parse(fs.readFileSync(TILESET_PATH, 'utf8')).map(t => t.name));
+    for (const layerName of ['floor', 'walls', 'decor']) {
+      for (const row of tiers[layerName]) {
+        for (const name of row) {
+          if (name) assert.ok(names.has(name), `Tile "${name}" in layer ${layerName} missing from tileset.json`);
+        }
+      }
+    }
+  });
+
+  it('F14.2: Every solid wall tile in the tilemap is also solid in the collision grid', () => {
+    const { grid } = liveCollisionGrid();
+    const { map, tiers } = loadMap();
+    // Door tiles are walkable; all other wall tiles must be solid.
+    for (let y = 0; y < map.rows; y++) {
+      for (let x = 0; x < map.cols; x++) {
+        const wall = tiers.walls[y][x];
+        if (!wall || wall === 'door_mid') continue;
+        assert.strictEqual(grid[y][x], 1, `Wall tile "${wall}" at (${x},${y}) must be solid in collision grid`);
+      }
+    }
+  });
+
+  it('F14.3: Doorway tiles in the tilemap are walkable in the collision grid', () => {
+    const { grid } = liveCollisionGrid();
+    const { map, tiers } = loadMap();
+    let doorTiles = 0;
+    for (let y = 0; y < map.rows; y++) {
+      for (let x = 0; x < map.cols; x++) {
+        if (tiers.walls[y][x] === 'door_mid') {
+          doorTiles++;
+          assert.strictEqual(grid[y][x], 0, `Doorway tile (${x},${y}) must be walkable`);
+        }
+      }
+    }
+    assert.strictEqual(doorTiles, 12, 'Six 2-tile doorways expected (12 door tiles)');
+  });
+
+  it('F14.4: Room floor tiles follow the configured room interiors', () => {
+    const { LO } = liveCollisionGrid();
+    const { tiers } = loadMap();
+    for (const rid of ORACLE.ROOM_IDS) {
+      const b = LO.ROOMS[rid].bounds;
+      for (let y = b.y1; y <= b.y2; y++) {
+        for (let x = b.x1; x <= b.x2; x++) {
+          assert.ok(/^floor_/.test(tiers.floor[y][x]), `(${x},${y}) inside ${rid} must carry a floor tile`);
+        }
       }
     }
   });

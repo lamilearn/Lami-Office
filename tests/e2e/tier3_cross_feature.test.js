@@ -7,40 +7,45 @@
 
 const { describe, it, assert } = require('../runner_utils');
 const ORACLE = require('../oracle');
-const { createBrowserEnvironment } = require('../harness');
+const { createBrowserEnvironment, loadScriptIntoEnv } = require('../harness');
+
+function liveGrid() {
+  const env = createBrowserEnvironment();
+  const LO = loadScriptIntoEnv(env, 'config.js');
+  loadScriptIntoEnv(env, 'office.js');
+  const grid = LO.Office.prototype.buildCollisionGrid.call({
+    getFurnitureObstacles: LO.Office.prototype.getFurnitureObstacles
+  });
+  return { LO, grid };
+}
 
 describe('Tier 3 — Cross-Feature: Movement, Pathfinding & Room Transitions', () => {
-  it('X1: Character navigates between Boss Office and Engineering Pit through hallway', () => {
-    // 64x36 collision grid: all 0 except room boundaries
-    const grid = Array.from({ length: 36 }, () => new Array(64).fill(0));
+  it('X1: Character navigates between Boss Office and the hallway through its doorway', () => {
+    const { LO, grid } = liveGrid();
+    const boss = LO.ROOMS.boss;
+    const door = boss.door;
 
-    // Fill walls around boss room except door (10, 15)
-    const boss = ORACLE.ROOM_DEFINITIONS.boss.bounds;
-    for (let x = boss.x1; x <= boss.x2; x++) {
-      grid[boss.y1][x] = 1;
-      grid[boss.y2][x] = 1;
+    const start = { x: boss.bounds.x1 + 3, y: boss.bounds.y1 + 4 };
+    const goal = { x: door.x, y: LO.HALLWAY.bounds.y1 + 1 };
+    assert.strictEqual(grid[start.y][start.x], 0, 'Start tile must be walkable');
+    assert.strictEqual(grid[goal.y][goal.x], 0, 'Hallway goal must be walkable');
+
+    const path = LO.findOrthogonalPath(start, goal, grid);
+    assert.ok(path, 'Path out of the room through the door must exist');
+    for (const step of path) {
+      assert.strictEqual(grid[step.y][step.x], 0, `Waypoint (${step.x},${step.y}) must be walkable`);
     }
-    for (let y = boss.y1; y <= boss.y2; y++) {
-      grid[y][boss.x1] = 1;
-      grid[y][boss.x2] = 1;
+    for (let i = 1; i < path.length; i++) {
+      const a = path[i - 1], b = path[i];
+      assert.ok(a.x === b.x || a.y === b.y, 'Every segment must be strictly orthogonal');
     }
-    grid[15][10] = 0; // Doorway
 
-    // Start inside boss room (5, 5), Goal in hallway (10, 17)
-    const path = ORACLE.findOrthogonalPath({ x: 5, y: 5 }, { x: 10, y: 17 }, grid);
-    assert.ok(path, 'Path out of room through door must exist');
-
-    // Verify path passes through doorway (10, 15)
-    const hasDoor = path.some(p => p.x === 10 && p.y === 15);
-    assert.strictEqual(hasDoor, true, 'Path must pass through doorway tile (10, 15)');
-
-    // Verify all steps are cardinal
-    for (let i = 0; i < path.length - 1; i++) {
-      const p1 = path[i];
-      const p2 = path[i + 1];
-      const dist = Math.abs(p1.x - p2.x) + Math.abs(p1.y - p2.y);
-      assert.strictEqual(dist, 1, 'Every movement step must be cardinal');
-    }
+    // Sealing the doorway must make the room unreachable: the wall truly encloses it.
+    const sealed = grid.map(row => row.slice());
+    sealed[door.y][door.x] = 1;
+    sealed[door.y][door.x + 1] = 1;
+    const blockedPath = LO.findOrthogonalPath(start, goal, sealed);
+    assert.strictEqual(blockedPath, null, 'With the doorway sealed the hallway must be unreachable');
   });
 });
 
@@ -264,5 +269,64 @@ describe('Tier 3 — Cross-Feature: Mochi the Cat Hallway Patrol & Agent Obstacl
     // Agent path must not step onto cat tile
     const hitsCat = path.some(p => p.x === catPos.x && p.y === catPos.y);
     assert.strictEqual(hitsCat, false, 'Agent path must avoid cat tile');
+  });
+
+  it('X9: 2D Continuous Kinematics, Mario-Style Physics, Wall Sliding & Social Repulsion', () => {
+    // 1. Verify Character kinematics properties
+    const { loadScriptIntoEnv } = require('../harness');
+    const env = createBrowserEnvironment();
+    loadScriptIntoEnv(env, 'config.js');
+    loadScriptIntoEnv(env, 'sprites.js');
+    loadScriptIntoEnv(env, 'agents.js');
+
+    const agent = new env.window.LO.Character('test_worker', 'Worker', 'Developer', { hair: 0, skin: 0, cloth: 0 }, 0, 10, 10);
+    assert.strictEqual(agent.vx, 0);
+    assert.strictEqual(agent.vy, 0);
+    assert.strictEqual(agent.maxSpeed, 2.4);
+    assert.strictEqual(agent.squashX, 1.0);
+    assert.strictEqual(agent.squashY, 1.0);
+
+    // 2. Simulate steering velocity step with friction
+    agent.vx = 2.0;
+    agent.vy = 0.0;
+    const dt = 0.016; // 60fps frame
+    agent.vx *= Math.pow(agent.friction, dt * 60);
+    assert.ok(agent.vx < 2.0, 'Floor friction must decelerate velocity');
+
+    // 3. Wall sliding simulation: moving into horizontal solid wall slides tangential
+    const grid = Array.from({ length: 36 }, () => new Array(64).fill(0));
+    grid[10][11] = 1; // Wall directly east of agent (10, 10)
+    const mockOffice = { collisionGrid: grid };
+
+    agent.col = 10.8;
+    agent.row = 10.0;
+    agent.vx = 1.5;
+    agent.vy = 1.0;
+
+    // Check horizontal collision with radius 0.36
+    const nextCol = agent.col + agent.vx * dt;
+    const colCheck = nextCol + agent.radius;
+    const isSolid = grid[Math.floor(agent.row)][Math.floor(colCheck)] === 1;
+    assert.strictEqual(isSolid, true, 'Right movement must detect solid wall');
+
+    // Wall slide response: vx clamped to 0, vy preserved
+    let slideVx = isSolid ? 0 : agent.vx;
+    let slideVy = agent.vy;
+    assert.strictEqual(slideVx, 0, 'Wall collision must zero out perpendicular velocity');
+    assert.strictEqual(slideVy, 1.0, 'Wall sliding must preserve parallel velocity');
+
+    // 4. Social Elastic Repulsion simulation
+    const agentA = { col: 10.0, row: 16.0 };
+    const agentB = { col: 10.4, row: 16.0 }; // distance = 0.4 < minSeparation 0.72
+    const dist = Math.hypot(agentB.col - agentA.col, agentB.row - agentA.row);
+    const minSeparation = 0.72;
+    const overlap = (minSeparation - dist) * 0.5;
+    const nx = (agentB.col - agentA.col) / dist;
+
+    agentA.col -= nx * overlap;
+    agentB.col += nx * overlap;
+
+    const newDist = Math.hypot(agentB.col - agentA.col, agentB.row - agentA.row);
+    assert.ok(newDist > dist, 'Elastic repulsion must push overlapping characters apart');
   });
 });

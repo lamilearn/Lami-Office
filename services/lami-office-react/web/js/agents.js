@@ -55,8 +55,25 @@
 
       this.facing = 'S'; // 'S' | 'N' | 'E' | 'W'
       this.state = 'idle'; // idle | walk | type | reporting | work
-      this.speed = 2.2; // tiles per second
+      this.speed = 2.4; // tiles per second
       this.sprites = LO.getCharacterSprites(this.look);
+
+      // 2D Continuous Kinematics & Mario-Style Physics Engine
+      this.vx = 0;              // continuous horizontal velocity (tiles/sec)
+      this.vy = 0;              // continuous vertical velocity (tiles/sec)
+      this.ax = 0;              // steering acceleration
+      this.ay = 0;
+      this.friction = 0.82;     // floor friction dampening
+      this.maxSpeed = 2.4;      // maximum speed limit
+      this.accel = 16.0;        // responsive steering acceleration force
+      this.radius = 0.36;       // physical circle collision radius (tile units)
+
+      // Mario-Style Bounciness & Micro-Physics
+      this.bounceTimer = 0;
+      this.bounceHeight = 2.4;  // pixel height for retro walk hop
+      this.squashX = 1.0;       // horizontal squash scale factor
+      this.squashY = 1.0;       // vertical stretch scale factor
+      this.dustTimer = 0;
 
       this.frame = 'idle';
       this.animTimer = 0;
@@ -179,9 +196,13 @@
         this.targetFloor = 0;
       }
 
-      // If paused for social encounter or greeting, pause walking
+      // If paused for social encounter or greeting, smoothly brake walking velocity
       if (this.pauseTimer > 0) {
         this.pauseTimer -= dt;
+        this.vx *= 0.5;
+        this.vy *= 0.5;
+        this.squashX = 1.0;
+        this.squashY = 1.0;
         this.frame = 'idle';
         return;
       }
@@ -194,7 +215,7 @@
         if (!this.path || this.path.length === 0) return;
       }
 
-      // 1. Follow waypoint path (keep semantic states such as 'reporting')
+      // 1. Follow waypoint path with Continuous Kinematic Physics & Steering
       if (this.path && this.path.length > 0) {
         if (this.state !== 'reporting') this.state = 'walk';
         const targetNode = this.path[0];
@@ -202,33 +223,100 @@
         let dy = targetNode.y - this.row;
         let dist = Math.hypot(dx, dy);
 
-        // Strict Orthogonal Axis Locking:
-        // A* paths are strictly orthogonal (either purely X or purely Y).
-        // Align perpendicular coordinate to eliminate drift and prevent diagonal clipping through doorframes.
+        // Update facing direction based on primary travel axis
         if (Math.abs(dx) >= Math.abs(dy)) {
-          if (Math.abs(dx) > 0.001) {
-            this.facing = dx > 0 ? 'E' : 'W';
-            if (Math.abs(dy) > 0.001) {
-              this.row = targetNode.y;
-              dy = 0;
-              dist = Math.abs(dx);
-            }
-          }
+          if (Math.abs(dx) > 0.001) this.facing = dx > 0 ? 'E' : 'W';
         } else {
-          if (Math.abs(dy) > 0.001) {
-            this.facing = dy > 0 ? 'S' : 'N';
-            if (Math.abs(dx) > 0.001) {
-              this.col = targetNode.x;
-              dx = 0;
-              dist = Math.abs(dy);
-            }
+          if (Math.abs(dy) > 0.001) this.facing = dy > 0 ? 'S' : 'N';
+        }
+
+        // Steering Force (Seek & Arrive dampening):
+        // When approaching waypoint or final destination, smoothly decelerate to eliminate jerky snaps.
+        const arriveThreshold = 0.5;
+        const targetSpeed = dist < arriveThreshold ? Math.max(0.6, this.maxSpeed * (dist / arriveThreshold)) : this.maxSpeed;
+        const desiredVx = (dx / (dist || 1)) * targetSpeed;
+        const desiredVy = (dy / (dist || 1)) * targetSpeed;
+
+        // Apply acceleration towards desired velocity
+        this.ax = (desiredVx - this.vx) * this.accel;
+        this.ay = (desiredVy - this.vy) * this.accel;
+
+        this.vx += this.ax * dt;
+        this.vy += this.ay * dt;
+
+        // Apply floor friction drag
+        this.vx *= Math.pow(this.friction, dt * 60);
+        this.vy *= Math.pow(this.friction, dt * 60);
+
+        // Speed clamping
+        const curSpeed = Math.hypot(this.vx, this.vy);
+        if (curSpeed > this.maxSpeed) {
+          this.vx = (this.vx / curSpeed) * this.maxSpeed;
+          this.vy = (this.vy / curSpeed) * this.maxSpeed;
+        }
+
+        // Continuous Circle-to-AABB Wall Sliding Collision Resolution:
+        const collisionGrid = office ? office.collisionGrid : (window.LO?.office?.collisionGrid);
+        let nextCol = this.col + this.vx * dt;
+        let nextRow = this.row + this.vy * dt;
+
+        if (collisionGrid) {
+          const rows = collisionGrid.length;
+          const cols = collisionGrid[0].length;
+          const isSolidTile = (c, r) => {
+            const cx = Math.floor(c);
+            const cy = Math.floor(r);
+            if (cx < 0 || cx >= cols || cy < 0 || cy >= rows) return true;
+            return collisionGrid[cy][cx] === 1;
+          };
+
+          // Slide along vertical wall (check X movement)
+          const colCheck = this.vx > 0 ? (nextCol + this.radius) : (nextCol - this.radius);
+          if (isSolidTile(colCheck, this.row)) {
+            this.vx = 0;
+            nextCol = this.col;
+          }
+
+          // Slide along horizontal wall (check Y movement)
+          const rowCheck = this.vy > 0 ? (nextRow + this.radius) : (nextRow - this.radius);
+          if (isSolidTile(this.col, rowCheck)) {
+            this.vy = 0;
+            nextRow = this.row;
           }
         }
 
-        const step = Math.min(this.speed * dt, dist);
-        if (dist > 0.0001) {
-          this.col += (dx / dist) * step;
-          this.row += (dy / dist) * step;
+        this.col = nextCol;
+        this.row = nextRow;
+
+        // Mario-Style Bounciness step cycle & squash-and-stretch
+        this.bounceTimer += dt * 14;
+        const bouncePhase = Math.sin(this.bounceTimer);
+        if (bouncePhase > 0.6) {
+          this.squashX = 0.94;
+          this.squashY = 1.08;
+        } else if (bouncePhase < -0.3) {
+          this.squashX = 1.08;
+          this.squashY = 0.92;
+        } else {
+          this.squashX = 1.0;
+          this.squashY = 1.0;
+        }
+
+        // Walk dust puff emission
+        this.dustTimer += dt;
+        if (this.dustTimer > 0.35) {
+          this.dustTimer = 0;
+          const screenPos = LO.isoToScreen(this.col, this.row, this.floor);
+          this.particles.push({
+            text: '',
+            icon: '💨',
+            color: '#d6c2a8',
+            x: screenPos.x + (Math.random() * 4 - 2),
+            y: screenPos.y + 1,
+            vy: -8,
+            alpha: 0.6,
+            life: 0.3
+          });
         }
 
         if (this.animTimer > 0.15) {
@@ -237,14 +325,18 @@
         }
         this.frame = this.walkStep ? 'walk' : 'idle';
 
-        if (dist <= step || dist < 0.06) {
+        // Check waypoint completion
+        const remainingDist = Math.hypot(targetNode.x - this.col, targetNode.y - this.row);
+        if (remainingDist <= Math.hypot(this.vx * dt, this.vy * dt) || remainingDist < 0.14) {
           this.col = targetNode.x;
           this.row = targetNode.y;
           this.path.shift();
 
           if (this.path.length === 0) {
-            // Snap to the exact (possibly fractional) target only when the
-            // final waypoint really is its tile; never teleport across rooms.
+            this.vx = 0;
+            this.vy = 0;
+            this.squashX = 1.0;
+            this.squashY = 1.0;
             if (Math.round(this.targetCol) === targetNode.x &&
                 Math.round(this.targetRow) === targetNode.y) {
               this.col = this.targetCol;
@@ -267,9 +359,18 @@
         return;
       }
 
-      // 3. At destination
-      this.col = this.targetCol;
-      this.row = this.targetRow;
+      // 3. At destination: smooth deceleration & resting idle
+      this.vx *= 0.5;
+      this.vy *= 0.5;
+      if (Math.hypot(this.vx, this.vy) < 0.05) {
+        this.vx = 0;
+        this.vy = 0;
+        this.col = this.targetCol;
+        this.row = this.targetRow;
+      }
+      this.squashX = 1.0;
+      this.squashY = 1.0;
+      this.bounceTimer = 0;
       if (this.state === 'walk') {
         this.onArrived();
       }
@@ -371,24 +472,35 @@
       const sprGroup = this.sprites[this.facing] || this.sprites.SE || this.sprites.right;
       const img = sprGroup[this.frame] || sprGroup.idle;
 
-      const px = Math.floor(pos.x - this.sprites.w / 2);
-      const py = Math.floor(pos.y - this.sprites.h + 2);
+      // Mario-Style Bounciness & Squash/Stretch Dynamics
+      const isMoving = Math.hypot(this.vx || 0, this.vy || 0) > 0.08;
+      const hopY = isMoving ? Math.abs(Math.sin(this.bounceTimer || 0)) * (this.bounceHeight || 2.2) : 0;
+      const sx = this.squashX || 1.0;
+      const sy = this.squashY || 1.0;
 
-      // Character Shadow
-      ctx.fillStyle = 'rgba(58, 40, 56, 0.28)';
+      // Dynamic Character Shadow (contracts slightly on hop)
+      ctx.fillStyle = isMoving ? 'rgba(58, 40, 56, 0.20)' : 'rgba(58, 40, 56, 0.28)';
       ctx.beginPath();
-      ctx.ellipse(pos.x, pos.y + 1, 6, 3, 0, 0, Math.PI * 2);
+      const shadowRadius = isMoving ? Math.max(3.8, 6 - hopY * 0.7) : 6;
+      ctx.ellipse(pos.x, pos.y + 1, shadowRadius, 3, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // Draw Chibi Sprite
-      ctx.drawImage(img, px, py);
+      // Draw Chibi Sprite with Mario Squash & Stretch transform
+      ctx.save();
+      ctx.translate(pos.x, pos.y + 2 - hopY);
+      ctx.scale(sx, sy);
+      const halfW = Math.floor(this.sprites.w / 2);
+      ctx.drawImage(img, -halfW, -this.sprites.h);
 
-      // Carried Paper Item
+      // Carried Paper Item (inside sprite transform)
       if (this.carriedItem === 'paper') {
         const paper = LO.getPaperSprite();
-        const paperX = (this.facing === 'E' || this.facing === 'S' || this.facing === 'SE') ? px + this.sprites.w - 3 : px - 2;
-        ctx.drawImage(paper, paperX, py + 9);
+        const paperX = (this.facing === 'E' || this.facing === 'S' || this.facing === 'SE') ? halfW - 3 : -halfW - 2;
+        ctx.drawImage(paper, paperX, -this.sprites.h + 9);
       }
+      ctx.restore();
+
+      const py = Math.floor(pos.y - this.sprites.h + 2 - hopY);
 
       // Emote & Speech Bubble
       if (this.emote) this.renderEmote(ctx, pos.x, py);
@@ -522,8 +634,8 @@
               id: 'corkboard',
               name: 'Cek Papan Catatan',
               floor: 0,
-              col: 35,
-              row: 4,
+              col: 32,
+              row: 6,
               facing: 'N',
               duration: 7,
               startBubble: 'Cek hipotesis di papan 📌',
@@ -536,8 +648,8 @@
               id: 'stretch',
               name: 'Peregangan Jendela',
               floor: 0,
-              col: 38,
-              row: 12,
+              col: 54,
+              row: 17,
               facing: 'E',
               duration: 6,
               startBubble: 'Peregangan badan dulu~ ✨',
@@ -550,8 +662,8 @@
               id: 'reading',
               name: 'Membaca Jurnal',
               floor: 0,
-              col: 22,
-              row: 12,
+              col: 33,
+              row: 17,
               facing: 'W',
               duration: 7,
               startBubble: 'Buka referensi jurnal 📖',
@@ -564,8 +676,8 @@
               id: 'coffee_pantry',
               name: 'Ngopi di Pantry',
               floor: 0,
-              col: 45,
-              row: 25,
+              col: 62,
+              row: 30,
               facing: 'N',
               duration: 8,
               startBubble: 'Turun ke pantry, ngopi dulu 🍵',
@@ -578,8 +690,8 @@
               id: 'consult_boss',
               name: 'Lapor Boss Lami',
               floor: 0,
-              col: 11,
-              row: 8,
+              col: 14,
+              row: 9,
               facing: 'N',
               duration: 6.5,
               startBubble: 'Naik ke kantor Boss Lami 👑',
@@ -599,8 +711,8 @@
               id: 'server_mini',
               name: 'Cek Mini Server',
               floor: 0,
-              col: 14,
-              row: 22,
+              col: 20,
+              row: 28,
               facing: 'N',
               duration: 7,
               startBubble: 'Cek build runner lokal ⚙️',
@@ -613,8 +725,8 @@
               id: 'arch_board',
               name: 'Desain Skema',
               floor: 0,
-              col: 20,
-              row: 30,
+              col: 24,
+              row: 37,
               facing: 'E',
               duration: 7,
               startBubble: 'Petakan skema arsitektur 📐',
@@ -627,8 +739,8 @@
               id: 'peer_review',
               name: 'Code Review Tim',
               floor: 0,
-              col: 3,
-              row: 24,
+              col: 4,
+              row: 31,
               facing: 'W',
               duration: 6,
               startBubble: 'Cek PR kodingan teman 👀',
@@ -641,8 +753,8 @@
               id: 'pantry_snack',
               name: 'Cari Cemilan',
               floor: 0,
-              col: 54,
-              row: 28,
+              col: 77,
+              row: 32,
               facing: 'N',
               duration: 8,
               startBubble: 'Turun cari cemilan koding 🍫',
@@ -659,8 +771,8 @@
               id: 'agenda_board',
               name: 'Update Whiteboard',
               floor: 0,
-              col: 26,
-              row: 20,
+              col: 33,
+              row: 26,
               facing: 'N',
               duration: 7,
               startBubble: 'Tulis agenda rapat baru 📝',
@@ -673,8 +785,8 @@
               id: 'podium',
               name: 'Presentasi Progres',
               floor: 0,
-              col: 36,
-              row: 22,
+              col: 52,
+              row: 31,
               facing: 'W',
               duration: 6.5,
               startBubble: 'Siapkan materi presentasi 📊',
@@ -687,8 +799,8 @@
               id: 'report_boss',
               name: 'Lapor Boss Lami',
               floor: 0,
-              col: 11,
-              row: 8,
+              col: 14,
+              row: 9,
               facing: 'N',
               duration: 6.5,
               startBubble: 'Bawa berkas ke Boss Lami 👑',
@@ -707,8 +819,8 @@
               id: 'lounge_relax',
               name: 'Santai di Sofa',
               floor: 0,
-              col: 48,
-              row: 29,
+              col: 67,
+              row: 36,
               facing: 'N',
               duration: 8,
               startBubble: 'Turun santai di sofa lounge 🛋️',
@@ -728,8 +840,8 @@
               id: 'patrol_rack_a',
               name: 'Inspeksi Rack A',
               floor: 0,
-              col: 44,
-              row: 7,
+              col: 64,
+              row: 11,
               facing: 'N',
               duration: 7,
               startBubble: 'Patroli suhu server Rack A ❄️',
@@ -742,8 +854,8 @@
               id: 'patrol_rack_b',
               name: 'Inspeksi Rack B',
               floor: 0,
-              col: 48,
-              row: 7,
+              col: 70,
+              row: 11,
               facing: 'N',
               duration: 7,
               startBubble: 'Cek traffic jaringan Rack B ⚡',
@@ -756,8 +868,8 @@
               id: 'cables_patch',
               name: 'Cek Kabel Jaringan',
               floor: 0,
-              col: 52,
-              row: 7,
+              col: 76,
+              row: 11,
               facing: 'N',
               duration: 6,
               startBubble: 'Cek kerapian kabel switch 🔧',
@@ -770,8 +882,8 @@
               id: 'coffee_break',
               name: 'Ngopi ke Pantry',
               floor: 0,
-              col: 46,
-              row: 24,
+              col: 63,
+              row: 30,
               facing: 'N',
               duration: 8,
               startBubble: 'Naik dari basement, ngopi ☕',
@@ -944,8 +1056,8 @@
           id: 'window',
           name: 'Menatap Kota',
           floor: 0,
-          col: 16,
-          row: 3,
+          col: 24,
+          row: 5,
           facing: 'N',
           duration: 7,
           startBubble: 'Lihat pemandangan kota dulu 🏙️',
@@ -959,7 +1071,7 @@
           name: 'Merawat Bonsai',
           floor: 0,
           col: 5,
-          row: 4,
+          row: 5,
           facing: 'W',
           duration: 6,
           startBubble: 'Cek tanaman bonsai kantor 🌱',
@@ -972,8 +1084,8 @@
           id: 'balcony',
           name: 'Pantau Gedung',
           floor: 0,
-          col: 3,
-          row: 12,
+          col: 4,
+          row: 17,
           facing: 'W',
           duration: 6.5,
           startBubble: 'Tinjau suasana kerja dari balkon 👑',
@@ -986,8 +1098,8 @@
           id: 'pantry_visit',
           name: 'Sapa Tim di Pantry',
           floor: 0,
-          col: 47,
-          row: 26,
+          col: 76,
+          row: 30,
           facing: 'N',
           duration: 8,
           startBubble: 'Turun ke Pantry sapa tim ☕',
@@ -1216,13 +1328,51 @@
   }
 
   // ---- Mochi the Cat (2D Pantry Lounge) ----
+  class PeerAgent extends Character {
+    constructor(id, name, hostLabel, room = 'engineering') {
+      const looks = Object.values(LO.PEER_LOOKS || {});
+      const look = looks.length ? looks[Math.abs(hashString(id)) % looks.length] : LO.randomLook();
+      super(id, name, 'A2A Peer', look, LO.GROUND, LO.DOOR_COL, LO.DOOR_ROW);
+      this.room = room;
+      this.hostLabel = hostLabel || '';
+      this.hostname = hostLabel || '';
+      this.peerId = id;
+      this.icon = '🔗';
+      this.color = '#94a3b8';
+      this.endpoint = '';
+      this.latencyMs = null;
+      this.online = false;
+      this.state = 'work';
+      this.frame = 'idle';
+    }
+
+    render(ctx) {
+      // Peers idle in their room; dim them when the sidecar is unreachable.
+      if (!this.online && typeof ctx !== 'undefined' && ctx) {
+        ctx.save();
+        ctx.globalAlpha = 0.45;
+        super.render(ctx);
+        ctx.restore();
+      } else {
+        super.render(ctx);
+      }
+    }
+  }
+
+  function hashString(value) {
+    let h = 0;
+    const s = String(value || '');
+    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+    return h;
+  }
+
   class MochiCat {
     constructor() {
       this.floor = 0; // single-floor 2D office
-      this.col = 51;
-      this.row = 26;
-      this.targetCol = 51;
-      this.targetRow = 26;
+      this.col = 72;
+      this.row = 36;
+      this.targetCol = 72;
+      this.targetRow = 36;
       this.facing = 'W';
       this.state = 'sit';
       this.sprites = LO.getCatSprites();
@@ -1248,8 +1398,8 @@
         const roll = Math.random();
         if (roll < 0.45) {
           this.state = 'walk';
-          this.targetCol = 50 + Math.random() * 3;   // open lounge floor
-          this.targetRow = 25 + Math.random() * 4;
+          this.targetCol = 70 + Math.random() * 8;   // open lounge floor
+          this.targetRow = 30 + Math.random() * 8;
           this.facing = this.targetCol > this.col ? 'E' : 'W';
         } else if (roll < 0.8) {
           this.state = 'sit';
@@ -1346,8 +1496,8 @@
       this.speed = 2.4;
       this.carriedItem = 'paper'; // carries food box
       this.targetFloor = 0;
-      this.targetCol = 47;
-      this.targetRow = 26;
+      this.targetCol = 70;
+      this.targetRow = 32;
       this.state = 'walk';
       this.phase = 'entering'; // 'entering' | 'delivering' | 'leaving'
       this.waitTimer = 0;
@@ -1381,7 +1531,7 @@
         const office = window.LO?.office;
         if (office) {
           office.pizzaEventTimer = 25.0; // box stays for 25s
-          const pantryStaff = [office.lami, ...office.residents, ...office.subagents.values()].filter((c) => c && Math.hypot(c.col - 47, c.row - 26) < 6);
+          const pantryStaff = [office.lami, ...office.residents, ...office.subagents.values()].filter((c) => c && Math.hypot(c.col - 70, c.row - 32) < 6);
           for (const s of pantryStaff) {
             s.setBubble('Wah mantap, makasih bang! 🎉', 3.0);
             s.setEmote('❤️', 2.5);
@@ -1403,6 +1553,7 @@
   LO.ResidentAgent = ResidentAgent;
   LO.Lami = Lami;
   LO.SubAgent = SubAgent;
+  LO.PeerAgent = PeerAgent;
   LO.MochiCat = MochiCat;
   LO.DeliveryRider = DeliveryRider;
 })();

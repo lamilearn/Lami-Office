@@ -59,11 +59,12 @@ describe('Tier 2 — Category 2: Degenerate & Extreme Viewport Dimensions', () =
     assert.ok(res.renderedW <= 1 && res.renderedH <= 1);
   });
 
-  it('B2.3: Massive 8K resolution (7680x4320) scales cleanly to 7.5x without integer overflow', () => {
+  it('B2.3: Massive 8K resolution (7680x4320) scales cleanly without integer overflow', () => {
     const res = ORACLE.calculateViewport(7680, 4320, false, 0);
-    assert.strictEqual(res.scale, 7.5);
-    assert.strictEqual(res.offsetX, 0);
-    assert.strictEqual(res.offsetY, 0);
+    assert.strictEqual(res.scale, Math.min(7680 / ORACLE.GRID.CONTENT_W, 4320 / ORACLE.GRID.CONTENT_H));
+    assert.strictEqual(res.renderedH, 4320);
+    assert.ok(Number.isFinite(res.scale) && res.scale > 0);
+    assert.strictEqual(Math.floor(res.offsetX), res.offsetX);
   });
 
   it('B2.4: Vertical mobile portrait viewport (1080x1920) adds horizontal letterboxing', () => {
@@ -75,10 +76,12 @@ describe('Tier 2 — Category 2: Degenerate & Extreme Viewport Dimensions', () =
 
   it('B2.5: Ultra-wide 32:9 viewport (5120x1440) adds horizontal pillarboxing', () => {
     const res = ORACLE.calculateViewport(5120, 1440, false, 0);
-    assert.strictEqual(res.scale, 2.5); // 1440 / 576 = 2.5
+    const expectedScale = 1440 / ORACLE.GRID.CONTENT_H; // height-limited
+    assert.strictEqual(res.scale, expectedScale);
     assert.strictEqual(res.renderedH, 1440);
-    assert.strictEqual(res.renderedW, 2560);
-    assert.strictEqual(res.offsetX, 1280); // (5120 - 2560) / 2
+    assert.strictEqual(res.renderedW, expectedScale * ORACLE.GRID.CONTENT_W);
+    assert.ok(res.offsetX > 0, 'Ultra-wide must pillarbox horizontally');
+    assert.strictEqual(res.offsetY, 0);
   });
 });
 

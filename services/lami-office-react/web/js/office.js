@@ -72,6 +72,18 @@
       this.offsetX = 0;
       this.offsetY = 0;
 
+      // Responsive view state: phones get a pan/zoom camera, desktop fits all.
+      this.phoneMode = false;
+      this.drawerInset = 0;
+      this.view = { zoom: 1, offsetX: 0, offsetY: 0, availW: LO.CONTENT_W, availH: LO.CONTENT_H, cameraMode: false };
+      this.camera = {
+        x: LO.CONTENT_W / 2 / LO.TILE_SIZE,
+        y: LO.CONTENT_H / 2 / LO.TILE_SIZE,
+        targetX: LO.CONTENT_W / 2 / LO.TILE_SIZE,
+        targetY: LO.CONTENT_H / 2 / LO.TILE_SIZE,
+        zoom: null
+      };
+
       // Random Office Events (Claude-Office reference)
       this.deliveryRider = null;
       this.flickerTimer = 0;
@@ -83,51 +95,50 @@
       this.whiteboardMode = 0;
       this.theOfficeMode = false;
 
+      // A2A peer agents (Hermes sidecars on the LAN)
+      this.peerAgents = new Map();
+      this.a2aPeers = [];
+
       window.LO.office = this;
       this.setupInput();
     }
 
-    // ---- 2D Orthogonal Collision Matrix Generation (64 x 36) ----
+    // ---- 2D Orthogonal Collision Matrix Generation (88 x 50) ----
+    // Shared-wall floorplan: everything starts solid, then the configured room
+    // interiors, hallway bands and 2-tile doorways are opened as walkable.
     buildCollisionGrid() {
-      const cols = LO.GRID_COLS || 64;
-      const rows = LO.GRID_ROWS || 36;
-      // Initialize full matrix as solid (1 = obstacle)
+      const cols = LO.GRID_COLS || 88;
+      const rows = LO.GRID_ROWS || 50;
       const grid = Array.from({ length: rows }, () => new Uint8Array(cols).fill(1));
+      const open = (x, y) => {
+        if (x >= 0 && x < cols && y >= 0 && y < rows) grid[y][x] = 0;
+      };
 
-      // 1. Mark Central Hallway / Corridor as walkable (0)
-      for (let y = 15; y <= 18; y++) {
-        for (let x = 1; x <= 62; x++) {
-          grid[y][x] = 0;
-        }
-      }
-
-      // 2. Mark Room Interiors as walkable (0)
+      // 1. Room interiors (walkable up to the inner face of the shared wall)
       const rooms = LO.ROOMS || {};
       for (const roomId in rooms) {
         const room = rooms[roomId];
         if (!room || !room.bounds) continue;
         const { x1, y1, x2, y2 } = room.bounds;
-        for (let y = y1 + 1; y < y2; y++) {
-          for (let x = x1 + 1; x < x2; x++) {
-            grid[y][x] = 0;
-          }
-        }
-        // Ensure doorway is navigable (2 tiles wide)
-        if (room.door) {
-          const dx = room.door.x;
-          const dy = room.door.y;
-          for (let ox = 0; ox < 2; ox++) {
-            const ddx = dx + ox;
-            if (ddx >= 0 && ddx < cols && dy >= 0 && dy < rows) {
-              grid[dy][ddx] = 0;
-            }
-            if (dy <= 15 && dy + 1 < rows) grid[dy + 1][ddx] = 0;
-            if (dy >= 18 && dy - 1 >= 0) grid[dy - 1][ddx] = 0;
-          }
+        for (let y = y1; y <= y2; y++) {
+          for (let x = x1; x <= x2; x++) open(x, y);
         }
       }
 
-      // 3. Mark Furniture & Prop Obstacles as solid (1)
+      // 2. Hallway bands (north, south, lobby)
+      for (const band of (LO.HALLWAY_BANDS || [LO.HALLWAY])) {
+        if (!band) continue;
+        for (let y = band.y1; y <= band.y2; y++) {
+          for (let x = band.x1; x <= band.x2; x++) open(x, y);
+        }
+      }
+
+      // 3. Doorways (2 tiles wide) punch through the shared partition wall
+      for (const d of (LO.doorways ? LO.doorways() : [])) {
+        for (const t of d.tiles) open(t.x, t.y);
+      }
+
+      // 4. Mark Furniture & Prop Obstacles as solid (1)
       const obstacles = this.getFurnitureObstacles();
       for (const obs of obstacles) {
         const ow = obs.w || 1;
@@ -143,7 +154,7 @@
         }
       }
 
-      // 4. Safety Guarantee: Ensure all configured workstation and activity slots are walkable (0)
+      // 5. Safety Guarantee: Ensure all configured workstation and activity slots are walkable (0)
       const slots = LO.SLOTS || {};
       for (const roomId in slots) {
         if (!Array.isArray(slots[roomId])) continue;
@@ -168,59 +179,61 @@
 
     getFurnitureObstacles() {
       return [
-        // Boss Office (X: 2..19, Y: 2..14)
-        { x: 9,  y: 6, w: 5, h: 1, name: 'Executive Desk' },
-        { x: 3,  y: 4, w: 1, h: 1, name: 'Boss Plant / Monstera' },
-        { x: 14, y: 5, w: 1, h: 1, name: 'Context Trashcan' },
-        { x: 18, y: 4, w: 1, h: 1, name: 'Boss Plant East' },
+        // Boss Office (interior X: 2..27, Y: 3..18)
+        { x: 11, y: 7,  w: 7, h: 1, name: 'Executive Desk' },
+        { x: 4,  y: 5,  w: 1, h: 1, name: 'Boss Plant / Monstera' },
+        { x: 20, y: 6,  w: 1, h: 1, name: 'Context Trashcan' },
+        { x: 25, y: 5,  w: 1, h: 1, name: 'Boss Plant East' },
+        { x: 8,  y: 6,  w: 1, h: 1, name: 'Boss Bookshelf' },
 
-        // Research Lab (X: 21..39, Y: 2..14)
-        { x: 23, y: 7, w: 2, h: 1, name: 'Research Desk 1' },
-        { x: 28, y: 7, w: 2, h: 1, name: 'Research Desk 2' },
-        { x: 33, y: 7, w: 2, h: 1, name: 'Research Desk 3' },
-        { x: 22, y: 11, w: 2, h: 1, name: 'Microscope Station' },
-        { x: 34, y: 3, w: 3, h: 1, name: 'Lab Bookshelves' },
+        // Research Lab (interior X: 30..55, Y: 3..18)
+        { x: 33, y: 9,  w: 3, h: 1, name: 'Research Desk 1' },
+        { x: 41, y: 9,  w: 3, h: 1, name: 'Research Desk 2' },
+        { x: 49, y: 9,  w: 3, h: 1, name: 'Research Desk 3' },
+        { x: 33, y: 15, w: 2, h: 1, name: 'Microscope Station' },
+        { x: 49, y: 3,  w: 5, h: 1, name: 'Lab Bookshelves' },
+        { x: 31, y: 4,  w: 4, h: 1, name: 'Lab Corkboard' },
 
-        // Server Room (X: 41..58, Y: 2..14)
-        { x: 43, y: 4, w: 2, h: 2, name: 'Server Rack Cluster 1' },
-        { x: 47, y: 4, w: 2, h: 2, name: 'Server Rack Cluster 2' },
-        { x: 51, y: 4, w: 2, h: 2, name: 'Server Rack Cluster 3' },
-        { x: 55, y: 4, w: 2, h: 2, name: 'Server Rack Cluster 4' },
-        { x: 46, y: 10, w: 4, h: 1, name: 'Mainframe Ops Console' },
+        // Server Room (interior X: 58..83, Y: 3..18)
+        { x: 63, y: 6,  w: 3, h: 2, name: 'Server Rack Cluster 1' },
+        { x: 69, y: 6,  w: 3, h: 2, name: 'Server Rack Cluster 2' },
+        { x: 75, y: 6,  w: 3, h: 2, name: 'Server Rack Cluster 3' },
+        { x: 81, y: 6,  w: 2, h: 2, name: 'Server Rack Cluster 4' },
+        { x: 66, y: 14, w: 6, h: 1, name: 'Mainframe Ops Console' },
 
-        // Engineering Pit (X: 2..21, Y: 19..32)
-        { x: 5,  y: 21, w: 2, h: 1, name: 'Dev Desk 1' },
-        { x: 9,  y: 21, w: 2, h: 1, name: 'Dev Desk 2' },
-        { x: 5,  y: 25, w: 2, h: 1, name: 'Dev Desk 3' },
-        { x: 9,  y: 25, w: 2, h: 1, name: 'Dev Desk 4' },
-        { x: 15, y: 23, w: 2, h: 1, name: 'Dev Desk 5' },
-        { x: 18, y: 23, w: 2, h: 1, name: 'Dev Desk 6' },
-        { x: 13, y: 21, w: 1, h: 1, name: 'Mini Server Rig' },
+        // Engineering Pit (interior X: 2..27, Y: 24..39)
+        { x: 6,  y: 27, w: 3, h: 1, name: 'Dev Desk 1' },
+        { x: 11, y: 27, w: 3, h: 1, name: 'Dev Desk 2' },
+        { x: 6,  y: 32, w: 3, h: 1, name: 'Dev Desk 3' },
+        { x: 11, y: 32, w: 3, h: 1, name: 'Dev Desk 4' },
+        { x: 17, y: 30, w: 3, h: 1, name: 'Dev Desk 5' },
+        { x: 22, y: 30, w: 3, h: 1, name: 'Dev Desk 6' },
+        { x: 16, y: 27, w: 1, h: 1, name: 'Mini Server Rig' },
 
-        // Meeting Room (X: 23..39, Y: 19..32)
-        { x: 28, y: 24, w: 7, h: 2, name: 'Conference Table' },
-        { x: 25, y: 19, w: 3, h: 1, name: 'Multi-Mode Whiteboard' },
+        // Meeting Room (interior X: 30..55, Y: 24..39)
+        { x: 38, y: 30, w: 12, h: 3, name: 'Conference Table' },
+        { x: 32, y: 24, w: 5, h: 1,  name: 'Multi-Mode Whiteboard' },
 
-        // Pantry / Lounge (X: 41..58, Y: 19..32)
-        { x: 43, y: 22, w: 4, h: 1, name: 'Espresso Bar Counter' },
-        { x: 51, y: 23, w: 1, h: 1, name: 'Water Cooler' },
-        { x: 45, y: 27, w: 4, h: 1, name: 'Teal Lounge Sofa' },
-        { x: 46, y: 29, w: 2, h: 1, name: 'Coffee Table' },
-        { x: 55, y: 27, w: 2, h: 2, name: 'Snack Vending Machine' }
+        // Pantry / Lounge (interior X: 58..83, Y: 24..39)
+        { x: 60, y: 27, w: 6, h: 1, name: 'Espresso Bar Counter' },
+        { x: 74, y: 28, w: 1, h: 1, name: 'Water Cooler' },
+        { x: 63, y: 33, w: 6, h: 1, name: 'Teal Lounge Sofa' },
+        { x: 68, y: 36, w: 3, h: 1, name: 'Coffee Table' },
+        { x: 78, y: 33, w: 3, h: 2, name: 'Snack Vending Machine' }
       ];
     }
 
     isWalkable(tileX, tileY) {
       const x = Math.floor(tileX);
       const y = Math.floor(tileY);
-      if (x < 0 || x >= (LO.GRID_COLS || 64) || y < 0 || y >= (LO.GRID_ROWS || 36)) return false;
+      if (x < 0 || x >= (LO.GRID_COLS || 88) || y < 0 || y >= (LO.GRID_ROWS || 50)) return false;
       return this.collisionGrid[y][x] === 0;
     }
 
     setCollision(tileX, tileY, isSolid) {
       const x = Math.floor(tileX);
       const y = Math.floor(tileY);
-      if (x >= 0 && x < (LO.GRID_COLS || 64) && y >= 0 && y < (LO.GRID_ROWS || 36)) {
+      if (x >= 0 && x < (LO.GRID_COLS || 88) && y >= 0 && y < (LO.GRID_ROWS || 50)) {
         this.collisionGrid[y][x] = isSolid ? 1 : 0;
       }
     }
@@ -230,8 +243,8 @@
       const grid = customGrid || this.collisionGrid;
       if (!grid) return null;
 
-      const cols = LO.GRID_COLS || 64;
-      const rows = LO.GRID_ROWS || 36;
+      const cols = LO.GRID_COLS || 88;
+      const rows = LO.GRID_ROWS || 50;
       const startX = start.x !== undefined ? start.x : start.col;
       const startY = start.y !== undefined ? start.y : start.row;
       const goalX = goal.x !== undefined ? goal.x : goal.col;
@@ -378,6 +391,7 @@
       this.lami.setEmote('📢', 2.0);
       this.lami.setBubble(`Tolong bantu: ${data.task || 'tugas baru'} ya! 📋`, 3.5);
 
+      if (this.isPhoneMode()) this.focusAgent(agent);
       return agent;
     }
 
@@ -485,19 +499,18 @@
     }
 
     setupInput() {
-      const handleClick = (e) => {
-        if (!this.canvas) return;
-        const rect = this.canvas.getBoundingClientRect();
-        const clientX = e.clientX || (e.touches && e.touches[0].clientX);
-        const clientY = e.clientY || (e.touches && e.touches[0].clientY);
-        if (clientX === undefined) return;
+      const toWorld = (clientX, clientY) => this.screenToWorld(clientX, clientY);
 
-        // Convert DOM screen pixels to 2D logical world pixels (1024x576)
-        const canvasX = (clientX - rect.left - this.offsetX) / this.scale;
-        const canvasY = (clientY - rect.top - this.offsetY) / this.scale;
+      const activateAt = (clientX, clientY) => {
+        const p = toWorld(clientX, clientY);
+        if (!p) return false;
+        const canvasX = p.x;
+        const canvasY = p.y;
 
         // 1. Check if any character was clicked (2D top-down hit-test)
-        const allAgents = [this.lami, ...this.subagents.values(), ...this.residents];
+        const hitRadius = 18 / Math.max(0.15, this.view.zoom || 1);
+        const peers = this.peerAgents ? [...this.peerAgents.values()] : [];
+        const allAgents = [this.lami, ...peers, ...this.subagents.values(), ...this.residents];
         if (this.deliveryRider) allAgents.push(this.deliveryRider);
         for (const a of allAgents) {
           const col = a.col !== undefined ? a.col : a.x;
@@ -505,37 +518,35 @@
           const ax = (col + 0.5) * LO.TILE_SIZE;
           const ay = (row + 0.5) * LO.TILE_SIZE;
           const dist = Math.hypot(canvasX - ax, canvasY - (ay - 4));
-          if (dist < 18) {
+          if (dist < hitRadius) {
             LO.ui.showCard(a);
             LO.audio.pop();
-            return;
+            this.focusAgent(a);
+            return true;
           }
         }
 
         // 2. Interactive Props in 2D Plane
-        const props = LO.PROPS || {
-          trashcan: { x: 14, y: 5, w: 1, h: 1 },
-          whiteboard: { x: 25, y: 19, w: 4, h: 2 },
-          watercooler: { x: 51, y: 23, w: 1, h: 1 }
-        };
+        const props = LO.PROPS || {};
 
-        // a. Context Window Trashcan (Boss Office at tile 14, 5)
+        // a. Context Window Trashcan (Boss Office, from LO.PROPS.trashcan)
         const tc = props.trashcan;
         if (tc) {
           const tcCenterX = (tc.x + (tc.w || 1) / 2) * LO.TILE_SIZE;
           const tcCenterY = (tc.y + (tc.h || 1) / 2) * LO.TILE_SIZE;
-          if (Math.hypot(canvasX - tcCenterX, canvasY - tcCenterY) < 18) {
+          if (Math.hypot(canvasX - tcCenterX, canvasY - tcCenterY) < hitRadius) {
             LO.audio.pop();
             LO.ui.showContextModal();
-            return;
+            return true;
           }
         }
 
-        // b. Multi-Mode Whiteboard (Meeting Room at tiles 25-28, 19-20)
+        // b. Multi-Mode Whiteboard (Meeting Room, 5x2 tiles hanging on the north wall)
         const wb = props.whiteboard;
         if (wb) {
-          const wbX1 = wb.x * LO.TILE_SIZE - 4;
-          const wbX2 = (wb.x + (wb.w || 4)) * LO.TILE_SIZE + 4;
+          const pad = 4 / Math.max(0.15, this.view.zoom || 1);
+          const wbX1 = wb.x * LO.TILE_SIZE - pad;
+          const wbX2 = (wb.x + (wb.w || 5)) * LO.TILE_SIZE + pad;
           const wbY1 = wb.y * LO.TILE_SIZE - 16;
           const wbY2 = (wb.y + (wb.h || 2)) * LO.TILE_SIZE + 16;
           if (canvasX >= wbX1 && canvasX <= wbX2 && canvasY >= wbY1 && canvasY <= wbY2) {
@@ -543,31 +554,350 @@
             this.whiteboardMode = (this.whiteboardMode + 1) % 3;
             const tabs = ['tasks', 'tools', 'team'];
             LO.ui.showWhiteboardModal(tabs[this.whiteboardMode]);
-            return;
+            return true;
           }
         }
 
-        // c. Water Cooler / Pantry Dispenser (Pantry at tile 51, 23)
+        // c. Water Cooler / Pantry Dispenser (from LO.PROPS.watercooler)
         const wc = props.watercooler || props.waterCooler;
         if (wc) {
           const wcCenterX = (wc.x + (wc.w || 1) / 2) * LO.TILE_SIZE;
           const wcCenterY = (wc.y + (wc.h || 1) / 2) * LO.TILE_SIZE;
-          if (Math.hypot(canvasX - wcCenterX, canvasY - wcCenterY) < 18) {
+          if (Math.hypot(canvasX - wcCenterX, canvasY - wcCenterY) < hitRadius) {
             LO.audio.pop();
             LO.ui.addTicker('💧', 'Dispenser air galon Pantry: <i>Gluk... gluk... gluk...</i> Segar!');
             LO.ui.appendChatMessage('Pantry', 'Fasilitas', 'Segarnya air galon sejuk di Pantry! Rehidrasi dulu 💧✨', '💧', '#3498db');
-            return;
+            return true;
           }
         }
 
         // Click outside any interactive target
         LO.ui.hideCard();
+        return false;
       };
 
-      if (this.canvas && this.canvas.addEventListener) {
-        this.canvas.addEventListener('click', handleClick);
-        this.canvas.addEventListener('touchstart', handleClick, { passive: true });
+      if (!this.canvas || !this.canvas.addEventListener) return;
+
+      // Unified pointer handling: tap selects, drag pans (phone camera mode),
+      // two fingers pinch-zoom, double-tap resets to fit-width.
+      const pointers = new Map();
+      let dragStart = null;
+      let pinchStart = null;
+      let moved = false;
+      let lastTap = 0;
+
+      const localPoint = (e) => {
+        const rect = this.canvas.getBoundingClientRect();
+        return { x: e.clientX - rect.left, y: e.clientY - rect.top, clientX: e.clientX, clientY: e.clientY };
+      };
+
+      const onPointerDown = (e) => {
+        const p = localPoint(e);
+        pointers.set(e.pointerId, p);
+        moved = false;
+        if (pointers.size === 1) {
+          dragStart = { ...p, time: Date.now(), camX: this.camera.x, camY: this.camera.y };
+        } else if (pointers.size === 2) {
+          const [a, b] = [...pointers.values()];
+          pinchStart = {
+            distance: Math.hypot(a.x - b.x, a.y - b.y) || 1,
+            zoom: this.camera.zoom || this.view.zoom,
+            midX: (a.x + b.x) / 2,
+            midY: (a.y + b.y) / 2
+          };
+        }
+      };
+
+      const onPointerMove = (e) => {
+        if (!pointers.has(e.pointerId)) return;
+        const p = localPoint(e);
+        pointers.set(e.pointerId, p);
+
+        if (pointers.size >= 2 && pinchStart) {
+          const [a, b] = [...pointers.values()];
+          const distance = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+          if (!this.isPhoneMode()) return;
+          this.setCameraZoom(this.camera.zoom * (distance / pinchStart.distance));
+          moved = true;
+          return;
+        }
+
+        if (!dragStart) return;
+        const dx = p.x - dragStart.x;
+        const dy = p.y - dragStart.y;
+        if (Math.hypot(dx, dy) > (LO.TAP_MAX_DISTANCE || 8)) moved = true;
+        if (moved && this.isPhoneMode()) {
+          const zoom = this.view.zoom || 1;
+          this.camera.x = dragStart.camX - dx / zoom;
+          this.camera.y = dragStart.camY - dy / zoom;
+          this.camera.targetX = this.camera.x;
+          this.camera.targetY = this.camera.y;
+        }
+      };
+
+      const onPointerUp = (e) => {
+        const start = dragStart;
+        const gesture = start
+          ? LO.classifyPointerGesture(
+            { x: start.x, y: start.y },
+            { x: (pointers.get(e.pointerId) || start).x, y: (pointers.get(e.pointerId) || start).y },
+            Date.now() - start.time
+          )
+          : 'cancel';
+
+        pointers.delete(e.pointerId);
+        if (pointers.size < 2) pinchStart = null;
+        if (pointers.size === 0) dragStart = null;
+
+        if (moved || gesture !== 'tap') return;
+
+        const now = Date.now();
+        if (this.isPhoneMode() && now - lastTap < 320) {
+          lastTap = 0;
+          this.resetCamera();
+          return;
+        }
+        lastTap = now;
+
+        const p = localPoint(e);
+        activateAt(p.clientX, p.clientY);
+      };
+
+      this.canvas.addEventListener('pointerdown', onPointerDown);
+      this.canvas.addEventListener('pointermove', onPointerMove);
+      this.canvas.addEventListener('pointerup', onPointerUp);
+      this.canvas.addEventListener('pointercancel', (e) => {
+        pointers.delete(e.pointerId);
+        if (pointers.size < 2) pinchStart = null;
+        if (pointers.size === 0) dragStart = null;
+      });
+
+      // Mouse fallback for environments without Pointer Events.
+      if (typeof window !== 'undefined' && !window.PointerEvent) {
+        this.canvas.addEventListener('click', (e) => {
+          if (moved) { moved = false; return; }
+          activateAt(e.clientX, e.clientY);
+        });
       }
+
+      // Keep the view correct across resizes, rotations and drawer changes.
+      const onResize = () => {
+        this.refreshMode();
+        this.reclampCamera();
+      };
+      if (typeof window !== 'undefined' && window.addEventListener) {
+        window.addEventListener('resize', onResize);
+        window.addEventListener('orientationchange', onResize);
+      }
+      this.refreshMode();
+    }
+
+    // ---- Camera Mode (phones / touch-first devices) ----
+    isPhoneMode() {
+      if (LO.params && LO.params.get('vertical') === '1') return true;
+      return LO.isPhoneMode();
+    }
+
+    refreshMode() {
+      const next = this.isPhoneMode();
+      if (next !== this.phoneMode) {
+        this.phoneMode = next;
+        if (next) this.resetCamera();
+      }
+      return this.phoneMode;
+    }
+
+    resetCamera() {
+      this.camera.x = LO.CONTENT_W / 2 / LO.TILE_SIZE;
+      this.camera.y = LO.CONTENT_H / 2 / LO.TILE_SIZE;
+      this.camera.zoom = null; // null = fill width
+      this.camera.targetX = this.camera.x;
+      this.camera.targetY = this.camera.y;
+    }
+
+    setCameraZoom(zoom) {
+      const availW = (this.view && this.view.availW) || LO.CONTENT_W;
+      const availH = (this.view && this.view.availH) || LO.CONTENT_H;
+      const base = Math.max(
+        availW / LO.CONTENT_W,
+        (availH / LO.CONTENT_H) * (LO.PHONE_HEIGHT_FILL || 0.72)
+      );
+      const floor = base * (LO.PHONE_ZOOM_MIN || 0.6);
+      const ceil = base * (LO.PHONE_ZOOM_MAX || 3);
+      this.camera.zoom = Math.min(ceil, Math.max(floor, zoom || base));
+    }
+
+    reclampCamera() {
+      if (!this.camera) return;
+      this.camera.x = Math.min(LO.GRID_COLS, Math.max(0, this.camera.x));
+      this.camera.y = Math.min(LO.GRID_ROWS, Math.max(0, this.camera.y));
+      this.camera.targetX = Math.min(LO.GRID_COLS, Math.max(0, this.camera.targetX));
+      this.camera.targetY = Math.min(LO.GRID_ROWS, Math.max(0, this.camera.targetY));
+    }
+
+    setDrawerOpen(open, widthPx) {
+      const width = open ? Math.max(0, widthPx || 0) : 0;
+      // Phones keep the drawer as a full overlay; only desktop shrinks.
+      this.drawerInset = this.isPhoneMode() ? 0 : width;
+    }
+
+    computeView(width, height) {
+      const w = width || (this.canvas ? this.canvas.clientWidth : LO.CONTENT_W);
+      const h = height || (this.canvas ? this.canvas.clientHeight : LO.CONTENT_H);
+      const cameraMode = this.isPhoneMode();
+      const view = LO.computeViewParams({
+        width: w,
+        height: h,
+        contentW: LO.CONTENT_W,
+        contentH: LO.CONTENT_H,
+        drawerInset: this.drawerInset || 0,
+        cameraMode,
+        zoom: cameraMode ? (this.camera.zoom || null) : null,
+        focusX: this.camera.x,
+        focusY: this.camera.y
+      });
+
+      // Keep legacy fields in sync for anything that still reads them.
+      this.scale = view.zoom;
+      this.offsetX = view.offsetX;
+      this.offsetY = view.offsetY;
+      this.view = view;
+      return view;
+    }
+
+    screenToWorld(clientX, clientY) {
+      if (!this.canvas || typeof this.canvas.getBoundingClientRect !== 'function') return null;
+      const rect = this.canvas.getBoundingClientRect();
+      const view = this.view && this.view.zoom ? this.view : this.computeView();
+      const zoom = view.zoom || 1;
+      return {
+        x: (clientX - rect.left - view.offsetX) / zoom,
+        y: (clientY - rect.top - view.offsetY) / zoom
+      };
+    }
+
+    worldToScreen(worldX, worldY) {
+      const view = this.view && this.view.zoom ? this.view : this.computeView();
+      const zoom = view.zoom || 1;
+      return {
+        x: worldX * zoom + view.offsetX,
+        y: worldY * zoom + view.offsetY
+      };
+    }
+
+    // Focus the camera on an agent (phone mode only; desktop stays fit-all).
+    focusAgent(agentOrId) {
+      if (!this.isPhoneMode()) return false;
+      let agent = agentOrId;
+      if (typeof agentOrId === 'string') {
+        agent = this.subagents.get(agentOrId) ||
+          this.residents.find((r) => r.id === agentOrId) ||
+          (this.lami && this.lami.id === agentOrId ? this.lami : null);
+      }
+      if (!agent) return false;
+      const col = agent.col !== undefined ? agent.col : agent.x;
+      const row = agent.row !== undefined ? agent.row : agent.y;
+      if (col === undefined || row === undefined) return false;
+      const dz = LO.CAMERA_DEADZONE || 0;
+      if (Math.abs(this.camera.targetX - col) < dz && Math.abs(this.camera.targetY - row) < dz) {
+        return true;
+      }
+      this.camera.targetX = col;
+      this.camera.targetY = row;
+      return true;
+    }
+
+    focusBoss() {
+      const seat = LO.LAMI_SEAT || { col: 14, row: 6 };
+      if (!this.isPhoneMode()) return false;
+      this.camera.targetX = seat.col;
+      this.camera.targetY = seat.row;
+      return true;
+    }
+
+    updateCamera(dt) {
+      const cam = this.camera;
+      if (!cam) return;
+      const ease = Math.min(1, (LO.CAMERA_LERP || 8) * dt);
+      cam.x += (cam.targetX - cam.x) * ease;
+      cam.y += (cam.targetY - cam.y) * ease;
+      this.reclampCamera();
+    }
+
+    // ---- A2A peer agents (Hermes sidecars on the LAN) ----
+    // Each peer is shown as a character standing in its specialty room.
+    applyA2APeers(peers) {
+      if (!Array.isArray(peers)) return;
+      this.a2aPeers = peers;
+      if (!this.peerAgents) this.peerAgents = new Map();
+
+      const seen = new Set();
+      for (const peer of peers) {
+        if (!peer || !peer.id) continue;
+        seen.add(peer.id);
+        let agent = this.peerAgents.get(peer.id);
+
+        if (!agent) {
+          const seat = this.peerSeat(peer.room, this.peerAgents.size);
+          agent = new LO.PeerAgent(
+            `a2a-${peer.id}`,
+            peer.name || peer.id,
+            peer.hostname || `A2A · ${peer.host || ''}`,
+            peer.room || 'engineering'
+          );
+          agent.peerId = peer.id;
+          agent.icon = peer.icon || '🔗';
+          agent.color = peer.color || '#94a3b8';
+          agent.col = seat.col;
+          agent.row = seat.row;
+          agent.targetCol = seat.col;
+          agent.targetRow = seat.row;
+          agent.homeCol = seat.col;
+          agent.homeRow = seat.row;
+          this.peerAgents.set(peer.id, agent);
+        }
+
+        agent.online = Boolean(peer.online);
+        agent.latencyMs = peer.latency_ms;
+        agent.endpoint = peer.endpoint || '';
+        agent.hostname = peer.hostname || agent.hostname;
+      }
+
+      for (const [id, agent] of [...this.peerAgents]) {
+        if (!seen.has(id)) {
+          this.peerAgents.delete(id);
+        }
+      }
+    }
+
+    // Pick a standing spot for a peer inside its room, avoiding staff slots.
+    peerSeat(roomId, index) {
+      const room = LO.ROOMS[roomId] || LO.ROOMS.engineering;
+      const b = room.bounds;
+      const used = new Set();
+      const slots = LO.SLOTS[roomId] || [];
+      for (const s of slots) used.add(`${s.col},${s.row}`);
+      const occupied = new Set();
+      for (const a of [...this.residents, ...this.peerAgents.values()]) {
+        if (a && a.col !== undefined) occupied.add(`${Math.round(a.col)},${Math.round(a.row)}`);
+      }
+      // Walk a small spiral outward from the room's doorway-facing centre.
+      const cx = Math.round((b.x1 + b.x2) / 2);
+      const cy = Math.round((b.y1 + b.y2) / 2);
+      const offsets = [
+        [0, 2], [2, 2], [-2, 2], [2, -2], [-2, -2],
+        [0, -2], [4, 2], [-4, 2], [4, -2], [-4, -2], [0, 4], [0, -4]
+      ];
+      for (let i = 0; i < offsets.length; i++) {
+        const [dx, dy] = offsets[(i + (index || 0)) % offsets.length];
+        const col = Math.min(b.x2, Math.max(b.x1, cx + dx));
+        const row = Math.min(b.y2, Math.max(b.y1, cy + dy));
+        const key = `${col},${row}`;
+        if (used.has(key) || occupied.has(key)) continue;
+        if (!this.isWalkable(col, row)) continue;
+        return { col, row };
+      }
+      return { col: cx, row: cy };
     }
 
     // ---- The Office (Scranton Dunder Mifflin Tribute Mode) ----
@@ -652,6 +982,7 @@
     }
 
     update(dt) {
+      this.updateCamera(dt);
       this.world.update(dt);
       this.elevator.update(dt, this);
 
@@ -679,7 +1010,30 @@
         sub.update(dt, this);
       }
 
-      // Check lively coworker hallway encounters & greetings
+      // 2D Character Elastic Separation Physics (Social Anti-Overlap in Hallways & Doors)
+      const allLiving = [this.lami, ...this.residents, ...this.subagents.values()].filter(c => c && c.state !== 'spawn');
+      for (let i = 0; i < allLiving.length; i++) {
+        const c1 = allLiving[i];
+        for (let j = i + 1; j < allLiving.length; j++) {
+          const c2 = allLiving[j];
+          const sepDx = c2.col - c1.col;
+          const sepDy = c2.row - c1.row;
+          const sepDist = Math.hypot(sepDx, sepDy);
+          const minSeparation = 0.72; // tile clearance
+          if (sepDist < minSeparation && sepDist > 0.001) {
+            const overlap = (minSeparation - sepDist) * 0.5;
+            const nx = sepDx / sepDist;
+            const ny = sepDy / sepDist;
+            // Push characters apart along normal to prevent visual stacking
+            c1.col -= nx * overlap * dt * 4.5;
+            c1.row -= ny * overlap * dt * 4.5;
+            c2.col += nx * overlap * dt * 4.5;
+            c2.row += ny * overlap * dt * 4.5;
+          }
+        }
+      }
+
+      // Check lively coworker hallway encounters, meetings & greetings
       this.updateSocials(dt);
     }
 
@@ -714,6 +1068,10 @@
               b.facing = dy > 0 ? 'N' : 'S';
             }
 
+            // Room-aware contextual encounters (bounds come from config.js)
+            const inMeeting = (LO.roomAt(a.col, a.row) === 'meeting') || (LO.roomAt(b.col, b.row) === 'meeting');
+            const inPantry = (LO.roomAt(a.col, a.row) === 'pantry') || (LO.roomAt(b.col, b.row) === 'pantry');
+
             const isBoss = a.id === 'lami' || b.id === 'lami';
             if (isBoss) {
               const boss = a.id === 'lami' ? a : b;
@@ -722,6 +1080,29 @@
               worker.setBubble('Pagi Boss Lami! ✨', 3.0);
               boss.setEmote('🌟', 2.5);
               boss.setBubble('Semangat kerjanya ya! 👍', 3.0);
+            } else if (inMeeting) {
+              const meetingDialogues = [
+                ['Bahas sprint goal minggu ini 🎯', 'Siap, fitur utama udah on-track! 🚀'],
+                ['Whiteboard-nya rame banget 📊', 'Banyak ide keren nih! 💡'],
+                ['Sprint review jam berapa ya? 📋', 'Setelah lunch break nanti 👍'],
+                ['Desain arsitektur baru udah fix 📐', 'Mantap, gass koding! ✨']
+              ];
+              const d = meetingDialogues[Math.floor(Math.random() * meetingDialogues.length)];
+              a.setEmote('📊', 2.5);
+              a.setBubble(d[0], 3.0);
+              b.setEmote('💡', 2.5);
+              b.setBubble(d[1], 3.0);
+            } else if (inPantry) {
+              const pantryDialogues = [
+                ['Seduh kopi arabika dulu ☕', 'Bagi gulanya dong kak! 🍵'],
+                ['Kulkas ada cemilan baru 🍩', 'Wah mantap buat nemenin koding! 🎉'],
+                ['Istirahat sejenak mata lelah 😴', 'Yuk jalan santai dikit biar seger 🚶']
+              ];
+              const d = pantryDialogues[Math.floor(Math.random() * pantryDialogues.length)];
+              a.setEmote('☕', 2.5);
+              a.setBubble(d[0], 3.0);
+              b.setEmote('😊', 2.5);
+              b.setBubble(d[1], 3.0);
             } else {
               const dialogues = [
                 ['Halo Kak! Semangat ya! 👋', 'Halo juga! Gass koding! 🚀'],
@@ -757,19 +1138,14 @@
       this.ctx.save();
       this.ctx.scale(dpr, dpr);
 
-      // Fit 16:9 content (1024x576) maintaining aspect ratio
-      const scaleX = w / LO.CONTENT_W;
-      const scaleY = h / LO.CONTENT_H;
-      this.scale = Math.min(scaleX, scaleY);
-      this.offsetX = Math.floor((w - LO.CONTENT_W * this.scale) / 2);
-      this.offsetY = Math.floor((h - LO.CONTENT_H * this.scale) / 2);
-
-      // Background fill
+      // Background fill across the whole canvas so the drawer inset area is
+      // never a black gap.
       this.ctx.fillStyle = '#141226';
       this.ctx.fillRect(0, 0, w, h);
 
-      this.ctx.translate(this.offsetX, this.offsetY);
-      this.ctx.scale(this.scale, this.scale);
+      const view = this.computeView(w, h);
+      this.ctx.translate(view.offsetX, view.offsetY);
+      this.ctx.scale(view.zoom, view.zoom);
 
       // 1. World Floor, Walls & Stationary Props
       this.world.render(this.ctx);
@@ -780,13 +1156,18 @@
       }
 
       // 3. Characters sorted by 2D Y-Depth (Painter's Algorithm)
-      const allChars = [this.lami, ...this.residents, ...this.subagents.values(), this.cat];
+      const peers = this.peerAgents ? [...this.peerAgents.values()] : [];
+      const allChars = [this.lami, ...this.residents, ...peers, ...this.subagents.values(), this.cat];
       if (this.deliveryRider) allChars.push(this.deliveryRider);
       allChars.sort((a, b) => a.getDepth() - b.getDepth());
 
       for (const c of allChars) {
         c.render(this.ctx);
       }
+
+      // 4. Wall tops, doorway frames & wall decor painted over characters so a
+      //    room reads as an enclosed box (architect-plan / dollhouse depth).
+      if (this.world.renderOverlay) this.world.renderOverlay(this.ctx);
 
       this.ctx.restore();
     }

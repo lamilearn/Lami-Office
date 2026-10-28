@@ -36,6 +36,27 @@
       } catch (e) {
         console.warn('[net] config fetch error:', e);
       }
+
+      // 4. A2A peer agents (Hermes sidecars on the LAN): presence + roster
+      this.syncA2A();
+      this.a2aTimer = setInterval(() => this.syncA2A(), 15000);
+    }
+
+    async syncA2A() {
+      try {
+        const res = await fetch('/api/a2a');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data && Array.isArray(data.peers) && this.office &&
+            typeof this.office.applyA2APeers === 'function') {
+          this.office.applyA2APeers(data.peers);
+          if (LO.ui && typeof LO.ui.renderA2APeers === 'function') {
+            LO.ui.renderA2APeers(data.peers, Boolean(data.can_send));
+          }
+        }
+      } catch (e) {
+        /* peer presence is best-effort; the office keeps running */
+      }
     }
 
     startEventSource() {

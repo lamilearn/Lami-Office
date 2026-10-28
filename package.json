@@ -10,7 +10,9 @@
     "test:tier4": "node tests/run_all_e2e.js --tier=4",
     "test:json": "node tests/run_all_e2e.js --json",
     "test:smoke": "node tests/run_all_e2e.js --smoke",
-    "smoke": "bash scripts/smoke_test.sh"
+    "smoke": "bash scripts/smoke_test.sh",
+    "assets": "python3 scripts/generate_tileset.py && python3 scripts/generate_tilemap.py",
+    "assets:check": "python3 scripts/generate_tileset.py --check && python3 scripts/generate_tilemap.py --check"
   },
   "keywords": [
     "ai-office",

@@ -14,11 +14,33 @@ Unified workspace & monorepo containing services for **AI Office** and **Lami Of
 ├── docker-compose.yml
 ├── scripts/
 │   ├── smoke_test.sh        # Probes all 7 health endpoints
-│   └── push_to_github.sh    # Push master and dev branches to GitHub
+│   ├── push_to_github.sh    # Push master and dev branches to GitHub
+│   ├── generate_tileset.py  # Builds web/assets/tiles/tileset.png (+ --check)
+│   └── generate_tilemap.py  # Builds web/assets/map/office.map.json from config.js (+ --check)
 └── services/
     ├── ai-office/           # Python FastAPI app running on port 8088 (office.fatihrumi.id)
-    └── lami-office-react/   # Interactive office app running on port 8090 (lami.fatihrumi.id)
+    └── lami-office-react/   # Interactive office app running on port 8090 (office.fatihrumi.id)
 ```
+
+## Floorplan & Assets
+
+The office is one **single enclosed floor** (architect-plan style): six themed
+rooms sealed by shared partition walls around a central hallway, each pierced by
+a 2-tile doorway. It renders from a committed tilemap + tileset:
+
+- `services/lami-office-react/web/assets/tiles/tileset.png` + `tileset.json`
+- `services/lami-office-react/web/assets/map/office.map.json`
+
+Both are generated from `web/js/config.js` (the single source of truth) and
+committed. Regenerate or verify them with:
+
+```bash
+npm run assets          # rebuild tileset.png + office.map.json
+npm run assets:check    # fail if committed assets drift from config.js
+```
+
+The renderer (`web/js/tilemap.js`) falls back to the procedural floorplan in
+`web/js/world.js` if the assets cannot be fetched.
 
 ## Branching Strategy
 
@@ -48,6 +70,59 @@ docker compose --env-file .env.production up -d --build
 docker compose --env-file .env.development up -d --build
 ```
 
+## A2A Peer Agents (LAN)
+
+Four Hermes **A2A sidecars** are shown in their specialty rooms:
+
+| Agent | Host | Room | Protocol |
+|---|---|---|---|
+| Lami 👑 | `192.168.3.31:9900` | Boss Office | official A2A v1.0 (Agent Card + JSON-RPC) |
+| Yuna 🔬 | `192.168.3.91:8000` | Research Lab | legacy sidecar |
+| Aurora 📐 | `192.168.3.92:8000` | Meeting Room | legacy sidecar |
+| Kira ⚙️ | `192.168.3.93:8000` | Engineering Pit | legacy sidecar |
+| Cyro 🛰️ | `192.168.3.94:8000` | Server Room | legacy sidecar |
+
+The dialect is auto-detected per peer: the official A2A endpoint is probed with
+`GET /.well-known/agent-card.json` and sent JSON-RPC `SendMessage`; anything else
+falls back to the legacy sidecar. Presence comes from the card or `GET /health` (polled every `A2A_POLL_INTERVAL`
+seconds); the office sidebar chip `🔗` opens a panel with status, latency and a
+message box.
+
+Sending messages needs the shared secret the sidecars expect in `x-a2a-token`:
+
+```bash
+# .env.development / .env.production
+A2A_PEER_TOKENS=lami:<bearer-token>   # official A2A (192.168.3.31:9900)
+A2A_SECRET=<sidecar-token>            # legacy sidecars (.91-.94)
+```
+
+Leave it empty to keep presence-only mode. Endpoints:
+
+```bash
+curl -s http://127.0.0.1:13579/api/a2a | jq      # roster + presence + can_send
+curl -s -X POST http://127.0.0.1:13579/api/a2a/send \
+  -H 'Content-Type: application/json' \
+  -d '{"peer":"yuna","text":"Status riset hari ini?"}' | jq
+```
+
+`POST /api/a2a/send` is accepted only from localhost/trusted LAN hosts and is
+always rejected for traffic arriving through the Cloudflare tunnel.
+
+Check the Hermes bridge wiring on the agent host:
+
+```bash
+python3 deploy/hermes_bridge.py --endpoint http://192.168.3.33:13579 --verify
+```
+
+## Responsive Layout
+
+- **Desktop / tablet**: the whole floorplan is fit to the viewport. Opening the
+  chat drawer shrinks the canvas so the office re-centers beside it.
+- **Phones** (`(pointer: coarse)` or viewport `< 900px`): a pan/zoom camera fills
+  the screen width, auto-focuses the active agent, and supports drag-to-pan,
+  pinch-zoom and double-tap-to-reset. On-screen buttons: `⤢` fit, `👑` focus boss,
+  `＋ / －` zoom. Safe-area insets keep the HUD and panels clear of notches.
+
 ## Smoke Testing
 
 To verify service health across all 7 endpoints:
@@ -58,6 +133,13 @@ To verify service health across all 7 endpoints:
 
 # Test remote host
 ./scripts/smoke_test.sh 192.168.3.33 8088 8090
+```
+
+## Automated Tests
+
+```bash
+npm test              # full E2E suite (Tiers 1–4)
+npm run assets:check  # verify committed tileset/tilemap match config.js
 ```
 
 ## Hermes Integration (Cross-Host)

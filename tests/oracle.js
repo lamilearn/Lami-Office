@@ -8,10 +8,10 @@ const ORACLE = {
   // R1: 2D Orthogonal Grid Engine & Math
   GRID: {
     TILE_SIZE: 16,
-    GRID_COLS: 64,
-    GRID_ROWS: 36,
-    CONTENT_W: 1024, // 64 * 16
-    CONTENT_H: 576,  // 36 * 16
+    GRID_COLS: 88,
+    GRID_ROWS: 50,
+    CONTENT_W: 1408, // 88 * 16
+    CONTENT_H: 800,  // 50 * 16
     ASPECT_RATIO: 16 / 9,
 
     tileToScreen(x, y) {
@@ -33,53 +33,63 @@ const ORACLE = {
   ROOM_IDS: ['boss', 'research', 'server', 'engineering', 'meeting', 'pantry'],
   ROOM_ALIASES: { coding: 'engineering' },
 
-  // Reference Room Boundaries on 64x36 Orthogonal Grid
-  // Hallway connects all rooms horizontally along rows 16 to 19.
+  // Reference Room Boundaries on the 88x50 orthogonal grid.
+  // Single enclosed floorplan: 2x3 rooms sealed by shared partition walls and a
+  // central hallway band, each room pierced by a 2-tile doorway on the hallway wall.
   ROOM_DEFINITIONS: {
     boss: {
       id: 'boss',
       label: 'BOSS OFFICE',
-      bounds: { x1: 2, y1: 2, x2: 18, y2: 15 },
-      door: { x: 10, y: 15 },
-      color: '#fff3db'
+      bounds: { x1: 2, y1: 3, x2: 27, y2: 18 },
+      door: { x: 14, y: 19, side: 'S' },
+      color: '#fcedd7'
     },
     research: {
       id: 'research',
       label: 'RESEARCH LAB',
-      bounds: { x1: 20, y1: 2, x2: 38, y2: 15 },
-      door: { x: 29, y: 15 },
-      color: '#e4f3fd'
+      bounds: { x1: 30, y1: 3, x2: 55, y2: 18 },
+      door: { x: 42, y: 19, side: 'S' },
+      color: '#e1f0fc'
     },
     server: {
       id: 'server',
       label: 'SERVER ROOM',
-      bounds: { x1: 40, y1: 2, x2: 61, y2: 15 },
-      door: { x: 50, y: 15 },
-      color: '#eae8fd'
+      bounds: { x1: 58, y1: 3, x2: 83, y2: 18 },
+      door: { x: 70, y: 19, side: 'S' },
+      color: '#262238'
     },
     engineering: {
       id: 'engineering',
       alias: 'coding',
       label: 'ENGINEERING PIT',
-      bounds: { x1: 2, y1: 20, x2: 22, y2: 33 },
-      door: { x: 12, y: 20 },
-      color: '#e5faed'
+      bounds: { x1: 2, y1: 24, x2: 27, y2: 39 },
+      door: { x: 14, y: 23, side: 'N' },
+      color: '#e6f7ec'
     },
     meeting: {
       id: 'meeting',
       label: 'MEETING ROOM',
-      bounds: { x1: 24, y1: 20, x2: 42, y2: 33 },
-      door: { x: 33, y: 20 },
-      color: '#ffece0'
+      bounds: { x1: 30, y1: 24, x2: 55, y2: 39 },
+      door: { x: 42, y: 23, side: 'N' },
+      color: '#fff0e5'
     },
     pantry: {
       id: 'pantry',
       label: 'PANTRY & LOUNGE',
-      bounds: { x1: 44, y1: 20, x2: 61, y2: 33 },
-      door: { x: 52, y: 20 },
-      color: '#fff8d6'
+      bounds: { x1: 58, y1: 24, x2: 83, y2: 39 },
+      door: { x: 70, y: 23, side: 'N' },
+      color: '#fff9d6'
     }
   },
+
+  // Reference building envelope and the single central hallway band.
+  BUILDING: { x1: 1, y1: 2, x2: 84, y2: 40 },
+  HALLWAY_BANDS: [
+    { name: 'central', x1: 2, y1: 20, x2: 83, y2: 22 },
+    { name: 'entrance', x1: 1, y1: 21, x2: 2, y2: 21 }
+  ],
+  HALLWAY_NORTH: { x1: 2, y1: 20, x2: 83, y2: 22 },
+  HALLWAY_SOUTH: { x1: 2, y1: 20, x2: 83, y2: 22 },
 
   // R2: 4-Directional Cardinal Movement Vectors
   CARDINAL_DIRECTIONS: ['S', 'N', 'E', 'W'],
@@ -160,8 +170,8 @@ const ORACLE = {
     const availW = drawerOpen ? Math.max(0, winW - drawerWidth) : winW;
     const availH = winH;
 
-    const baseW = 1024;
-    const baseH = 576;
+    const baseW = 1408;
+    const baseH = 800;
 
     const scaleX = availW / baseW;
     const scaleY = availH / baseH;

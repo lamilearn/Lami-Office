@@ -20,6 +20,14 @@
     LO.office = office;
     LO.currentOffice = office;
 
+    // 3b. Load the floorplan tilemap + tileset. The renderer falls back to the
+    //     procedural floorplan until (or unless) the assets arrive.
+    if (LO.Tilemap && typeof LO.Tilemap.load === 'function') {
+      LO.Tilemap.load().catch((err) => {
+        console.warn('[tilemap] falling back to procedural floorplan:', err && err.message);
+      });
+    }
+
     // 4. Setup Demo Controller & Network Bridge
     const demoCtrl = new LO.DemoController(office);
     const net = new LO.NetworkBridge(office, demoCtrl);

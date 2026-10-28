@@ -106,9 +106,9 @@ describe('Tier 4 — Scenario 3: End-to-End User Interactive Session', () => {
     const env = createBrowserEnvironment();
     const doc = env.document;
 
-    // 1. Desktop 16:9 viewport setup
+    // 1. Desktop viewport setup
     const vp = ORACLE.calculateViewport(1920, 1080, false, 0);
-    assert.strictEqual(vp.scale, 1.875);
+    assert.strictEqual(vp.scale, Math.min(1920 / ORACLE.GRID.CONTENT_W, 1080 / ORACLE.GRID.CONTENT_H));
 
     // 2. User clicks Boss Lami -> Card modal opens
     const card = doc.getElementById('card');

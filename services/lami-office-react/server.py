@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import glob
+import ipaddress
 import json
 import os
 import queue
@@ -28,6 +29,8 @@ from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
+import urllib.error
+import urllib.request
 
 ROOT = Path(__file__).resolve().parent
 WEB_DIR = ROOT / "web"
@@ -51,6 +54,22 @@ DEFAULT_CONFIG = {
     "max_summary": 40,
     "extra_redact": [],             # extra regex patterns to mask
     "tool_rooms": {},               # optional overrides, e.g. {"my_tool": "research"}
+    "show_messages": True,          # stream assistant chat lines as "message" events
+    "trusted_networks": ["192.168.0.0/16", "10.0.0.0/8", "172.16.0.0/12"],  # LAN hosts may ingest (e.g. the Hermes bridge)
+    # A2A peer agents (Hermes A2A sidecars on the LAN). Presence comes from
+    # GET /health; sending messages needs the shared A2A_SECRET.
+    "a2a_secret": "",
+    "a2a_peer_tokens": "",          # "id:token,other:token" or JSON object
+    "a2a_poll_interval": 10.0,
+    "a2a_reply_timeout": 120.0,     # seconds to wait for an official A2A reply
+    "a2a_peers": [
+        # Official A2A v1.0 endpoint served by the Hermes gateway on this LAN.
+        {"id": "lami",   "name": "Lami",   "host": "192.168.3.31", "port": 9900, "room": "boss",        "icon": "👑", "color": "#c084fc", "protocol": "a2a"},
+        {"id": "yuna",   "name": "Yuna",   "host": "192.168.3.91", "port": 8000, "room": "research",    "icon": "🔬", "color": "#60a5fa"},
+        {"id": "aurora", "name": "Aurora", "host": "192.168.3.92", "port": 8000, "room": "meeting",     "icon": "📐", "color": "#f472b6"},
+        {"id": "kira",   "name": "Kira",   "host": "192.168.3.93", "port": 8000, "room": "engineering", "icon": "⚙️", "color": "#34d399"},
+        {"id": "cyro",   "name": "Cyro",   "host": "192.168.3.94", "port": 8000, "room": "server",      "icon": "🛰️", "color": "#a78bfa"}
+    ],
 }
 
 
@@ -65,11 +84,34 @@ def load_config() -> dict:
     env_map = {
         "HOST": "host", "PORT": "port", "PUBLIC_MODE": "public_mode",
         "HERMES_HOME": "hermes_home", "INGEST_TOKEN": "ingest_token", "OFFICE_SOURCE": "source",
+        "A2A_SECRET": "a2a_secret", "A2A_PEERS": "a2a_peers",
+        "A2A_POLL_INTERVAL": "a2a_poll_interval", "A2A_PEER_TOKENS": "a2a_peer_tokens",
+        "A2A_REPLY_TIMEOUT": "a2a_reply_timeout",
     }
     for env, key in env_map.items():
         if os.environ.get(env):
             cfg[key] = os.environ[env]
     cfg["port"] = int(cfg["port"])
+    if isinstance(cfg.get("a2a_peers"), str):
+        try:
+            cfg["a2a_peers"] = json.loads(cfg["a2a_peers"])
+        except (TypeError, ValueError) as exc:
+            print(f"[config] A2A_PEERS bukan JSON valid: {exc}", file=sys.stderr)
+            cfg["a2a_peers"] = []
+    try:
+        cfg["a2a_poll_interval"] = float(cfg.get("a2a_poll_interval") or 10.0)
+    except (TypeError, ValueError):
+        cfg["a2a_poll_interval"] = 10.0
+    try:
+        cfg["a2a_reply_timeout"] = float(cfg.get("a2a_reply_timeout") or 120.0)
+    except (TypeError, ValueError):
+        cfg["a2a_reply_timeout"] = 120.0
+    peer_tokens = cfg.get("a2a_peer_tokens")
+    if isinstance(peer_tokens, str) and peer_tokens.strip().startswith("{"):
+        try:
+            cfg["a2a_peer_tokens"] = json.loads(peer_tokens)
+        except (TypeError, ValueError):
+            cfg["a2a_peer_tokens"] = ""
     home = os.path.expanduser(str(cfg["hermes_home"]))
     cfg["hermes_home"] = home
     cfg["sqlite_path"] = os.path.expanduser(str(cfg["sqlite_path"]).replace("{hermes_home}", home))
@@ -79,6 +121,38 @@ def load_config() -> dict:
 
 
 CFG = load_config()
+
+# Parsed once: LAN ranges allowed to POST /api/event (the Hermes bridge host).
+try:
+    TRUSTED_NETS = [ipaddress.ip_network(str(n), strict=False) for n in (CFG.get("trusted_networks") or [])]
+except ValueError as _exc:  # noqa: BLE001
+    print(f"[config] trusted_networks tidak valid: {_exc}", file=sys.stderr)
+    TRUSTED_NETS = []
+
+
+def _ip_of(address: str):
+    try:
+        ip = ipaddress.ip_address(str(address).split("%")[0])
+    except ValueError:
+        return None
+    return ip.ipv4_mapped or ip if ip.version == 6 else ip
+
+
+def is_trusted_host(address: str) -> bool:
+    """True for loopback and explicitly configured LAN ranges."""
+    ip = _ip_of(address)
+    if ip is None:
+        return False
+    if ip.is_loopback:
+        return True
+    for net in TRUSTED_NETS:
+        try:
+            if ip in net:
+                return True
+        except TypeError:  # mixed v4/v6 family
+            continue
+    return False
+
 
 # --------------------------------------------------------------------------------------
 # Sanitizer - nothing sensitive leaves this machine
@@ -95,7 +169,10 @@ _SECRETS = [
     r"\b\d{6,}:[A-Za-z0-9_\-]{20,}\b",                       # telegram bot token
     r"(?i)\b(?:api[_-]?key|token|secret|password|passwd|pwd|auth)\b\s*[:=]\s*\S+",
     r"\b[A-Fa-f0-9]{32,}\b",
-    r"\b[A-Za-z0-9+/_\-]{40,}={0,2}",
+    # Base64-ish blobs only: require mixed case AND digits so plain prose or
+    # long lowercase/uppercase words are not mangled.
+    r"(?<![A-Za-z0-9+/_\-])(?=[A-Za-z0-9+/_\-]*[a-z])(?=[A-Za-z0-9+/_\-]*[A-Z])"
+    r"(?=[A-Za-z0-9+/_\-]*[0-9])[A-Za-z0-9+/_\-]{40,}={0,2}(?![A-Za-z0-9+/_\-])",
 ]
 _SECRET_RE = [re.compile(p) for p in _SECRETS + list(CFG.get("extra_redact") or [])]
 _WIN_PATH = re.compile(r"[A-Za-z]:\\(?:[^\\\s\"']+\\)*([^\\\s\"']+)")
@@ -238,6 +315,262 @@ class Hub:
 
 
 HUB = Hub()
+
+
+# --------------------------------------------------------------------------------------
+# A2A peers - Hermes A2A sidecars on the LAN (presence + outbound messages)
+# --------------------------------------------------------------------------------------
+class A2APeer:
+    """An A2A peer.
+
+    Two dialects are supported:
+      protocol="custom" -> legacy Hermes A2A sidecar: GET /health, POST /a2a/message
+                           with an x-a2a-token header.
+      protocol="a2a"    -> official A2A v1.0 (Linux Foundation): Agent Card at
+                           /.well-known/agent-card.json and JSON-RPC SendMessage at "/"
+                           with `Authorization: Bearer <token>`.
+    Auto-detected when `protocol` is absent: the Agent Card is probed first.
+    """
+
+    def __init__(self, spec: dict):
+        self.id = str(spec.get("id") or spec.get("host") or "peer")
+        self.name = str(spec.get("name") or self.id.title())
+        self.host = str(spec.get("host") or "")
+        self.port = int(spec.get("port") or 8000)
+        self.room = str(spec.get("room") or "engineering")
+        self.icon = str(spec.get("icon") or "🔗")
+        self.color = str(spec.get("color") or "#94a3b8")
+        self.protocol = str(spec.get("protocol") or "auto")
+        self.online = False
+        self.hostname = ""
+        self.protocol_detected = ""
+        self.skills = []
+        self.card_url = ""
+        self.latency_ms = None
+        self.checked_at = 0.0
+        self.error = ""
+
+    @property
+    def base(self) -> str:
+        return f"http://{self.host}:{self.port}"
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id, "name": self.name, "host": self.host, "port": self.port,
+            "room": self.room, "icon": self.icon, "color": self.color,
+            "online": self.online, "hostname": self.hostname,
+            "latency_ms": self.latency_ms, "error": self.error,
+            "endpoint": self.base, "protocol": self.protocol_detected or self.protocol,
+            "skills": self.skills, "card_url": self.card_url,
+        }
+
+    def _get_json(self, path: str, timeout: float = 3):
+        with urllib.request.urlopen(self.base + path, timeout=timeout) as resp:
+            return json.loads(resp.read() or b"{}")
+
+    def check(self) -> dict:
+        started = time.time()
+        want = self.protocol
+        if want in ("auto", "a2a"):
+            if self._check_a2a():
+                self.latency_ms = round((time.time() - started) * 1000)
+                self.checked_at = time.time()
+                return self.to_dict()
+            if want == "a2a":
+                self._fail(getattr(self, "error", "Agent Card tidak ditemukan"))
+                self.latency_ms = round((time.time() - started) * 1000)
+                self.checked_at = time.time()
+                return self.to_dict()
+        self._check_custom()
+        self.latency_ms = round((time.time() - started) * 1000)
+        self.checked_at = time.time()
+        return self.to_dict()
+
+    def _check_a2a(self) -> bool:
+        try:
+            card = self._get_json("/.well-known/agent-card.json")
+        except Exception:  # noqa: BLE001 - fall back to the custom dialect
+            return False
+        if not isinstance(card, dict) or "supportedInterfaces" not in card and "protocolVersion" not in card:
+            return False
+        self.protocol_detected = "a2a"
+        self.online = True
+        self.error = ""
+        self.hostname = str(card.get("name") or "")
+        self.card_url = self.base + "/.well-known/agent-card.json"
+        self.skills = [str(s.get("id") or s.get("name") or "") for s in (card.get("skills") or [])
+                       if isinstance(s, dict)][:12]
+        if card.get("name"):
+            self.name = str(card["name"]).replace("hermes-agent-", "").title() or self.name
+        return True
+
+    def _check_custom(self):
+        try:
+            data = self._get_json("/health")
+            self.protocol_detected = "custom"
+            self.online = str(data.get("status", "")).lower() in ("online", "ok", "healthy")
+            self.hostname = str(data.get("hostname") or "")
+            self.error = "" if self.online else "status bukan online"
+        except Exception as exc:  # noqa: BLE001
+            self._fail(str(exc))
+
+    def _fail(self, message: str):
+        self.online = False
+        self.hostname = ""
+        self.error = message[:80]
+
+
+class A2ARegistry:
+    def __init__(self, specs):
+        self.peers = [A2APeer(s) for s in (specs or []) if isinstance(s, dict)]
+
+    def get(self, peer_id: str):
+        return next((p for p in self.peers if p.id == peer_id), None)
+
+    def snapshot(self) -> list[dict]:
+        return [p.to_dict() for p in self.peers]
+
+    def check_all(self) -> None:
+        if not self.peers:
+            return
+        results = {}
+        lock = threading.Lock()
+
+        def run(peer):
+            data = peer.check()
+            with lock:
+                results[peer.id] = data
+
+        threads = [threading.Thread(target=run, args=(p,), daemon=True) for p in self.peers]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=4)
+
+    # Per-peer tokens: "id:token,other:token" (falls back to the shared secret).
+    def token_for(self, peer: "A2APeer") -> str:
+        tokens = CFG.get("a2a_peer_tokens") or {}
+        if isinstance(tokens, dict) and tokens.get(peer.id):
+            return str(tokens[peer.id])
+        if isinstance(tokens, str):
+            for pair in tokens.split(","):
+                name, _, value = pair.partition(":")
+                if name.strip() == peer.id and value.strip():
+                    return value.strip()
+        return str(CFG.get("a2a_secret") or "")
+
+    def send(self, peer_id: str, text: str, intent: str = "chat", title: str = "", sender: str = "lami-office") -> dict:
+        peer = self.get(peer_id)
+        if not peer:
+            return {"ok": False, "error": "peer tidak dikenal", "status": 404}
+        if not peer.protocol_detected:
+            peer.check()
+        token = self.token_for(peer)
+        if not token:
+            return {"ok": False, "error": "token A2A belum diisi (A2A_SECRET / A2A_PEER_TOKENS)", "status": 503}
+
+        if peer.protocol_detected == "a2a":
+            return self._send_a2a(peer, token, text)
+        return self._send_custom(peer, token, text, intent, title, sender)
+
+    def _send_a2a(self, peer: "A2APeer", token: str, text: str) -> dict:
+        """Official A2A v1.0: JSON-RPC SendMessage at "/" with a bearer token."""
+        payload = {
+            "jsonrpc": "2.0",
+            "id": f"office-{int(time.time() * 1000)}",
+            "method": "SendMessage",
+            "params": {
+                "message": {
+                    "messageId": f"office-{os.urandom(6).hex()}",
+                    "role": "ROLE_USER",
+                    "parts": [{"text": text}],
+                }
+            },
+        }
+        req = urllib.request.Request(peer.base + "/", data=json.dumps(payload).encode(), method="POST")
+        req.add_header("Content-Type", "application/json")
+        req.add_header("Authorization", f"Bearer {token}")
+        try:
+            with urllib.request.urlopen(req, timeout=float(CFG.get("a2a_reply_timeout") or 120)) as resp:
+                data = json.loads(resp.read() or b"{}")
+        except urllib.error.HTTPError as exc:
+            detail = exc.read()[:200].decode("utf-8", "ignore")
+            return self._fail_send(peer, exc.code, detail)
+        except Exception as exc:  # noqa: BLE001
+            return self._fail_send(peer, 502, str(exc)[:120])
+
+        if data.get("error"):
+            return {"ok": False, "status": 502, "error": str(data["error"])[:200], "peer": peer.to_dict()}
+        reply, state = self._a2a_reply(data)
+        HUB.publish({"type": "message", "agentId": "lami",
+                     "text": f"→ {peer.name}: {clean_text(text, 40)}"})
+        if reply:
+            HUB.publish({"type": "message", "agentId": "lami",
+                         "text": f"← {peer.name}: {clean_text(reply, 60)}"})
+        return {"ok": True, "status": 200, "peer": peer.to_dict(), "state": state, "reply": reply}
+
+    @staticmethod
+    def _a2a_reply(data: dict):
+        task = ((data.get("result") or {}).get("task") or {})
+        status = task.get("status") or {}
+        state = str(status.get("state") or "")
+        texts = []
+        msg = status.get("message") or {}
+        for part in msg.get("parts") or []:
+            if part.get("text"):
+                texts.append(part["text"])
+        for art in task.get("artifacts") or []:
+            for part in art.get("parts") or []:
+                if part.get("text"):
+                    texts.append(part["text"])
+        return (" ".join(texts).strip()[:1000], state)
+
+    def _send_custom(self, peer: "A2APeer", token: str, text: str,
+                     intent: str, title: str, sender: str) -> dict:
+        payload = {
+            "message_id": f"office-{int(time.time() * 1000)}-{os.urandom(3).hex()}",
+            "sender": sender,
+            "recipient": peer.id,
+            "task_id": f"office-{int(time.time())}",
+            "intent": intent or "chat",
+            "title": (title or text or "")[:60],
+            "body": text or "",
+        }
+        req = urllib.request.Request(peer.base + "/a2a/message",
+                                     data=json.dumps(payload).encode(), method="POST")
+        req.add_header("Content-Type", "application/json")
+        req.add_header("x-a2a-token", token)
+        try:
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                body = resp.read()[:400].decode("utf-8", "ignore")
+            HUB.publish({"type": "message", "agentId": "lami",
+                         "text": f"→ {peer.name}: {clean_text(text, 40)}"})
+            return {"ok": True, "status": 200, "peer": peer.to_dict(), "response": body}
+        except urllib.error.HTTPError as exc:
+            return self._fail_send(peer, exc.code, exc.read()[:200].decode("utf-8", "ignore"))
+        except Exception as exc:  # noqa: BLE001
+            return self._fail_send(peer, 502, str(exc)[:120])
+
+    @staticmethod
+    def _fail_send(peer: "A2APeer", status: int, detail: str) -> dict:
+        if status >= 500 or status == 502:
+            peer.online = False
+            peer.error = f"HTTP {status}" if status != 502 else detail[:80]
+            peer.checked_at = time.time()
+        return {"ok": False, "status": status, "error": detail, "peer": peer.to_dict()}
+
+
+A2A = A2ARegistry(CFG.get("a2a_peers"))
+
+
+def a2a_loop():
+    while True:
+        try:
+            A2A.check_all()
+        except Exception as exc:  # noqa: BLE001
+            print(f"[a2a] {exc}", file=sys.stderr)
+        time.sleep(max(3.0, float(CFG.get("a2a_poll_interval") or 10.0)))
+
 
 # --------------------------------------------------------------------------------------
 # Hermes adapters
@@ -671,6 +1004,14 @@ class AntigravitySource:
                 pub({"type": "agent_done", "agentId": aid, "ok": ok, "result": "selesai" if ok else "gagal"})
 
 
+# Watcher health surfaced through /api/integration so ops can see a dead source.
+WATCHER = {"active": [], "errors": {}, "ticks": 0, "last_tick": 0.0}
+
+
+def _source_names(sources):
+    return [type(s).__name__ for s in sources]
+
+
 def watcher_loop():
     tracker = Tracker(HUB)
     sources = []
@@ -692,14 +1033,21 @@ def watcher_loop():
         try:
             if s.setup():
                 sources.append(s)
-        except sqlite3.Error as exc:
-            print(f"[sqlite] error: {exc}")
+        except Exception as exc:  # noqa: BLE001 - a corrupt/locked DB must not kill the watcher
+            WATCHER["errors"]["sqlite"] = f"{type(exc).__name__}: {str(exc)[:100]}"
+            print(f"[sqlite] error: {exc}", file=sys.stderr)
 
     # 3. Hermes Sessions
     if mode == "sessions" or (mode == "auto" and not sources):
         s = SessionFilesSource(CFG["sessions_glob"], tracker)
-        if s.setup():
-            sources.append(s)
+        try:
+            if s.setup():
+                sources.append(s)
+        except Exception as exc:  # noqa: BLE001
+            WATCHER["errors"]["sessions"] = f"{type(exc).__name__}: {str(exc)[:100]}"
+            print(f"[sessions] error: {exc}", file=sys.stderr)
+
+    WATCHER["active"] = _source_names(sources)
 
     if not sources:
         print("[watcher] tidak ada sumber aktif yang ketemu. Office tetap jalan (ingest API / demo mode).")
@@ -712,6 +1060,9 @@ def watcher_loop():
                 s.poll()
             except Exception as exc:  # noqa: BLE001
                 print(f"[watcher] {type(s).__name__}: {exc}", file=sys.stderr)
+                WATCHER["errors"][type(s).__name__] = f"{type(exc).__name__}: {str(exc)[:100]}"
+        WATCHER["ticks"] += 1
+        WATCHER["last_tick"] = time.time()
         HUB.reap(float(CFG["subagent_timeout"]))
         time.sleep(float(CFG["poll_interval"]))
 
@@ -742,6 +1093,13 @@ class Handler(BaseHTTPRequestHandler):
 
     def is_local(self) -> bool:
         return not self.is_public() and self.client_address[0] in ("127.0.0.1", "::1", "localhost")
+
+    # LAN bridge host (e.g. Hermes at 192.168.3.31) is trusted for ingest/diagnostics,
+    # but traffic coming through the Cloudflare tunnel never is.
+    def is_trusted(self) -> bool:
+        if self.is_public():
+            return False
+        return self.is_local() or is_trusted_host(self.client_address[0])
 
     def mode_for_client(self) -> str:
         return "demo" if (self.is_public() and CFG["public_mode"] == "demo") else "live"
@@ -789,8 +1147,8 @@ class Handler(BaseHTTPRequestHandler):
                 "clients": len(HUB.subs),
                 "ingest_token_required": bool(CFG["ingest_token"]),
             }
-            # Detailed local filesystem info only for trusted (localhost) callers.
-            if self.is_local() or (CFG["ingest_token"] and self.headers.get("X-Office-Token") == CFG["ingest_token"]):
+            # Detailed local filesystem info only for trusted (LAN/localhost/token) callers.
+            if self.is_trusted() or (CFG["ingest_token"] and self.headers.get("X-Office-Token") == CFG["ingest_token"]):
                 out["watcher"] = {
                     "source": CFG["source"],
                     "hermes_home": str(CFG["hermes_home"]),
@@ -799,8 +1157,23 @@ class Handler(BaseHTTPRequestHandler):
                     "sessions_dir": str(sess_path),
                     "sessions_age_s": age_of(sess_path),
                     "stale": (db_age is None or db_age > 600),
+                    "sources": WATCHER["active"],
+                    "errors": WATCHER["errors"],
+                    "ticks": WATCHER["ticks"],
+                    "health": (
+                        "ok" if WATCHER["active"] and not WATCHER["errors"]
+                        else ("degraded" if WATCHER["active"] else "idle")
+                    ),
                 }
             return self.send_json(200, out)
+        if path == "/api/a2a":
+            peers = A2A.snapshot()
+            return self.send_json(200, {
+                "peers": peers,
+                "online": sum(1 for p in peers if p["online"]),
+                "total": len(peers),
+                "can_send": bool(str(CFG.get("a2a_secret") or "") or CFG.get("a2a_peer_tokens")),
+            })
         if path == "/api/agents":
             snap = HUB.snapshot()
             return self.send_json(200, {
@@ -814,22 +1187,86 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = urlparse(self.path).path
+        if path == "/api/a2a/send":
+            return self.handle_a2a_send()
         if path != "/api/event":
             return self.send_json(404, {"error": "not found"})
-        has_valid_token = bool(CFG["ingest_token"] and self.headers.get("X-Office-Token") == CFG["ingest_token"])
-        if not self.is_local() and not has_valid_token:
-            return self.send_json(403, {"error": "ingest hanya dari localhost atau gunakan header X-Office-Token yang valid"})
-        if CFG["ingest_token"] and not has_valid_token:
+        # Reject tunnel traffic outright: only the host itself and trusted LAN
+        # hosts (e.g. the Hermes bridge) may ingest.
+        if self.is_public():
+            return self.send_json(403, {"error": "ingest tidak tersedia untuk trafik publik"})
+        has_token = bool(CFG["ingest_token"])
+        has_valid_token = bool(has_token and self.headers.get("X-Office-Token") == CFG["ingest_token"])
+        if not self.is_trusted() and not has_valid_token:
+            return self.send_json(403, {"error": "ingest hanya dari host lokal/LAN terpercaya atau gunakan header X-Office-Token yang valid"})
+        if has_token and not has_valid_token and not self.is_trusted():
             return self.send_json(401, {"error": "token salah"})
+        events, error, code = self.read_events()
+        if error:
+            return self.send_json(code, {"error": error})
+        # Report what was actually accepted, not merely received, so a bridge can
+        # detect dropped events instead of assuming success.
+        accepted = 0
+        rejected = 0
+        for ev in events:
+            if not isinstance(ev, dict) or sanitize_event(ev) is None:
+                rejected += 1
+                continue
+            HUB.publish(ev)
+            accepted += 1
+        return self.send_json(200, {
+            "ok": True, "received": len(events), "accepted": accepted, "rejected": rejected,
+        })
+
+    MAX_BODY = 256_000
+
+    def read_events(self):
+        """Parse the ingest body. Returns (events, error, http_code)."""
         try:
-            length = min(int(self.headers.get("Content-Length", 0)), 256_000)
-            data = json.loads(self.rfile.read(length) or b"{}")
+            declared = int(self.headers.get("Content-Length", 0) or 0)
+        except (TypeError, ValueError):
+            return [], "Content-Length tidak valid", 400
+        if declared < 0:
+            return [], "Content-Length tidak valid", 400
+        if declared > self.MAX_BODY:
+            return [], f"body terlalu besar (maks {self.MAX_BODY} byte)", 413
+        try:
+            raw = self.rfile.read(declared) if declared else b"{}"
+            data = json.loads(raw)
+        except Exception:  # noqa: BLE001
+            return [], "json tidak valid", 400
+        if data is None:
+            data = []
+        events = data if isinstance(data, list) else [data]
+        if len(events) > 2000:
+            return [], "terlalu banyak event dalam satu request (maks 2000)", 413
+        return events, None, 200
+
+    def handle_a2a_send(self):
+        # Public/tunnel callers must never be able to drive another agent.
+        if self.is_public():
+            return self.send_json(403, {"error": "kirim pesan A2A tidak tersedia untuk trafik publik"})
+        if not self.is_trusted():
+            return self.send_json(403, {"error": "hanya host lokal/LAN terpercaya"})
+        try:
+            declared = int(self.headers.get("Content-Length", 0) or 0)
+        except (TypeError, ValueError):
+            return self.send_json(400, {"error": "Content-Length tidak valid"})
+        if declared > 32_000:
+            return self.send_json(413, {"error": "body terlalu besar (maks 32000 byte)"})
+        try:
+            data = json.loads(self.rfile.read(declared) if declared else b"{}")
         except Exception:  # noqa: BLE001
             return self.send_json(400, {"error": "json tidak valid"})
-        events = data if isinstance(data, list) else [data]
-        for ev in events:
-            HUB.publish(ev)
-        return self.send_json(200, {"ok": True, "count": len(events)})
+        if not isinstance(data, dict):
+            return self.send_json(400, {"error": "body harus objek JSON"})
+        peer_id = str(data.get("peer") or data.get("peerId") or "").strip()
+        text = str(data.get("text") or data.get("message") or "").strip()
+        if not peer_id or not text:
+            return self.send_json(400, {"error": "butuh 'peer' dan 'text'"})
+        result = A2A.send(peer_id, text, intent=str(data.get("intent") or "chat"))
+        status = 200 if result.get("ok") else int(result.get("status") or 502)
+        return self.send_json(status, result)
 
     def handle_events(self):
         if self.mode_for_client() == "demo":
@@ -913,6 +1350,9 @@ def main():
         return probe()
     if CFG["source"] != "none":
         threading.Thread(target=watcher_loop, daemon=True).start()
+    if A2A.peers:
+        threading.Thread(target=a2a_loop, daemon=True).start()
+        print(f"[a2a] {len(A2A.peers)} peer: " + ", ".join(f"{p.name}@{p.host}" for p in A2A.peers))
     srv = ThreadingHTTPServer((CFG["host"], CFG["port"]), Handler)
     srv.daemon_threads = True
     print(f"🏢 Lami's AI Office jalan di http://{CFG['host']}:{CFG['port']}  (public_mode={CFG['public_mode']})")
