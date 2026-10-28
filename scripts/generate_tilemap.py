@@ -39,6 +39,25 @@ for (const id of {ids}) {
   const r = LO.ROOMS[id];
   rooms[id] = { bounds: [r.bounds.x1, r.bounds.y1, r.bounds.x2, r.bounds.y2], door: [r.door.x, r.door.y, r.door.side], floor1: r.floor1, floor2: r.floor2, wall: r.wall, wallDark: r.wallDark };
 }
+// Per-tile plan grid derived from the SAME predicates the runtime uses, so the
+// committed map cannot drift from config.js collision. Chars: room initial,
+// 'H' hallway, 'D' doorway, '.' none.
+const LETTER = { boss: 'B', research: 'R', server: 'S', engineering: 'E', meeting: 'M', pantry: 'P' };
+const doors = LO.doorways();
+const doorSet = new Set();
+for (const d of doors) for (const t of d.tiles) doorSet.add(t.x + ',' + t.y);
+const plan = [];
+for (let y = 0; y < LO.GRID_ROWS; y++) {
+  let s = '';
+  for (let x = 0; x < LO.GRID_COLS; x++) {
+    const r = LO.roomAt(x, y);
+    if (r) s += LETTER[r];
+    else if (LO.hallwayAt(x, y)) s += 'H';
+    else if (doorSet.has(x + ',' + y)) s += 'D';
+    else s += '.';
+  }
+  plan.push(s);
+}
 process.stdout.write(JSON.stringify({
   cols: LO.GRID_COLS,
   rows: LO.GRID_ROWS,
@@ -47,7 +66,8 @@ process.stdout.write(JSON.stringify({
   hallways: LO.HALLWAY_BANDS,
   entrance: LO.ENTRANCE,
   rooms,
-  doors: LO.doorways()
+  doors,
+  plan
 }));
 """
 
@@ -81,42 +101,47 @@ def build_map(cfg: dict) -> dict:
     building = cfg["building"]
     rooms = cfg["rooms"]
     doors = cfg["doors"]
+    plan = cfg["plan"]
+
+    letter_to_room = {"B": "boss", "R": "research", "S": "server",
+                      "E": "engineering", "M": "meeting", "P": "pantry"}
 
     door_tiles = {}
     for d in doors:
         for idx, t in enumerate(d["tiles"]):
             door_tiles[(t["x"], t["y"])] = (d["room"], idx, len(d["tiles"]))
 
+    # ---- floors: driven directly by the config plan grid (no re-derivation) ----
     floor = [["floor_outside"] * cols for _ in range(rows)]
+    for y in range(rows):
+        row = plan[y]
+        for x in range(cols):
+            ch = row[x]
+            on = (x + y) % 2 == 0
+            suffix = "a" if on else "b"
+            if ch in letter_to_room:
+                floor[y][x] = f"floor_{letter_to_room[ch]}_{suffix}"
+            elif ch in ("H", "D"):
+                floor[y][x] = f"floor_hall_{suffix}"
+
     walls = [[None] * cols for _ in range(rows)]
     decor = [[None] * cols for _ in range(rows)]
 
-    def inside_building(x, y):
-        return building["x1"] <= x <= building["x2"] and building["y1"] <= y <= building["y2"]
-
-    # ---- rooms: interior floor + perimeter walls
+    # ---- rooms: perimeter wall ring (one tile outside the walkable interior)
     for rid in ROOM_IDS:
-        info = rooms[rid]
-        x1, y1, x2, y2 = info["bounds"]
-        for y in range(y1, y2 + 1):
-            for x in range(x1, x2 + 1):
-                on = ((x + y) % 2 == 0)
-                floor[y][x] = f"floor_{rid}_a" if on else f"floor_{rid}_b"
-
-        # perimeter ring (one tile outside the interior)
+        x1, y1, x2, y2 = rooms[rid]["bounds"]
         for x in range(x1 - 1, x2 + 2):
-            for y in (y1 - 1, y2 + 1):
-                _wall(walls, x, y)
+            _wall(walls, x, y1 - 1)
+            _wall(walls, x, y2 + 1)
         for y in range(y1 - 1, y2 + 2):
-            for x in (x1 - 1, x2 + 1):
-                _wall(walls, x, y)
+            _wall(walls, x1 - 1, y)
+            _wall(walls, x2 + 1, y)
 
-    # ---- hallways
+    # ---- hallways: walkable tiles have no wall
     walkable = set()
     for band in cfg["hallways"]:
         for y in range(band["y1"], band["y2"] + 1):
             for x in range(band["x1"], band["x2"] + 1):
-                floor[y][x] = "floor_hall_a" if (x + y) % 2 == 0 else "floor_hall_b"
                 walls[y][x] = None
                 walkable.add((x, y))
 

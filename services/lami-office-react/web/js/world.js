@@ -183,20 +183,26 @@
       ctx.fillRect(bx - 117, by - 8, 4, 3);
     }
 
-    // ---- Fallback 2: Hallway bands ----
+    // ---- Fallback 2: Hallway bands + doorway thresholds ----
     drawCorridorFloor(ctx, ts) {
-      const bands = LO.HALLWAY_BANDS || [LO.HALLWAY];
+      const bands = LO.HALLWAY_BANDS || [LO.HALLWAY.bounds];
+      const cells = [];
       for (const band of bands) {
         if (!band) continue;
         for (let y = band.y1; y <= band.y2; y++) {
-          for (let x = band.x1; x <= band.x2; x++) {
-            ctx.fillStyle = (x + y) % 2 === 0 ? '#272437' : '#221f31';
-            ctx.fillRect(x * ts, y * ts, ts, ts);
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
-            ctx.lineWidth = 0.5;
-            ctx.strokeRect(x * ts + 0.5, y * ts + 0.5, ts - 1, ts - 1);
-          }
+          for (let x = band.x1; x <= band.x2; x++) cells.push([x, y]);
         }
+      }
+      // Doorway tiles sit on the shared wall ring; open them to the hallway floor.
+      for (const d of (LO.doorways ? LO.doorways() : [])) {
+        for (const t of d.tiles) cells.push([t.x, t.y]);
+      }
+      for (const [x, y] of cells) {
+        ctx.fillStyle = (x + y) % 2 === 0 ? '#272437' : '#221f31';
+        ctx.fillRect(x * ts, y * ts, ts, ts);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(x * ts + 0.5, y * ts + 0.5, ts - 1, ts - 1);
       }
     }
 
@@ -282,7 +288,8 @@
       const oakTrim = '#5a3d28';
       const oakHighlight = '#8c5d3b';
       const oakShadow = '#382215';
-      const building = LO.BUILDING || { x1: 1, y1: 2, x2: 86, y2: 45 };
+      const building = LO.BUILDING;
+      if (!building) return;
 
       const doorSet = new Set();
       for (const d of (LO.doorways ? LO.doorways() : [])) {

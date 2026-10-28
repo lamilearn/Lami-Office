@@ -5,10 +5,9 @@
   const DEFAULT_TILESET = 'assets/tiles/tileset.json';
   const DEFAULT_MAP = 'assets/map/office.map.json';
   const TILESET_PNG = 'assets/tiles/tileset.png';
+  const DOOR_TILE = 'door_mid';
   const OUTSIDE_TILE = 'floor_outside';
   const WALL_LIFT = 14; // px the north-wall face rises above its tile (fake height)
-  const LAYER_ORDER = ['floor', 'walls', 'decor'];
-  const SOUTH_FACE_MIN = 3; // tile height (px) drawn on the south edge of a wall run
 
   const STATE = {
     map: null,
@@ -16,7 +15,10 @@
     image: null,
     ready: false,
     failed: false,
-    loading: null
+    loading: null,
+    groundCanvas: null,
+    overlayCanvas: null,
+    baked: false
   };
 
   function decodeLayer(layer, cols, rows) {
@@ -96,7 +98,7 @@
       STATE.map = decodeMap(rawMap);
       STATE.ready = true;
       STATE.failed = false;
-      LO.tilemap = STATE;
+      bake();
       return STATE.map;
     })().catch((err) => {
       STATE.failed = true;
@@ -129,7 +131,65 @@
     return true;
   }
 
-  // Paint one tile name across a whole layer.
+  // A wall tile is solid unless it is an outside filler or a walkable doorway.
+  function isSolidWall(map, x, y) {
+    if (!map || !map.layers.walls) return false;
+    if (y < 0 || y >= map.rows || x < 0 || x >= map.cols) return true;
+    const name = map.layers.walls[y][x];
+    return !!name && name !== OUTSIDE_TILE && name !== DOOR_TILE;
+  }
+
+  // Floors + the flush/set-back parts of walls (drawn below characters).
+  function paintGround(ctx) {
+    const map = STATE.map;
+    const ts = map.tileSize;
+    drawLayer(ctx, 'floor');
+
+    const walls = map.layers.walls;
+    for (let y = 0; y < map.rows; y++) {
+      for (let x = 0; x < map.cols; x++) {
+        const name = walls[y][x];
+        if (!name || name === DOOR_TILE) continue;
+        const belowSolid = isSolidWall(map, x, y + 1);
+        if (!belowSolid) {
+          // south-facing wall: render the face raised, like a room divider
+          drawTile(ctx, map, 'wall_top', x * ts, y * ts - WALL_LIFT);
+          drawTile(ctx, map, name === 'wall_top' ? 'wall_top' : name, x * ts, y * ts - WALL_LIFT + 4);
+          ctx.fillStyle = 'rgba(15, 10, 25, 0.22)';
+          ctx.fillRect(x * ts, y * ts + ts, ts, 6);
+        } else {
+          drawTile(ctx, map, name, x * ts, y * ts);
+        }
+      }
+    }
+  }
+
+  // Wall tops, doorway frames and decor (drawn above characters so rooms read
+  // as enclosed boxes / architect-plan depth).
+  function paintOverlay(ctx) {
+    const map = STATE.map;
+    const ts = map.tileSize;
+    const walls = map.layers.walls;
+
+    for (let y = 0; y < map.rows; y++) {
+      for (let x = 0; x < map.cols; x++) {
+        const name = walls[y][x];
+        if (!name) continue;
+        if (name === DOOR_TILE) {
+          drawTile(ctx, map, DOOR_TILE, x * ts, y * ts);
+          continue;
+        }
+        if (isSolidWall(map, x, y + 1)) continue; // flush body already drawn in paintGround
+        drawTile(ctx, map, 'wall_top', x * ts, y * ts - WALL_LIFT);
+        ctx.fillStyle = 'rgba(58, 40, 56, 0.35)';
+        ctx.fillRect(x * ts, y * ts + ts, ts, 1);
+      }
+    }
+
+    drawLayer(ctx, 'decor');
+  }
+
+  // Paint one tile layer across the whole map.
   function drawLayer(ctx, layerName) {
     if (!isReady()) return false;
     const map = STATE.map;
@@ -147,115 +207,70 @@
     return true;
   }
 
-  function isSolidWall(map, x, y) {
-    if (!map || !map.layers.walls) return false;
-    if (y < 0 || y >= map.rows || x < 0 || x >= map.cols) return true;
-    return !!map.layers.walls[y][x] && map.layers.walls[y][x] !== OUTSIDE_TILE;
+  function makeCanvas(width, height) {
+    if (typeof OffscreenCanvas !== 'undefined') return new OffscreenCanvas(width, height);
+    if (typeof document !== 'undefined' && document.createElement) {
+      const c = document.createElement('canvas');
+      c.width = width;
+      c.height = height;
+      return c;
+    }
+    return null;
   }
 
-  // Floors first, then the parts of walls that sit *behind* characters:
-  // the north-face extrusion. The flat wall body is drawn later via drawWallOverlay
-  // so characters standing in front of a wall are never hidden.
+  // Rasterize the static ground and overlay layers once so render() only blits
+  // two images per frame instead of redrawing thousands of tiles.
+  function bake() {
+    STATE.baked = false;
+    if (!isReady()) return;
+    const map = STATE.map;
+    const w = (LO.CONTENT_W || map.cols * map.tileSize);
+    const h = (LO.CONTENT_H || map.rows * map.tileSize);
+
+    const ground = makeCanvas(w, h);
+    const overlay = makeCanvas(w, h);
+    if (!ground || !overlay) return;
+
+    const gctx = ground.getContext('2d');
+    const octx = overlay.getContext('2d');
+    if (!gctx || !octx) return;
+    gctx.imageSmoothingEnabled = false;
+    octx.imageSmoothingEnabled = false;
+
+    paintGround(gctx);
+    paintOverlay(octx);
+
+    STATE.groundCanvas = ground;
+    STATE.overlayCanvas = overlay;
+    STATE.baked = true;
+  }
+
+  // Floors, wall faces and set-back walls (below characters).
   function drawGround(ctx) {
     if (!isReady()) return false;
-    const map = STATE.map;
-    const ts = map.tileSize;
-    drawLayer(ctx, 'floor');
-
-    const walls = map.layers.walls;
-    for (let y = 0; y < map.rows; y++) {
-      for (let x = 0; x < map.cols; x++) {
-        const name = walls[y][x];
-        if (!name || name === 'door_mid') continue;
-        const aboveSolid = isSolidWall(map, x, y - 1);
-        const belowSolid = isSolidWall(map, x, y + 1);
-        if (!belowSolid) {
-          // south-facing wall: render the whole face raised, like a room divider
-          drawTile(ctx, map, 'wall_top', x * ts, y * ts - WALL_LIFT);
-          drawTile(ctx, map, name === 'wall_top' ? 'wall_top' : name, x * ts, y * ts - WALL_LIFT + 4);
-          ctx.fillStyle = 'rgba(15, 10, 25, 0.22)';
-          ctx.fillRect(x * ts, y * ts + ts, ts, 6);
-        } else if (aboveSolid) {
-          // interior wall running vertically: draw the tile flush
-          drawTile(ctx, map, name, x * ts, y * ts);
-        } else {
-          drawTile(ctx, map, name, x * ts, y * ts);
-        }
-      }
+    if (STATE.baked) {
+      ctx.drawImage(STATE.groundCanvas, 0, 0);
+      return true;
     }
+    paintGround(ctx);
     return true;
   }
 
-  // Wall tops, door frames and decorations drawn after characters so rooms read
-  // as enclosed boxes (dollhouse / architect-plan look).
+  // Wall tops, doorway frames and decor (above characters).
   function drawWallOverlay(ctx) {
     if (!isReady()) return false;
-    const map = STATE.map;
-    const ts = map.tileSize;
-    const walls = map.layers.walls;
-
-    for (let y = 0; y < map.rows; y++) {
-      for (let x = 0; x < map.cols; x++) {
-        const name = walls[y][x];
-        if (!name) continue;
-        if (name === 'door_mid') {
-          drawTile(ctx, map, 'door_mid', x * ts, y * ts);
-          continue;
-        }
-        const belowSolid = isSolidWall(map, x, y + 1);
-        if (belowSolid) continue; // flush body already drawn in drawGround
-        // riser cap on top of the raised face
-        drawTile(ctx, map, 'wall_top', x * ts, y * ts - WALL_LIFT);
-        ctx.fillStyle = 'rgba(58, 40, 56, 0.35)';
-        ctx.fillRect(x * ts, y * ts + ts, ts, 1);
-      }
+    if (STATE.baked) {
+      ctx.drawImage(STATE.overlayCanvas, 0, 0);
+      return true;
     }
-
-    return drawLayer(ctx, 'decor');
+    paintOverlay(ctx);
+    return true;
   }
 
-  // Solid tiles (walls layer) — used by the generator dry-run and tests.
-  function solidTiles() {
-    if (!STATE.map) return null;
-    const out = [];
-    for (let y = 0; y < STATE.map.rows; y++) {
-      for (let x = 0; x < STATE.map.cols; x++) {
-        if (isSolidWall(STATE.map, x, y)) out.push({ x, y, name: STATE.map.layers.walls[y][x] });
-      }
-    }
-    return out;
-  }
-
-  // Tiles referenced by the map but missing from the tileset index.
-  function missingTiles() {
-    if (!STATE.map) return [];
-    const names = STATE.map.names;
-    const missing = new Set();
-    for (const layer of Object.values(STATE.map.layers)) {
-      for (const row of layer) {
-        for (const name of row) {
-          if (name && !names.has(name)) missing.add(name);
-        }
-      }
-    }
-    return [...missing];
-  }
-
-  LO.tilemap = STATE;
   LO.Tilemap = {
     load,
     isReady,
-    isFailed() { return STATE.failed; },
-    get map() { return STATE.map; },
-    decodeLayer,
     drawGround,
-    drawWallOverlay,
-    drawLayer,
-    drawTile,
-    isSolidWall,
-    solidTiles,
-    missingTiles,
-    layerOrder: LAYER_ORDER,
-    SOUTH_FACE_MIN
+    drawWallOverlay
   };
 })();
