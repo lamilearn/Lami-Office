@@ -76,6 +76,61 @@
         this.timeBtn.addEventListener('click', () => this.cycleTimeMode());
       }
 
+      // A2A peer agents panel
+      this.a2aChip = document.getElementById('hud-a2a-chip');
+      this.a2aVal = document.getElementById('hud-a2a-val');
+      this.a2aModal = document.getElementById('a2a-modal');
+      this.a2aClose = document.getElementById('a2a-close');
+      this.a2aList = document.getElementById('a2a-list');
+      this.a2aForm = document.getElementById('a2a-form');
+      this.a2aPeer = document.getElementById('a2a-peer');
+      this.a2aText = document.getElementById('a2a-text');
+      this.a2aSend = document.getElementById('a2a-send');
+      this.a2aHint = document.getElementById('a2a-hint');
+      if (this.a2aChip && this.a2aModal) {
+        this.a2aChip.addEventListener('click', () => this.showA2AModal());
+        if (this.a2aClose) this.a2aClose.addEventListener('click', () => this.hideA2AModal());
+        this.a2aModal.addEventListener('click', (e) => {
+          if (e.target === this.a2aModal) this.hideA2AModal();
+        });
+        if (this.a2aForm) {
+          this.a2aForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.submitA2AMessage();
+          });
+        }
+      }
+
+      // Camera controls (phone / touch mode only)
+      this.camControls = document.getElementById('camera-controls');
+      const camFit = document.getElementById('cam-fit');
+      const camBoss = document.getElementById('cam-boss');
+      const camIn = document.getElementById('cam-zoom-in');
+      const camOut = document.getElementById('cam-zoom-out');
+      const office = () => window.LO?.office;
+      if (camFit) camFit.addEventListener('click', () => office()?.resetCamera());
+      if (camBoss) camBoss.addEventListener('click', () => office()?.focusBoss());
+      if (camIn) camIn.addEventListener('click', () => {
+        const o = office();
+        if (!o) return;
+        o.setCameraZoom((o.view.zoom || 1) * 1.25);
+      });
+      if (camOut) camOut.addEventListener('click', () => {
+        const o = office();
+        if (!o) return;
+        o.setCameraZoom((o.view.zoom || 1) / 1.25);
+      });
+      const syncCam = () => {
+        if (!this.camControls) return;
+        const phone = office()?.isPhoneMode?.() || false;
+        this.camControls.classList.toggle('hidden', !phone);
+      };
+      syncCam();
+      if (typeof window !== 'undefined' && window.addEventListener) {
+        window.addEventListener('resize', syncCam);
+        window.addEventListener('orientationchange', syncCam);
+      }
+
       // Slack-style Office Chat Drawer (Claude-Office reference)
       this.chatBtn = document.getElementById('btn-chat');
       this.chatDrawer = document.getElementById('chat-drawer');
@@ -89,6 +144,13 @@
       if (this.chatBtn && this.chatDrawer) {
         this.chatBtn.addEventListener('click', () => this.toggleChatDrawer());
         this.chatClose.addEventListener('click', () => this.toggleChatDrawer(false));
+        // Keep the desktop canvas inset in sync when the viewport changes.
+        if (typeof window !== 'undefined' && window.addEventListener) {
+          window.addEventListener('resize', () => {
+            const isOpen = !this.chatDrawer.classList.contains('hidden');
+            this.syncDrawerInset(isOpen);
+          });
+        }
         if (this.chatClear) {
           this.chatClear.addEventListener('click', () => {
             this.chatMessages.innerHTML = '';
@@ -161,6 +223,17 @@
       } else {
         this.chatDrawer.classList.add('hidden');
       }
+      document.body.classList.toggle('drawer-open', willShow);
+      this.syncDrawerInset(willShow);
+    }
+
+    // Desktop: shrink the canvas so the office re-centers beside the drawer.
+    // Phone: the drawer stays a full overlay, so the canvas keeps its size.
+    syncDrawerInset(open) {
+      const office = window.LO?.office;
+      if (!office || typeof office.setDrawerOpen !== 'function') return;
+      const width = this.chatDrawer ? this.chatDrawer.getBoundingClientRect().width : 0;
+      office.setDrawerOpen(open, width);
     }
 
     appendChatMessage(sender, role, text, icon = '💬', color = '#555', isUser = false, isSystem = false) {
@@ -514,6 +587,87 @@
 
     hideContextModal() {
       if (this.ctxModal) this.ctxModal.classList.add('hidden');
+    }
+
+    // ---- A2A Peer Agents panel ----
+    showA2AModal() {
+      if (!this.a2aModal) return;
+      this.a2aModal.classList.remove('hidden');
+      LO.audio.pop();
+    }
+
+    hideA2AModal() {
+      if (this.a2aModal) this.a2aModal.classList.add('hidden');
+    }
+
+    renderA2APeers(peers, canSend) {
+      const list = this.a2aList;
+      const select = this.a2aPeer;
+      const chipVal = this.a2aVal;
+      if (!Array.isArray(peers)) return;
+
+      const online = peers.filter((p) => p.online).length;
+      if (chipVal) chipVal.textContent = `${online}/${peers.length}`;
+
+      if (list) {
+        list.innerHTML = peers.map((p) => `
+          <li class="a2a-item ${p.online ? 'online' : 'offline'}">
+            <span class="a2a-icon" style="border-color:${p.color || '#94a3b8'}">${p.icon || '🔗'}</span>
+            <div class="a2a-meta">
+              <b>${p.name}</b>
+              <small>${p.room} · ${p.hostname || p.endpoint || ''}</small>
+            </div>
+            <span class="a2a-status">${p.online ? '🟢 online' : '⚪ offline'}</span>
+            ${p.latency_ms != null ? `<span class="a2a-latency">${p.latency_ms}ms</span>` : ''}
+          </li>
+        `).join('');
+      }
+
+      if (select) {
+        const current = select.value;
+        select.innerHTML = '<option value="">— pilih agent —</option>' +
+          peers.filter((p) => p.online).map((p) => `<option value="${p.id}">${p.name}</option>`).join('');
+        if (peers.some((p) => p.id === current && p.online)) select.value = current;
+      }
+
+      const send = this.a2aSend;
+      const hint = this.a2aHint;
+      const allowed = Boolean(canSend) && online > 0;
+      if (send) {
+        send.disabled = !allowed;
+        send.textContent = canSend ? 'Kirim' : 'Token belum diisi';
+      }
+      if (hint) {
+        hint.textContent = canSend
+          ? '💡 Agent A2A berjalan sebagai Hermes sidecar di mesin lain (LAN).'
+          : '⚠️ A2A_SECRET belum diisi di server — pesan tidak bisa dikirim (presence tetap aktif).';
+      }
+    }
+
+    async submitA2AMessage() {
+      const select = this.a2aPeer;
+      const input = this.a2aText;
+      if (!select || !input) return;
+      const peer = select.value;
+      const text = (input.value || '').trim();
+      if (!peer || !text) return;
+      try {
+        const res = await fetch('/api/a2a/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ peer, text })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.ok) {
+          this.addTicker('🔗', `Pesan terkirim ke <b>${(data.peer || {}).name || peer}</b>`);
+          this.appendChatMessage('Boss Lami', 'A2A', `→ <b>${(data.peer || {}).name || peer}</b>: ${text}`, '🔗', '#60a5fa', false);
+          input.value = '';
+        } else {
+          this.addTicker('⚠️', `Gagal kirim ke <b>${peer}</b>: ${data.error || res.status}`);
+        }
+      } catch (err) {
+        this.addTicker('⚠️', `Gagal kirim ke <b>${peer}</b>`);
+      }
     }
 
     setContextUsage(ratio) {

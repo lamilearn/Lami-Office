@@ -255,6 +255,54 @@ def log(msg: str):
     sys.stderr.write(f"[bridge] {time.strftime('%H:%M:%S')} {msg}\n")
 
 
+def verify(opts) -> int:
+    """Check Hermes db + office endpoint wiring without sending real events."""
+    import sqlite3
+    ok = True
+
+    db = os.path.expanduser(opts.db)
+    if not os.path.exists(db):
+        print(f"FAIL db      : {db} tidak ada")
+        ok = False
+    else:
+        try:
+            con = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=2)
+            n = con.execute("SELECT COUNT(*) FROM messages").fetchone()[0]
+            con.close()
+            print(f"OK   db      : {db} ({n} pesan)")
+        except Exception as exc:  # noqa: BLE001
+            print(f"FAIL db      : {exc}")
+            ok = False
+
+    base = opts.endpoint.rstrip("/")
+    for path in ("/healthz", "/api/config"):
+        try:
+            with urllib.request.urlopen(base + path, timeout=5) as resp:
+                print(f"OK   {path:<12}: HTTP {resp.status}")
+        except Exception as exc:  # noqa: BLE001
+            print(f"FAIL {path:<12}: {exc}")
+            ok = False
+
+    # Ingest probe: a single harmless status event the office answers with 200.
+    probe = json.dumps([{"type": "agent_status", "agentId": "lami", "status": "online"}]).encode()
+    req = urllib.request.Request(base + "/api/event", data=probe, method="POST")
+    req.add_header("Content-Type", "application/json")
+    if opts.token:
+        req.add_header("X-Office-Token", opts.token)
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            print(f"OK   ingest  : HTTP {resp.status} {resp.read()[:80].decode('utf-8', 'ignore')}")
+    except urllib.error.HTTPError as exc:
+        print(f"FAIL ingest  : HTTP {exc.code} {exc.read()[:120].decode('utf-8', 'ignore')}")
+        ok = False
+    except Exception as exc:  # noqa: BLE001
+        print(f"FAIL ingest  : {exc}")
+        ok = False
+
+    print("PASSED" if ok else "FAILED")
+    return 0 if ok else 1
+
+
 def main():
     ap = argparse.ArgumentParser(description="Mirror Hermes activity into Lami's AI Office.")
     ap.add_argument("--endpoint", default=os.environ.get("OFFICE_URL", "http://127.0.0.1:8090"))
@@ -268,8 +316,11 @@ def main():
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--once", action="store_true")
     ap.add_argument("--probe", action="store_true")
+    ap.add_argument("--verify", action="store_true", help="cek db + endpoint office lalu keluar")
     ap.add_argument("--dry-run", action="store_true")
     opts = ap.parse_args()
+    if opts.verify:
+        raise SystemExit(verify(opts))
     Bridge(opts).run()
 
 

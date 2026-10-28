@@ -223,6 +223,14 @@
     angela:  { hair: 6, skin: 0, cloth: 4, long: false, glasses: false, tie: false, clothColors: ['#bdc3c7', '#95a5a6'] },
   };
 
+  // A2A peer agents: distinct looks with a remote-agent badge colour.
+  LO.PEER_LOOKS = {
+    yuna:   { hair: 2, skin: 0, cloth: 0, long: true,  glasses: true,  tie: false, clothColors: ['#60a5fa', '#3b82f6'] },
+    aurora: { hair: 4, skin: 1, cloth: 1, long: true,  glasses: false, tie: false, clothColors: ['#f472b6', '#db2777'] },
+    kira:   { hair: 6, skin: 0, cloth: 3, long: false, glasses: false, tie: true,  clothColors: ['#34d399', '#059669'] },
+    cyro:   { hair: 5, skin: 2, cloth: 2, long: false, glasses: true,  tie: true,  clothColors: ['#a78bfa', '#7c3aed'] },
+  };
+
   LO.randomLook = function (rng = Math.random) {
     return {
       hair: Math.floor(rng() * HAIR.length), skin: Math.floor(rng() * SKIN.length),

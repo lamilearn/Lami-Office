@@ -12,11 +12,11 @@
 
 | Tier | Name | Target Scope | Suite File | Count | Status |
 |------|------|--------------|------------|-------|--------|
-| **Tier 1** | Feature Coverage | Features 1–14 (>=5 per feature) | `tests/e2e/tier1_feature_coverage.test.js` | 70 | **PASSED** (70/70) |
+| **Tier 1** | Feature Coverage | Features 1–18 (>=5 per feature) | `tier1_feature_coverage` + `tier1_responsive_a2a` | 87 | **PASSED** (87/87) |
 | **Tier 2** | Boundary & Corner Cases | 9 Degenerate & Edge Categories | `tests/e2e/tier2_boundary_corner.test.js` | 45 | **PASSED** (45/45) |
 | **Tier 3** | Cross-Feature Combinations | Pairwise Interactions & Modals | `tests/e2e/tier3_cross_feature.test.js` | 9 | **PASSED** (9/9) |
 | **Tier 4** | Real-World Application Scenarios | End-to-End Office Workflows | `tests/e2e/tier4_real_world_scenarios.test.js` | 5 | **PASSED** (5/5) |
-| **Total** | **Comprehensive Suite** | **All Core Requirements** | — | **129** | **PASSED** (129/129) |
+| **Total** | **Comprehensive Suite** | **All Core Requirements** | — | **146** | **PASSED** (146/146) |
 
 ---
 

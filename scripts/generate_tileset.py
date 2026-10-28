@@ -322,6 +322,47 @@ def lobby_mat():
     return tile
 
 
+def rug():
+    tile = Tile()
+    tile.rect(1, 1, 14, 14, hexc("#c084fc"))
+    tile.rect(3, 3, 10, 10, hexc("#e9d5ff"))
+    tile.rect(5, 5, 6, 6, hexc("#9333ea"))
+    tile.hline(1, 1, 14, hexc("#7e22ce"))
+    tile.hline(14, 1, 14, hexc("#7e22ce"))
+    return tile
+
+
+def wall_clock():
+    tile = Tile()
+    tile.rect(3, 3, 10, 10, hexc("#f5f1e6"))
+    tile.rect(4, 4, 8, 8, hexc("#fdfcf7"))
+    for x, y in ((3, 3), (12, 3), (3, 12), (12, 12)):
+        tile.set(x, y, hexc("#8c5d3b"))
+    tile.vline(8, 5, 8, hexc("#3a2838"))
+    tile.hline(8, 8, 11, hexc("#c0392b"))
+    return tile
+
+
+def poster():
+    tile = Tile()
+    tile.rect(2, 2, 12, 13, hexc("#fdfcf7"))
+    tile.rect(2, 2, 12, 3, hexc("#3b82f6"))
+    tile.rect(4, 7, 8, 2, hexc("#f59e0b"))
+    tile.rect(4, 10, 5, 2, hexc("#94a3b8"))
+    tile.rect(2, 14, 12, 1, hexc("#8c5d3b"))
+    return tile
+
+
+def bin_small():
+    tile = Tile()
+    tile.rect(4, 5, 8, 9, hexc("#95a5a6"))
+    tile.rect(3, 3, 10, 2, hexc("#7f8c8d"))
+    tile.vline(6, 7, 12, hexc("#6b7a7a"))
+    tile.vline(9, 7, 12, hexc("#6b7a7a"))
+    tile.hline(14, 4, 11, hexc("#576574"))
+    return tile
+
+
 # ---------------------------------------------------------------- palette
 BOSS = hexc("#b5834f")
 RESEARCH = hexc("#609ac5")
@@ -367,6 +408,10 @@ TILES = {
     "plant": plant,
     "shop_awning": awning,
     "lobby_mat": lobby_mat,
+    "rug": rug,
+    "wall_clock": wall_clock,
+    "poster": poster,
+    "bin_small": bin_small,
 }
 
 ROOM_PALETTE = {

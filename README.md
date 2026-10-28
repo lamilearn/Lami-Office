@@ -70,6 +70,55 @@ docker compose --env-file .env.production up -d --build
 docker compose --env-file .env.development up -d --build
 ```
 
+## A2A Peer Agents (LAN)
+
+Four Hermes **A2A sidecars** are shown in their specialty rooms:
+
+| Agent | Host | Room |
+|---|---|---|
+| Yuna 🔬 | `192.168.3.91:8000` | Research Lab |
+| Aurora 📐 | `192.168.3.92:8000` | Meeting Room |
+| Kira ⚙️ | `192.168.3.93:8000` | Engineering Pit |
+| Cyro 🛰️ | `192.168.3.94:8000` | Server Room |
+
+Presence comes from each sidecar's `GET /health` (polled every `A2A_POLL_INTERVAL`
+seconds); the office sidebar chip `🔗` opens a panel with status, latency and a
+message box.
+
+Sending messages needs the shared secret the sidecars expect in `x-a2a-token`:
+
+```bash
+# .env.development / .env.production
+A2A_SECRET=<shared-secret>
+```
+
+Leave it empty to keep presence-only mode. Endpoints:
+
+```bash
+curl -s http://127.0.0.1:13579/api/a2a | jq      # roster + presence + can_send
+curl -s -X POST http://127.0.0.1:13579/api/a2a/send \
+  -H 'Content-Type: application/json' \
+  -d '{"peer":"yuna","text":"Status riset hari ini?"}' | jq
+```
+
+`POST /api/a2a/send` is accepted only from localhost/trusted LAN hosts and is
+always rejected for traffic arriving through the Cloudflare tunnel.
+
+Check the Hermes bridge wiring on the agent host:
+
+```bash
+python3 deploy/hermes_bridge.py --endpoint http://192.168.3.33:13579 --verify
+```
+
+## Responsive Layout
+
+- **Desktop / tablet**: the whole floorplan is fit to the viewport. Opening the
+  chat drawer shrinks the canvas so the office re-centers beside it.
+- **Phones** (`(pointer: coarse)` or viewport `< 900px`): a pan/zoom camera fills
+  the screen width, auto-focuses the active agent, and supports drag-to-pan,
+  pinch-zoom and double-tap-to-reset. On-screen buttons: `⤢` fit, `👑` focus boss,
+  `＋ / －` zoom. Safe-area insets keep the HUD and panels clear of notches.
+
 ## Smoke Testing
 
 To verify service health across all 7 endpoints:

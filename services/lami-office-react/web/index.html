@@ -29,6 +29,7 @@
         <div class="hud-chip coin" title="Koin"><span>🪙</span><b id="hud-coins">0</b></div>
         <div class="hud-chip" title="Karyawan aktif"><span>👥</span><b id="hud-staff">0</b></div>
         <div id="hud-ctx-chip" class="hud-chip pointer" title="Context Window (Klik detail)"><span>🗑️</span><b id="hud-ctx-val">42%</b></div>
+        <div id="hud-a2a-chip" class="hud-chip pointer" title="A2A peer agents"><span>🔗</span><b id="hud-a2a-val">0/4</b></div>
         <button id="btn-wb" class="hud-btn" title="Buka Whiteboard Rapat (2F)" aria-label="Whiteboard">📋</button>
         <button id="btn-time" class="hud-btn" title="Ganti Waktu (Siang / Sore / Malam)" aria-label="Ganti Waktu">☀️</button>
         <button id="btn-chat" class="hud-btn" title="Buka Chat Kantor (Slack Mode)" aria-label="Buka Chat">💬</button>
@@ -39,6 +40,14 @@
     <section id="ticker" aria-live="polite" aria-label="Aktivitas terbaru">
       <ul id="ticker-list"></ul>
     </section>
+
+    <!-- Camera controls (phones / touch devices only) -->
+    <div id="camera-controls" class="camera-controls hidden" aria-label="Kontrol kamera">
+      <button id="cam-fit" class="cam-btn" title="Tampilkan seluruh kantor" aria-label="Fit">⤢</button>
+      <button id="cam-boss" class="cam-btn" title="Fokus ke Boss Lami" aria-label="Fokus Boss">👑</button>
+      <button id="cam-zoom-in" class="cam-btn" title="Zoom in" aria-label="Zoom in">＋</button>
+      <button id="cam-zoom-out" class="cam-btn" title="Zoom out" aria-label="Zoom out">－</button>
+    </div>
 
     <div id="card" class="card hidden" role="dialog" aria-label="Info karyawan">
       <button id="card-close" class="card-close" aria-label="Tutup">✕</button>
@@ -144,6 +153,30 @@
               <div class="wb-org-card"><b>🐱 Mochi</b><small>Maskot Kantor (1F)</small></div>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- A2A Peer Agents Modal -->
+    <div id="a2a-modal" class="modal hidden" role="dialog" aria-label="A2A Peer Agents">
+      <div class="modal-card">
+        <div class="modal-head">
+          <div class="modal-title">
+            <span>🔗</span>
+            <b>A2A PEER AGENTS</b>
+          </div>
+          <button id="a2a-close" class="modal-close" aria-label="Tutup">✕</button>
+        </div>
+        <div class="modal-body">
+          <ul id="a2a-list" class="a2a-list"></ul>
+          <form id="a2a-form" class="a2a-form">
+            <select id="a2a-peer">
+              <option value="">— pilih agent —</option>
+            </select>
+            <input type="text" id="a2a-text" placeholder="Tulis pesan ke agent A2A..." autocomplete="off">
+            <button type="submit" id="a2a-send">Kirim</button>
+          </form>
+          <p id="a2a-hint" class="ctx-hint">💡 Agent A2A berjalan sebagai Hermes sidecar di mesin lain (LAN).</p>
         </div>
       </div>
     </div>

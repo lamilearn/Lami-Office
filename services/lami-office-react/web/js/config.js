@@ -553,5 +553,95 @@
     return false;
   };
 
+  // ---- Responsive Breakpoints & Phone Camera Mode ----
+  // Phones (and touch-first devices) get a pan/zoom camera; desktop/tablet
+  // stays fit-all. Detection is automatic: coarse pointer OR narrow viewport.
+  LO.BREAKPOINTS = {
+    phoneMaxWidth: 900,   // viewport width below which camera mode turns on
+    compactMaxWidth: 768  // HUD/card compact layout
+  };
+  LO.PHONE_ZOOM_MIN = 0.6;   // relative to the base phone zoom
+  LO.PHONE_ZOOM_MAX = 3.0;
+  LO.PHONE_HEIGHT_FILL = 0.72; // portrait screens must fill ~72% of the height
+  LO.CAMERA_LERP = 8;        // per-second easing toward the focus target
+  LO.CAMERA_DEADZONE = 0.35; // tiles; ignore tiny focus shifts
+
+  // True when the device should use the pan/zoom camera instead of fit-all.
+  LO.isPhoneMode = function (env) {
+    const scope = env || (typeof window !== 'undefined' ? window : null);
+    if (!scope) return false;
+    try {
+      if (typeof scope.matchMedia === 'function' &&
+          scope.matchMedia('(pointer: coarse)').matches) {
+        return true;
+      }
+    } catch (e) { /* matchMedia unavailable */ }
+    const width = scope.innerWidth || scope.innerWidth === 0 ? scope.innerWidth : (LO.CONTENT_W || 1408);
+    return width < LO.BREAKPOINTS.phoneMaxWidth;
+  };
+
+  // Pure view-model math shared by the renderer, hit-testing and the tests.
+  // Inputs are CSS pixels. Returns zoom plus the top-left content offset.
+  LO.computeViewParams = function (args) {
+    const w = Math.max(0, args.width || 0);
+    const h = Math.max(0, args.height || 0);
+    const contentW = args.contentW || LO.CONTENT_W;
+    const contentH = args.contentH || LO.CONTENT_H;
+    const inset = args.drawerInset || 0;
+
+    if (w <= 0 || h <= 0) {
+      return { zoom: 1, offsetX: 0, offsetY: 0, availW: w, availH: h, cameraMode: false };
+    }
+
+    const availW = Math.max(1, w - inset);
+    const availH = h;
+
+    if (args.cameraMode) {
+      // Phone camera: never render the floorplan as a thin strip. Fill the width,
+      // but on tall/portrait screens also guarantee a usable vertical fill.
+      const fill = availW / contentW;
+      const fillByHeight = (availH / contentH) * (LO.PHONE_HEIGHT_FILL || 0.72);
+      const base = Math.max(fill, fillByHeight);
+      const floor = base * (LO.PHONE_ZOOM_MIN || 0.6);
+      const ceil = base * (LO.PHONE_ZOOM_MAX || 3);
+      const zoom = Math.min(ceil, Math.max(floor, args.zoom || base));
+      const focusX = (args.focusX || 0) * (LO.TILE_SIZE || 16);
+      const focusY = (args.focusY || 0) * (LO.TILE_SIZE || 16);
+      const visibleW = availW / zoom;
+      const visibleH = availH / zoom;
+      // Keep the camera inside the world; when the world is smaller than the
+      // viewport on an axis, center it on that axis instead.
+      const camX = contentW <= visibleW
+        ? contentW / 2
+        : Math.min(contentW - visibleW / 2, Math.max(visibleW / 2, focusX));
+      const camY = contentH <= visibleH
+        ? contentH / 2
+        : Math.min(contentH - visibleH / 2, Math.max(visibleH / 2, focusY));
+      const offsetX = Math.round((availW / 2) - camX * zoom);
+      const offsetY = Math.round((availH / 2) - camY * zoom);
+      return { zoom, offsetX, offsetY, availW, availH, cameraMode: true };
+    }
+
+    const zoom = Math.min(availW / contentW, availH / contentH);
+    const offsetX = Math.floor((availW - contentW * zoom) / 2);
+    const offsetY = Math.floor((availH - contentH * zoom) / 2);
+    return { zoom, offsetX, offsetY, availW, availH, cameraMode: false };
+  };
+
+  // Classify a pointer sequence as a tap (select) or a drag (camera pan).
+  LO.classifyPointerGesture = function (start, end, elapsedMs) {
+    const maxDistance = LO.TAP_MAX_DISTANCE || 8;
+    const maxDuration = LO.TAP_MAX_DURATION_MS || 300;
+    if (!start || !end) return 'cancel';
+    const dx = (end.x || 0) - (start.x || 0);
+    const dy = (end.y || 0) - (start.y || 0);
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    if (distance > maxDistance) return 'drag';
+    if ((elapsedMs || 0) > maxDuration) return 'longpress';
+    return 'tap';
+  };
+  LO.TAP_MAX_DISTANCE = 8;
+  LO.TAP_MAX_DURATION_MS = 300;
+
   LO.params = typeof location !== 'undefined' ? new URLSearchParams(location.search) : new URLSearchParams();
 })();

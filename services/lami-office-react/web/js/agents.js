@@ -1328,6 +1328,44 @@
   }
 
   // ---- Mochi the Cat (2D Pantry Lounge) ----
+  class PeerAgent extends Character {
+    constructor(id, name, hostLabel, room = 'engineering') {
+      const looks = Object.values(LO.PEER_LOOKS || {});
+      const look = looks.length ? looks[Math.abs(hashString(id)) % looks.length] : LO.randomLook();
+      super(id, name, 'A2A Peer', look, LO.GROUND, LO.DOOR_COL, LO.DOOR_ROW);
+      this.room = room;
+      this.hostLabel = hostLabel || '';
+      this.hostname = hostLabel || '';
+      this.peerId = id;
+      this.icon = '🔗';
+      this.color = '#94a3b8';
+      this.endpoint = '';
+      this.latencyMs = null;
+      this.online = false;
+      this.state = 'work';
+      this.frame = 'idle';
+    }
+
+    render(ctx) {
+      // Peers idle in their room; dim them when the sidecar is unreachable.
+      if (!this.online && typeof ctx !== 'undefined' && ctx) {
+        ctx.save();
+        ctx.globalAlpha = 0.45;
+        super.render(ctx);
+        ctx.restore();
+      } else {
+        super.render(ctx);
+      }
+    }
+  }
+
+  function hashString(value) {
+    let h = 0;
+    const s = String(value || '');
+    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+    return h;
+  }
+
   class MochiCat {
     constructor() {
       this.floor = 0; // single-floor 2D office
@@ -1515,6 +1553,7 @@
   LO.ResidentAgent = ResidentAgent;
   LO.Lami = Lami;
   LO.SubAgent = SubAgent;
+  LO.PeerAgent = PeerAgent;
   LO.MochiCat = MochiCat;
   LO.DeliveryRider = DeliveryRider;
 })();

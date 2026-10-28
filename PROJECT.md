@@ -35,7 +35,10 @@ A complete 2D Top-Down / RPG pixel art office (Pokemon / Zelda GBA / RPG Maker a
 | 12 | Syntax & Smoke Verification | `node -c` JavaScript syntax check and 7-point smoke test. | M3 | ORIGINAL_REQUEST §R3 |
 | 13 | Git Dev Branch & Staging Sync | Push changes to branch `dev` and deploy/verify on staging. | M3 | ORIGINAL_REQUEST §R3 |
 | 14 | Tilemap Floorplan & Collision Consistency | Committed tilemap JSON + tileset PNG stay in lock-step with config collision. | M4 | Dual Track Acceptance |
-| 15 | E2E Test Suite Pass (Tiers 1-4) | Comprehensive opaque-box test suite passing 100% of requirements. | M4 | Dual Track Acceptance |
+| 15 | Responsive Layout & Phone Camera | Desktop fits the whole plan; phones get a pan/zoom camera (fill-width, auto-focus, drag/pinch/double-tap) and desktop canvas shrinks beside the chat drawer. | M5 | ORIGINAL_REQUEST §Responsive |
+| 16 | Floorplan Decoration | Windows, sconces, plants, vents, rugs, wall clocks, posters, bins and entrance awning placed by the tilemap generator. | M5 | ORIGINAL_REQUEST §Decor |
+| 17 | A2A Peer Agents | Four Hermes A2A sidecars on the LAN (192.168.3.91–94) shown in their specialty rooms with live presence and optional message sending. | M5 | ORIGINAL_REQUEST §A2A |
+| 18 | E2E Test Suite Pass (Tiers 1-4) | Comprehensive opaque-box test suite passing 100% of requirements. | M5 | Dual Track Acceptance |
 
 ---
 
@@ -45,7 +48,8 @@ A complete 2D Top-Down / RPG pixel art office (Pokemon / Zelda GBA / RPG Maker a
 | M1 | 2D World & Room Architecture | Orthogonal 2D grid engine, sealed single-floor plan, shared walls, furniture & props | None | DONE |
 | M2 | 4-Directional Agents & Interaction | 4-way sprites, walking step cycles, orthogonal pathfinding, speech bubbles, character card | M1 | DONE |
 | M3 | Viewport Layout & Staging Sync | Desktop responsive fit, drawer adjustment, smoke test, git push `dev`, staging sync | M2 | DONE |
-| M4 | Tilemap, E2E Pass & Hardening | Committed tilemap/tileset, 100% E2E pass, adversarial hardening | M3 | IN_PROGRESS |
+| M4 | Tilemap, E2E Pass & Hardening | Committed tilemap/tileset, 100% E2E pass, adversarial hardening | M3 | DONE |
+| M5 | Responsive, Decoration & A2A Peers | Phone camera mode, drawer-aware desktop canvas, floorplan decoration, A2A peer agents on the LAN | M4 | DONE |
 
 ---
 
@@ -67,12 +71,34 @@ A complete 2D Top-Down / RPG pixel art office (Pokemon / Zelda GBA / RPG Maker a
 - `LO.roomAt(col, row)` / `LO.hallwayAt(col, row)` / `LO.isFloorTile(col, row)` / `LO.roomInterior(id)`: floorplan queries shared by collision, tilemap generator and tests.
 
 ### `tilemap.js` ↔ `world.js` / `office.js`
-- `LO.Tilemap.load({ tileset, map, image })`: Promise; fetches tileset index + map + spritesheet.
-- `LO.Tilemap.isReady()` / `isFailed()` / `map`: load state and decoded map.
-- `LO.Tilemap.drawGround(ctx)`: floors + set-back wall faces (below characters).
-- `LO.Tilemap.drawWallOverlay(ctx)`: wall tops, doorway frames & decor (above characters).
-- `LO.Tilemap.isSolidWall(map, x, y)` / `solidTiles()` / `missingTiles()`: collision & validation helpers.
+- `LO.Tilemap.load({ tileset, map, image })`: Promise; fetches tileset index + map + spritesheet, then bakes the static layers into offscreen canvases.
+- `LO.Tilemap.isReady()` / `map`: load state and decoded map.
+- `LO.Tilemap.drawGround(ctx)`: floors + set-back wall faces (below characters) — single blit once baked.
+- `LO.Tilemap.drawWallOverlay(ctx)`: wall tops, doorway frames & decor (above characters) — single blit once baked.
 - `LO.World.renderOverlay(ctx)`: called by `office.js` after characters to paint the wall overlay.
+
+### `config.js` ↔ responsive layout (Feature 15)
+- `LO.BREAKPOINTS = { phoneMaxWidth: 900, compactMaxWidth: 768 }`
+- `LO.isPhoneMode(env?)`: `true` when the pointer is coarse or the viewport is narrower than `phoneMaxWidth`.
+- `LO.computeViewParams({ width, height, contentW, contentH, drawerInset, cameraMode, zoom, focusX, focusY })` → `{ zoom, offsetX, offsetY, availW, availH, cameraMode }` (CSS px; `focusX/focusY` in tiles).
+- `LO.classifyPointerGesture(start, end, elapsedMs)` → `'tap' | 'drag' | 'longpress' | 'cancel'`.
+- `LO.PHONE_ZOOM_MIN / PHONE_ZOOM_MAX / CAMERA_LERP / CAMERA_DEADZONE`.
+- `Office.computeView(w?, h?)`, `Office.screenToWorld(clientX, clientY)`, `Office.worldToScreen(x, y)`.
+- `Office.setDrawerOpen(open, widthPx)`: desktop insets the canvas by the drawer width; phones keep it as an overlay.
+- `Office.focusAgent(agentOrId)` / `Office.focusBoss()` / `Office.resetCamera()` / `Office.setCameraZoom(z)`.
+- `Office.isPhoneMode()`: `true` for `?vertical=1` or `LO.isPhoneMode()`.
+
+### `server.py` ↔ A2A peers (Feature 17)
+- `GET /api/a2a` → `{ peers: [{ id, name, host, port, room, icon, color, online, hostname, latency_ms, error, endpoint }], online, total, can_send }`.
+- `POST /api/a2a/send` `{ peer, text, intent? }` → `{ ok, status, peer, response? }`. Local/LAN only; public tunnel traffic is rejected.
+- Peer roster defaults live in `DEFAULT_CONFIG["a2a_peers"]`, overridable with `A2A_PEERS` (JSON).
+- `A2A_SECRET`: shared secret sent as `x-a2a-token` to each sidecar. Empty = presence only.
+- `A2A_POLL_INTERVAL`: seconds between `/health` probes (default 10).
+
+### Backend ↔ Hermes ingest
+- `GET /events` (SSE): sanitized office events + snapshots.
+- `POST /api/event` (JSON): ingest; allowed from localhost/LAN (`trusted_networks`) or with `X-Office-Token` matching `INGEST_TOKEN`.
+- `services/lami-office-react/deploy/hermes_bridge.py`: tails Hermes `state.db` on another host and POSTs events. `--probe` prints parsed events, `--verify` checks db + endpoint + ingest auth.
 
 ### `sprites.js` ↔ `agents.js`
 - `LO.getCharacterSprites(look)`: returns directional keys `S`/`N`/`E`/`W` (aliases `down/up/right/left`, `SE->S`, `SW->W`, `NE->E`, `NW->N`).

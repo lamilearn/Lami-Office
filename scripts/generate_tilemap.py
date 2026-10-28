@@ -185,15 +185,56 @@ def build_map(cfg: dict) -> dict:
                 continue
             walls[y][x] = _wall_variant(walls, x, y, cols, rows)
 
-    # ---- facade details for the top rooms' north walls
-    for rid in ("boss", "research", "server"):
-        info = rooms[rid]
-        x1, _, x2, y1 = info["bounds"]
-        ny = y1 - 1
+    # ---- facade details: windows on every exterior wall the room faces
+    for rid in ROOM_IDS:
+        x1, y1, x2, y2 = rooms[rid]["bounds"]
         span = x2 - x1
-        for wx in (x1 + span // 4, x1 + (3 * span) // 4):
-            if 0 <= wx < cols and 0 <= ny < rows and walls[ny][wx] is not None:
-                decor[ny][wx] = "window"
+        side = y2 - y1
+        # North wall (rooms on the top row face the street)
+        if y1 - 1 == building["y1"]:
+            ny = y1 - 1
+            for wx in (x1 + span // 4, x1 + (3 * span) // 4):
+                _decor_on_wall(decor, walls, wx, ny, "window", cols, rows)
+        # South wall (rooms on the bottom row face the garden)
+        if y2 + 1 == building["y2"]:
+            sy = y2 + 1
+            for wx in (x1 + span // 4, x1 + (3 * span) // 4):
+                _decor_on_wall(decor, walls, wx, sy, "window", cols, rows)
+        # West / east exterior walls
+        if x1 - 1 == building["x1"]:
+            for wy in (y1 + side // 3, y1 + (2 * side) // 3):
+                _decor_on_wall(decor, walls, x1 - 1, wy, "window", cols, rows)
+        if x2 + 1 == building["x2"]:
+            for wy in (y1 + side // 3, y1 + (2 * side) // 3):
+                _decor_on_wall(decor, walls, x2 + 1, wy, "window", cols, rows)
+
+    # ---- corner plants inside each room (never on furniture or a doorway)
+    blocked = set()
+    for rid in ROOM_IDS:
+        x1, y1, x2, y2 = rooms[rid]["bounds"]
+        for cx, cy in ((x1 + 1, y1 + 1), (x2 - 1, y1 + 1), (x1 + 1, y2 - 1), (x2 - 1, y2 - 1)):
+            key = (cx, cy)
+            if key in blocked:
+                continue
+            if 0 <= cx < cols and 0 <= cy < rows and walls[cy][cx] is None and decor[cy][cx] is None:
+                decor[cy][cx] = "plant"
+                blocked.add(key)
+                blocked.add((cx + 1, cy))
+                blocked.add((cx, cy + 1))
+
+    # ---- vents inside the technical rooms
+    for rid, vent_at in (("server", (0.5, 0.5)), ("engineering", (0.75, 0.5))):
+        x1, y1, x2, y2 = rooms[rid]["bounds"]
+        vx = int(x1 + (x2 - x1) * vent_at[0])
+        vy = int(y1 + (y2 - y1) * vent_at[1])
+        if 0 <= vx < cols and 0 <= vy < rows and walls[vy][vx] is None and decor[vy][vx] is None:
+            decor[vy][vx] = "vent"
+
+    # ---- awning over the street entrance
+    est = cfg["entrance"]
+    ax, ay = est["x"] - 1, est["y"]
+    if 0 <= ax < cols and 0 <= ay < rows:
+        decor[ay][ax] = "shop_awning"
 
     # ---- door thresholds + room plaques on the hallway side
     for d in doors:
@@ -202,19 +243,33 @@ def build_map(cfg: dict) -> dict:
             ty = t["y"] + (1 if side == "S" else -1)
             if 0 <= ty < rows and walls[ty][t["x"]] is None:
                 decor[ty][t["x"]] = "door_threshold"
-        px = d["x"] + 1
-        py = d["y"] + (2 if side == "S" else -2)
-        if 0 <= px < cols and 0 <= py < rows and walls[py][px] is None:
-            decor[py][px] = "sign_plaque"
+        # Room name plaque on the shared wall, beside the doorway
+        _decor_on_wall(decor, walls, d["x"] - 2, d["y"], "sign_plaque", cols, rows)
 
-    # ---- sconces on partition columns inside the hallways
-    for y in range(rows):
-        for x in range(cols):
-            if walls[y][x] == "wall_partition":
-                above = walls[y - 1][x] if y > 0 else None
-                below = walls[y + 1][x] if y + 1 < rows else None
-                if above and below is None:
-                    decor[y][x] = "sconce"
+    # ---- accent decor: rugs, wall clocks, posters and desk bins
+    for rid, rug_at in (("meeting", (0.5, 0.62)), ("pantry", (0.35, 0.72))):
+        x1, y1, x2, y2 = rooms[rid]["bounds"]
+        rx = int(x1 + (x2 - x1) * rug_at[0])
+        ry = int(y1 + (y2 - y1) * rug_at[1])
+        if 0 <= rx < cols and 0 <= ry < rows and walls[ry][rx] is None and decor[ry][rx] is None:
+            decor[ry][rx] = "rug"
+    for rid, look in (("engineering", "poster"), ("meeting", "poster")):
+        x1, y1, x2, y2 = rooms[rid]["bounds"]
+        _decor_on_wall(decor, walls, x1 - 1, y1 + (y2 - y1) // 2, look, cols, rows)
+    for d in doors:
+        # wall clock on the hallway wall, on the far side of the doorway
+        _decor_on_wall(decor, walls, d["x"] + 4, d["y"], "wall_clock", cols, rows)
+    for rid in ("engineering", "research"):
+        x1, y1, x2, y2 = rooms[rid]["bounds"]
+        bx, by = x2 - 2, y2 - 1
+        if 0 <= bx < cols and 0 <= by < rows and walls[by][bx] is None and decor[by][bx] is None:
+            decor[by][bx] = "bin_small"
+
+    # ---- sconces flanking each doorway on the shared wall row
+    for d in doors:
+        wy = d["y"]
+        for wx in (d["x"] - 3, d["x"] + 5):
+            _decor_on_wall(decor, walls, wx, wy, "sconce", cols, rows)
 
     return {
         "tileSize": cfg["tileSize"],
@@ -244,6 +299,18 @@ def build_map(cfg: dict) -> dict:
             },
         },
     }
+
+
+def _decor_on_wall(decor, walls, x, y, name, cols, rows):
+    """Place a decoration only where a wall tile exists (never on floor/doors)."""
+    if not (0 <= x < cols and 0 <= y < rows):
+        return False
+    if walls[y][x] is None or walls[y][x] == "door_mid":
+        return False
+    if decor[y][x] is not None:
+        return False
+    decor[y][x] = name
+    return True
 
 
 def _wall(walls, x, y):
