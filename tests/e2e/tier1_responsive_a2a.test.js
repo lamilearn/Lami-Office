@@ -227,7 +227,8 @@ describe('Tier 1 — Feature 17: A2A Peer Agents & Backend Wiring', () => {
   it('F17.2: A2A messages require a configured secret and a known peer', () => {
     const server = fs.readFileSync(path.join(REPO, 'services/lami-office-react/server.py'), 'utf8');
     assert.ok(/a2a_secret/.test(server), 'a2a_secret must be configurable');
-    assert.ok(/A2A_SECRET belum diisi/.test(server), 'Sending must fail clearly without the secret');
+    assert.ok(/a2a_peer_tokens/.test(server), 'per-peer tokens must be configurable');
+    assert.ok(/token A2A belum diisi/.test(server), 'Sending must fail clearly without a token');
     assert.ok(/peer tidak dikenal/.test(server), 'Unknown peers must be rejected');
   });
 
@@ -237,6 +238,22 @@ describe('Tier 1 — Feature 17: A2A Peer Agents & Backend Wiring', () => {
     const body = sendFn.slice(0, sendFn.indexOf('def handle_events'));
     assert.ok(/is_public\(\)/.test(body), 'Send handler must reject public traffic');
     assert.ok(/is_trusted\(\)/.test(body), 'Send handler must require a trusted host');
+  });
+
+  it('F17.3b: Official A2A peers are detected by Agent Card and sent via JSON-RPC', () => {
+    const server = fs.readFileSync(path.join(REPO, 'services/lami-office-react/server.py'), 'utf8');
+    assert.ok(server.includes('.well-known/agent-card.json'), 'Agent Card must be probed');
+    assert.ok(/\"method\": \"SendMessage\"/.test(server), 'Official sends must use JSON-RPC SendMessage');
+    assert.ok(/Authorization.*Bearer/.test(server), 'Official sends must use a Bearer token');
+    assert.ok(server.includes('192.168.3.31') && server.includes('"port": 9900'),
+      'The Lami gateway on 192.168.3.31:9900 must be a peer');
+    assert.ok(/protocol_detected/.test(server), 'Dialect must be auto-detected per peer');
+  });
+
+  it('F17.3c: A2A replies are parsed from the task status or artifacts', () => {
+    const server = fs.readFileSync(path.join(REPO, 'services/lami-office-react/server.py'), 'utf8');
+    assert.ok(/TASK_STATE|status\.get\(\"state\"\)/.test(server), 'Task state must be read');
+    assert.ok(/artifacts/.test(server), 'Artifact text must be read as a reply source');
   });
 
   it('F17.4: Peer characters are placed inside their specialty rooms', () => {

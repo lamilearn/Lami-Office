@@ -59,8 +59,12 @@ DEFAULT_CONFIG = {
     # A2A peer agents (Hermes A2A sidecars on the LAN). Presence comes from
     # GET /health; sending messages needs the shared A2A_SECRET.
     "a2a_secret": "",
+    "a2a_peer_tokens": "",          # "id:token,other:token" or JSON object
     "a2a_poll_interval": 10.0,
+    "a2a_reply_timeout": 120.0,     # seconds to wait for an official A2A reply
     "a2a_peers": [
+        # Official A2A v1.0 endpoint served by the Hermes gateway on this LAN.
+        {"id": "lami",   "name": "Lami",   "host": "192.168.3.31", "port": 9900, "room": "boss",        "icon": "👑", "color": "#c084fc", "protocol": "a2a"},
         {"id": "yuna",   "name": "Yuna",   "host": "192.168.3.91", "port": 8000, "room": "research",    "icon": "🔬", "color": "#60a5fa"},
         {"id": "aurora", "name": "Aurora", "host": "192.168.3.92", "port": 8000, "room": "meeting",     "icon": "📐", "color": "#f472b6"},
         {"id": "kira",   "name": "Kira",   "host": "192.168.3.93", "port": 8000, "room": "engineering", "icon": "⚙️", "color": "#34d399"},
@@ -81,7 +85,8 @@ def load_config() -> dict:
         "HOST": "host", "PORT": "port", "PUBLIC_MODE": "public_mode",
         "HERMES_HOME": "hermes_home", "INGEST_TOKEN": "ingest_token", "OFFICE_SOURCE": "source",
         "A2A_SECRET": "a2a_secret", "A2A_PEERS": "a2a_peers",
-        "A2A_POLL_INTERVAL": "a2a_poll_interval",
+        "A2A_POLL_INTERVAL": "a2a_poll_interval", "A2A_PEER_TOKENS": "a2a_peer_tokens",
+        "A2A_REPLY_TIMEOUT": "a2a_reply_timeout",
     }
     for env, key in env_map.items():
         if os.environ.get(env):
@@ -97,6 +102,16 @@ def load_config() -> dict:
         cfg["a2a_poll_interval"] = float(cfg.get("a2a_poll_interval") or 10.0)
     except (TypeError, ValueError):
         cfg["a2a_poll_interval"] = 10.0
+    try:
+        cfg["a2a_reply_timeout"] = float(cfg.get("a2a_reply_timeout") or 120.0)
+    except (TypeError, ValueError):
+        cfg["a2a_reply_timeout"] = 120.0
+    peer_tokens = cfg.get("a2a_peer_tokens")
+    if isinstance(peer_tokens, str) and peer_tokens.strip().startswith("{"):
+        try:
+            cfg["a2a_peer_tokens"] = json.loads(peer_tokens)
+        except (TypeError, ValueError):
+            cfg["a2a_peer_tokens"] = ""
     home = os.path.expanduser(str(cfg["hermes_home"]))
     cfg["hermes_home"] = home
     cfg["sqlite_path"] = os.path.expanduser(str(cfg["sqlite_path"]).replace("{hermes_home}", home))
@@ -306,6 +321,17 @@ HUB = Hub()
 # A2A peers - Hermes A2A sidecars on the LAN (presence + outbound messages)
 # --------------------------------------------------------------------------------------
 class A2APeer:
+    """An A2A peer.
+
+    Two dialects are supported:
+      protocol="custom" -> legacy Hermes A2A sidecar: GET /health, POST /a2a/message
+                           with an x-a2a-token header.
+      protocol="a2a"    -> official A2A v1.0 (Linux Foundation): Agent Card at
+                           /.well-known/agent-card.json and JSON-RPC SendMessage at "/"
+                           with `Authorization: Bearer <token>`.
+    Auto-detected when `protocol` is absent: the Agent Card is probed first.
+    """
+
     def __init__(self, spec: dict):
         self.id = str(spec.get("id") or spec.get("host") or "peer")
         self.name = str(spec.get("name") or self.id.title())
@@ -314,8 +340,12 @@ class A2APeer:
         self.room = str(spec.get("room") or "engineering")
         self.icon = str(spec.get("icon") or "🔗")
         self.color = str(spec.get("color") or "#94a3b8")
+        self.protocol = str(spec.get("protocol") or "auto")
         self.online = False
         self.hostname = ""
+        self.protocol_detected = ""
+        self.skills = []
+        self.card_url = ""
         self.latency_ms = None
         self.checked_at = 0.0
         self.error = ""
@@ -330,24 +360,64 @@ class A2APeer:
             "room": self.room, "icon": self.icon, "color": self.color,
             "online": self.online, "hostname": self.hostname,
             "latency_ms": self.latency_ms, "error": self.error,
-            "endpoint": self.base,
+            "endpoint": self.base, "protocol": self.protocol_detected or self.protocol,
+            "skills": self.skills, "card_url": self.card_url,
         }
+
+    def _get_json(self, path: str, timeout: float = 3):
+        with urllib.request.urlopen(self.base + path, timeout=timeout) as resp:
+            return json.loads(resp.read() or b"{}")
 
     def check(self) -> dict:
         started = time.time()
+        want = self.protocol
+        if want in ("auto", "a2a"):
+            if self._check_a2a():
+                self.latency_ms = round((time.time() - started) * 1000)
+                self.checked_at = time.time()
+                return self.to_dict()
+            if want == "a2a":
+                self._fail(getattr(self, "error", "Agent Card tidak ditemukan"))
+                self.latency_ms = round((time.time() - started) * 1000)
+                self.checked_at = time.time()
+                return self.to_dict()
+        self._check_custom()
+        self.latency_ms = round((time.time() - started) * 1000)
+        self.checked_at = time.time()
+        return self.to_dict()
+
+    def _check_a2a(self) -> bool:
         try:
-            with urllib.request.urlopen(self.base + "/health", timeout=3) as resp:
-                data = json.loads(resp.read() or b"{}")
+            card = self._get_json("/.well-known/agent-card.json")
+        except Exception:  # noqa: BLE001 - fall back to the custom dialect
+            return False
+        if not isinstance(card, dict) or "supportedInterfaces" not in card and "protocolVersion" not in card:
+            return False
+        self.protocol_detected = "a2a"
+        self.online = True
+        self.error = ""
+        self.hostname = str(card.get("name") or "")
+        self.card_url = self.base + "/.well-known/agent-card.json"
+        self.skills = [str(s.get("id") or s.get("name") or "") for s in (card.get("skills") or [])
+                       if isinstance(s, dict)][:12]
+        if card.get("name"):
+            self.name = str(card["name"]).replace("hermes-agent-", "").title() or self.name
+        return True
+
+    def _check_custom(self):
+        try:
+            data = self._get_json("/health")
+            self.protocol_detected = "custom"
             self.online = str(data.get("status", "")).lower() in ("online", "ok", "healthy")
             self.hostname = str(data.get("hostname") or "")
             self.error = "" if self.online else "status bukan online"
         except Exception as exc:  # noqa: BLE001
-            self.online = False
-            self.hostname = ""
-            self.error = str(exc)[:80]
-        self.latency_ms = round((time.time() - started) * 1000)
-        self.checked_at = time.time()
-        return self.to_dict()
+            self._fail(str(exc))
+
+    def _fail(self, message: str):
+        self.online = False
+        self.hostname = ""
+        self.error = message[:80]
 
 
 class A2ARegistry:
@@ -377,12 +447,86 @@ class A2ARegistry:
         for t in threads:
             t.join(timeout=4)
 
-    def send(self, peer_id: str, text: str, intent: str = "chat", title: str = "", sender: str = "lami-office-tui") -> dict:
+    # Per-peer tokens: "id:token,other:token" (falls back to the shared secret).
+    def token_for(self, peer: "A2APeer") -> str:
+        tokens = CFG.get("a2a_peer_tokens") or {}
+        if isinstance(tokens, dict) and tokens.get(peer.id):
+            return str(tokens[peer.id])
+        if isinstance(tokens, str):
+            for pair in tokens.split(","):
+                name, _, value = pair.partition(":")
+                if name.strip() == peer.id and value.strip():
+                    return value.strip()
+        return str(CFG.get("a2a_secret") or "")
+
+    def send(self, peer_id: str, text: str, intent: str = "chat", title: str = "", sender: str = "lami-office") -> dict:
         peer = self.get(peer_id)
         if not peer:
             return {"ok": False, "error": "peer tidak dikenal", "status": 404}
-        if not str(CFG.get("a2a_secret") or ""):
-            return {"ok": False, "error": "A2A_SECRET belum diisi di server ini", "status": 503}
+        if not peer.protocol_detected:
+            peer.check()
+        token = self.token_for(peer)
+        if not token:
+            return {"ok": False, "error": "token A2A belum diisi (A2A_SECRET / A2A_PEER_TOKENS)", "status": 503}
+
+        if peer.protocol_detected == "a2a":
+            return self._send_a2a(peer, token, text)
+        return self._send_custom(peer, token, text, intent, title, sender)
+
+    def _send_a2a(self, peer: "A2APeer", token: str, text: str) -> dict:
+        """Official A2A v1.0: JSON-RPC SendMessage at "/" with a bearer token."""
+        payload = {
+            "jsonrpc": "2.0",
+            "id": f"office-{int(time.time() * 1000)}",
+            "method": "SendMessage",
+            "params": {
+                "message": {
+                    "messageId": f"office-{os.urandom(6).hex()}",
+                    "role": "ROLE_USER",
+                    "parts": [{"text": text}],
+                }
+            },
+        }
+        req = urllib.request.Request(peer.base + "/", data=json.dumps(payload).encode(), method="POST")
+        req.add_header("Content-Type", "application/json")
+        req.add_header("Authorization", f"Bearer {token}")
+        try:
+            with urllib.request.urlopen(req, timeout=float(CFG.get("a2a_reply_timeout") or 120)) as resp:
+                data = json.loads(resp.read() or b"{}")
+        except urllib.error.HTTPError as exc:
+            detail = exc.read()[:200].decode("utf-8", "ignore")
+            return self._fail_send(peer, exc.code, detail)
+        except Exception as exc:  # noqa: BLE001
+            return self._fail_send(peer, 502, str(exc)[:120])
+
+        if data.get("error"):
+            return {"ok": False, "status": 502, "error": str(data["error"])[:200], "peer": peer.to_dict()}
+        reply, state = self._a2a_reply(data)
+        HUB.publish({"type": "message", "agentId": "lami",
+                     "text": f"→ {peer.name}: {clean_text(text, 40)}"})
+        if reply:
+            HUB.publish({"type": "message", "agentId": "lami",
+                         "text": f"← {peer.name}: {clean_text(reply, 60)}"})
+        return {"ok": True, "status": 200, "peer": peer.to_dict(), "state": state, "reply": reply}
+
+    @staticmethod
+    def _a2a_reply(data: dict):
+        task = ((data.get("result") or {}).get("task") or {})
+        status = task.get("status") or {}
+        state = str(status.get("state") or "")
+        texts = []
+        msg = status.get("message") or {}
+        for part in msg.get("parts") or []:
+            if part.get("text"):
+                texts.append(part["text"])
+        for art in task.get("artifacts") or []:
+            for part in art.get("parts") or []:
+                if part.get("text"):
+                    texts.append(part["text"])
+        return (" ".join(texts).strip()[:1000], state)
+
+    def _send_custom(self, peer: "A2APeer", token: str, text: str,
+                     intent: str, title: str, sender: str) -> dict:
         payload = {
             "message_id": f"office-{int(time.time() * 1000)}-{os.urandom(3).hex()}",
             "sender": sender,
@@ -395,7 +539,7 @@ class A2ARegistry:
         req = urllib.request.Request(peer.base + "/a2a/message",
                                      data=json.dumps(payload).encode(), method="POST")
         req.add_header("Content-Type", "application/json")
-        req.add_header("x-a2a-token", str(CFG.get("a2a_secret")))
+        req.add_header("x-a2a-token", token)
         try:
             with urllib.request.urlopen(req, timeout=8) as resp:
                 body = resp.read()[:400].decode("utf-8", "ignore")
@@ -403,18 +547,17 @@ class A2ARegistry:
                          "text": f"→ {peer.name}: {clean_text(text, 40)}"})
             return {"ok": True, "status": 200, "peer": peer.to_dict(), "response": body}
         except urllib.error.HTTPError as exc:
-            detail = exc.read()[:200].decode("utf-8", "ignore")
-            if exc.code >= 500:
-                peer.online = False
-                peer.error = f"HTTP {exc.code}"
-                peer.checked_at = time.time()
-            return {"ok": False, "status": exc.code, "error": detail, "peer": peer.to_dict()}
+            return self._fail_send(peer, exc.code, exc.read()[:200].decode("utf-8", "ignore"))
         except Exception as exc:  # noqa: BLE001
-            # Unreachable peer: stop advertising it as online until the next probe.
+            return self._fail_send(peer, 502, str(exc)[:120])
+
+    @staticmethod
+    def _fail_send(peer: "A2APeer", status: int, detail: str) -> dict:
+        if status >= 500 or status == 502:
             peer.online = False
-            peer.error = str(exc)[:80]
+            peer.error = f"HTTP {status}" if status != 502 else detail[:80]
             peer.checked_at = time.time()
-            return {"ok": False, "status": 502, "error": str(exc)[:120], "peer": peer.to_dict()}
+        return {"ok": False, "status": status, "error": detail, "peer": peer.to_dict()}
 
 
 A2A = A2ARegistry(CFG.get("a2a_peers"))
@@ -1029,7 +1172,7 @@ class Handler(BaseHTTPRequestHandler):
                 "peers": peers,
                 "online": sum(1 for p in peers if p["online"]),
                 "total": len(peers),
-                "can_send": bool(str(CFG.get("a2a_secret") or "")),
+                "can_send": bool(str(CFG.get("a2a_secret") or "") or CFG.get("a2a_peer_tokens")),
             })
         if path == "/api/agents":
             snap = HUB.snapshot()
