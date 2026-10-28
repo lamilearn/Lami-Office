@@ -14,11 +14,33 @@ Unified workspace & monorepo containing services for **AI Office** and **Lami Of
 ├── docker-compose.yml
 ├── scripts/
 │   ├── smoke_test.sh        # Probes all 7 health endpoints
-│   └── push_to_github.sh    # Push master and dev branches to GitHub
+│   ├── push_to_github.sh    # Push master and dev branches to GitHub
+│   ├── generate_tileset.py  # Builds web/assets/tiles/tileset.png (+ --check)
+│   └── generate_tilemap.py  # Builds web/assets/map/office.map.json from config.js (+ --check)
 └── services/
     ├── ai-office/           # Python FastAPI app running on port 8088 (office.fatihrumi.id)
-    └── lami-office-react/   # Interactive office app running on port 8090 (lami.fatihrumi.id)
+    └── lami-office-react/   # Interactive office app running on port 8090 (office.fatihrumi.id)
 ```
+
+## Floorplan & Assets
+
+The office is one **single enclosed floor** (architect-plan style): six themed
+rooms sealed by shared partition walls around a central hallway, each pierced by
+a 2-tile doorway. It renders from a committed tilemap + tileset:
+
+- `services/lami-office-react/web/assets/tiles/tileset.png` + `tileset.json`
+- `services/lami-office-react/web/assets/map/office.map.json`
+
+Both are generated from `web/js/config.js` (the single source of truth) and
+committed. Regenerate or verify them with:
+
+```bash
+npm run assets          # rebuild tileset.png + office.map.json
+npm run assets:check    # fail if committed assets drift from config.js
+```
+
+The renderer (`web/js/tilemap.js`) falls back to the procedural floorplan in
+`web/js/world.js` if the assets cannot be fetched.
 
 ## Branching Strategy
 
@@ -58,6 +80,13 @@ To verify service health across all 7 endpoints:
 
 # Test remote host
 ./scripts/smoke_test.sh 192.168.3.33 8088 8090
+```
+
+## Automated Tests
+
+```bash
+npm test              # full E2E suite (Tiers 1–4)
+npm run assets:check  # verify committed tileset/tilemap match config.js
 ```
 
 ## Hermes Integration (Cross-Host)

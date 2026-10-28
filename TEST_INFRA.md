@@ -11,7 +11,7 @@ The testing track uses an opaque-box, requirement-driven 4-tier testing methodol
 
 ### 2.1 Zero-Dependency Headless Runner
 - **Engine**: Native Node.js (v20+) with `node:assert/strict`.
-- **Performance**: High-speed synchronous & asynchronous test execution (<20ms for the complete 118-test suite).
+- **Performance**: High-speed synchronous & asynchronous test execution (<250ms for the complete 129-test suite).
 - **Isolation**: Each test suite creates isolated browser/DOM/canvas mock environments. No shared mutated state across tests.
 
 ### 2.2 Test Harness (`tests/harness.js`)
@@ -37,23 +37,26 @@ Project/Lami/ai-office/
 ├── package.json                   # Root package definition with npm test scripts
 ├── scripts/
 │   ├── push_to_github.sh          # Git dev push and branch management
-│   └── smoke_test.sh              # 7-point live endpoint smoke probe
+│   ├── smoke_test.sh              # 7-point live endpoint smoke probe
+│   ├── generate_tileset.py        # Builds assets/tiles/tileset.png (+ --check)
+│   └── generate_tilemap.py        # Builds assets/map/office.map.json from config.js (+ --check)
 ├── services/
 │   ├── ai-office/                 # Backend proxy & agent runner (Port 8088)
 │   └── lami-office-react/         # 2D RPG Office frontend & SSE server (Port 8090)
 │       ├── server.py              # Single-port HTTP & SSE streaming server
 │       └── web/
-│           ├── index.html         # Desktop 16:9 canvas UI & DOM overlays
-│           └── js/                # Game simulation modules
+│           ├── index.html         # Canvas UI & DOM overlays
+│           ├── assets/            # tiles/tileset.png + tileset.json + map/office.map.json
+│           └── js/                # Game simulation modules (incl. tilemap.js)
 └── tests/
     ├── harness.js                 # Headless DOM and Canvas 2D mock harness
     ├── oracle.js                  # Authoritative specification oracle reference
     ├── runner_utils.js            # Structured test context, assertions & reporter
     ├── run_all_e2e.js             # Master test suite runner executable
     └── e2e/
-        ├── tier1_feature_coverage.test.js    # Tier 1: 12 Features (60 tests)
+        ├── tier1_feature_coverage.test.js    # Tier 1: 14 Features (70 tests)
         ├── tier2_boundary_corner.test.js     # Tier 2: 9 Edge Categories (45 tests)
-        ├── tier3_cross_feature.test.js       # Tier 3: Pairwise Combinations (8 tests)
+        ├── tier3_cross_feature.test.js       # Tier 3: Pairwise Combinations (9 tests)
         └── tier4_real_world_scenarios.test.js# Tier 4: E2E Scenarios (5 tests)
 ```
 
@@ -63,11 +66,11 @@ Project/Lami/ai-office/
 
 | Tier | Suite Name | File | Test Count | Description |
 |------|------------|------|------------|-------------|
-| **Tier 1** | Feature Coverage | `tests/e2e/tier1_feature_coverage.test.js` | 60 | Validates primary happy-path behavior (>=5 tests per feature) across all 12 core features from `PROJECT.md`. |
+| **Tier 1** | Feature Coverage | `tests/e2e/tier1_feature_coverage.test.js` | 70 | Validates primary happy-path behavior (>=5 tests per feature) across all 14 core features, plus live-map path integrity and tilemap/collision consistency. |
 | **Tier 2** | Boundary & Corner Cases | `tests/e2e/tier2_boundary_corner.test.js` | 45 | Exercises degenerate inputs, extreme viewports (0x0 to 8K), zero/max coordinates, obstacle trapping, text overflow, and error handling. |
-| **Tier 3** | Cross-Feature Combinations | `tests/e2e/tier3_cross_feature.test.js` | 8 | Verifies pairwise interactions: Pathfinding across room doors, viewport resize with drawer, tool event slotting, task completion reporting, modal conflicts, tribute mode skinning. |
+| **Tier 3** | Cross-Feature Combinations | `tests/e2e/tier3_cross_feature.test.js` | 9 | Verifies pairwise interactions: Pathfinding across sealed doorways, viewport resize with drawer, tool event slotting, task completion reporting, modal conflicts, tribute mode skinning. |
 | **Tier 4** | Real-World Application Scenarios | `tests/e2e/tier4_real_world_scenarios.test.js` | 5 | Validates realistic end-to-end office workflows: Full day office cycle, 6-agent concurrency storm, user interactive session, tool fault recovery, and dual-service smoke probes. |
-| **Total** | **Complete Suite** | — | **118** | Comprehensive automated acceptance gate. |
+| **Total** | **Complete Suite** | — | **129** | Comprehensive automated acceptance gate. |
 
 ---
 
@@ -114,4 +117,4 @@ node tests/run_all_e2e.js --json > test_results.json
 - **Milestone 1 Gate**: Passing Tier 1 (Features 1-4) and Tier 2 (Categories 1, 4, 8).
 - **Milestone 2 Gate**: Passing Tier 1 (Features 5-10), Tier 2 (Categories 5, 6, 7), and Tier 3 (Scenarios X1-X6).
 - **Milestone 3 Gate**: Passing Tier 1 (Features 11-12), Tier 2 (Categories 2, 3, 9), and Tier 4 (Scenario S5).
-- **Milestone 4 Gate (Final Acceptance)**: 100% pass rate across all 118 tests in Tiers 1–4.
+- **Milestone 4 Gate (Final Acceptance)**: 100% pass rate across all 129 tests in Tiers 1–4.

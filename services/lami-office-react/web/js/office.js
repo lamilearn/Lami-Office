@@ -87,47 +87,42 @@
       this.setupInput();
     }
 
-    // ---- 2D Orthogonal Collision Matrix Generation (64 x 36) ----
+    // ---- 2D Orthogonal Collision Matrix Generation (88 x 50) ----
+    // Shared-wall floorplan: everything starts solid, then the configured room
+    // interiors, hallway bands and 2-tile doorways are opened as walkable.
     buildCollisionGrid() {
-      const cols = LO.GRID_COLS || 64;
-      const rows = LO.GRID_ROWS || 36;
-      // Initialize full matrix as solid (1 = obstacle)
+      const cols = LO.GRID_COLS || 88;
+      const rows = LO.GRID_ROWS || 50;
       const grid = Array.from({ length: rows }, () => new Uint8Array(cols).fill(1));
+      const open = (x, y) => {
+        if (x >= 0 && x < cols && y >= 0 && y < rows) grid[y][x] = 0;
+      };
 
-      // 1. Mark Central Hallway / Corridor as walkable (0)
-      for (let y = 15; y <= 18; y++) {
-        for (let x = 1; x <= 62; x++) {
-          grid[y][x] = 0;
-        }
-      }
-
-      // 2. Mark Room Interiors as walkable (0)
+      // 1. Room interiors (walkable up to the inner face of the shared wall)
       const rooms = LO.ROOMS || {};
       for (const roomId in rooms) {
         const room = rooms[roomId];
         if (!room || !room.bounds) continue;
         const { x1, y1, x2, y2 } = room.bounds;
-        for (let y = y1 + 1; y < y2; y++) {
-          for (let x = x1 + 1; x < x2; x++) {
-            grid[y][x] = 0;
-          }
-        }
-        // Ensure doorway is navigable (2 tiles wide)
-        if (room.door) {
-          const dx = room.door.x;
-          const dy = room.door.y;
-          for (let ox = 0; ox < 2; ox++) {
-            const ddx = dx + ox;
-            if (ddx >= 0 && ddx < cols && dy >= 0 && dy < rows) {
-              grid[dy][ddx] = 0;
-            }
-            if (dy <= 15 && dy + 1 < rows) grid[dy + 1][ddx] = 0;
-            if (dy >= 18 && dy - 1 >= 0) grid[dy - 1][ddx] = 0;
-          }
+        for (let y = y1; y <= y2; y++) {
+          for (let x = x1; x <= x2; x++) open(x, y);
         }
       }
 
-      // 3. Mark Furniture & Prop Obstacles as solid (1)
+      // 2. Hallway bands (north, south, lobby)
+      for (const band of (LO.HALLWAY_BANDS || [LO.HALLWAY])) {
+        if (!band) continue;
+        for (let y = band.y1; y <= band.y2; y++) {
+          for (let x = band.x1; x <= band.x2; x++) open(x, y);
+        }
+      }
+
+      // 3. Doorways (2 tiles wide) punch through the shared partition wall
+      for (const d of (LO.doorways ? LO.doorways() : [])) {
+        for (const t of d.tiles) open(t.x, t.y);
+      }
+
+      // 4. Mark Furniture & Prop Obstacles as solid (1)
       const obstacles = this.getFurnitureObstacles();
       for (const obs of obstacles) {
         const ow = obs.w || 1;
@@ -143,7 +138,7 @@
         }
       }
 
-      // 4. Safety Guarantee: Ensure all configured workstation and activity slots are walkable (0)
+      // 5. Safety Guarantee: Ensure all configured workstation and activity slots are walkable (0)
       const slots = LO.SLOTS || {};
       for (const roomId in slots) {
         if (!Array.isArray(slots[roomId])) continue;
@@ -168,59 +163,61 @@
 
     getFurnitureObstacles() {
       return [
-        // Boss Office (X: 2..19, Y: 2..14)
-        { x: 9,  y: 6, w: 5, h: 1, name: 'Executive Desk' },
-        { x: 3,  y: 4, w: 1, h: 1, name: 'Boss Plant / Monstera' },
-        { x: 14, y: 5, w: 1, h: 1, name: 'Context Trashcan' },
-        { x: 18, y: 4, w: 1, h: 1, name: 'Boss Plant East' },
+        // Boss Office (interior X: 2..27, Y: 3..18)
+        { x: 11, y: 7,  w: 7, h: 1, name: 'Executive Desk' },
+        { x: 4,  y: 5,  w: 1, h: 1, name: 'Boss Plant / Monstera' },
+        { x: 20, y: 6,  w: 1, h: 1, name: 'Context Trashcan' },
+        { x: 25, y: 5,  w: 1, h: 1, name: 'Boss Plant East' },
+        { x: 8,  y: 6,  w: 1, h: 1, name: 'Boss Bookshelf' },
 
-        // Research Lab (X: 21..39, Y: 2..14)
-        { x: 23, y: 7, w: 2, h: 1, name: 'Research Desk 1' },
-        { x: 28, y: 7, w: 2, h: 1, name: 'Research Desk 2' },
-        { x: 33, y: 7, w: 2, h: 1, name: 'Research Desk 3' },
-        { x: 22, y: 11, w: 2, h: 1, name: 'Microscope Station' },
-        { x: 34, y: 3, w: 3, h: 1, name: 'Lab Bookshelves' },
+        // Research Lab (interior X: 30..55, Y: 3..18)
+        { x: 33, y: 9,  w: 3, h: 1, name: 'Research Desk 1' },
+        { x: 41, y: 9,  w: 3, h: 1, name: 'Research Desk 2' },
+        { x: 49, y: 9,  w: 3, h: 1, name: 'Research Desk 3' },
+        { x: 33, y: 15, w: 2, h: 1, name: 'Microscope Station' },
+        { x: 49, y: 3,  w: 5, h: 1, name: 'Lab Bookshelves' },
+        { x: 31, y: 4,  w: 4, h: 1, name: 'Lab Corkboard' },
 
-        // Server Room (X: 41..58, Y: 2..14)
-        { x: 43, y: 4, w: 2, h: 2, name: 'Server Rack Cluster 1' },
-        { x: 47, y: 4, w: 2, h: 2, name: 'Server Rack Cluster 2' },
-        { x: 51, y: 4, w: 2, h: 2, name: 'Server Rack Cluster 3' },
-        { x: 55, y: 4, w: 2, h: 2, name: 'Server Rack Cluster 4' },
-        { x: 46, y: 10, w: 4, h: 1, name: 'Mainframe Ops Console' },
+        // Server Room (interior X: 58..83, Y: 3..18)
+        { x: 63, y: 6,  w: 3, h: 2, name: 'Server Rack Cluster 1' },
+        { x: 69, y: 6,  w: 3, h: 2, name: 'Server Rack Cluster 2' },
+        { x: 75, y: 6,  w: 3, h: 2, name: 'Server Rack Cluster 3' },
+        { x: 81, y: 6,  w: 2, h: 2, name: 'Server Rack Cluster 4' },
+        { x: 66, y: 14, w: 6, h: 1, name: 'Mainframe Ops Console' },
 
-        // Engineering Pit (X: 2..21, Y: 19..32)
-        { x: 5,  y: 21, w: 2, h: 1, name: 'Dev Desk 1' },
-        { x: 9,  y: 21, w: 2, h: 1, name: 'Dev Desk 2' },
-        { x: 5,  y: 25, w: 2, h: 1, name: 'Dev Desk 3' },
-        { x: 9,  y: 25, w: 2, h: 1, name: 'Dev Desk 4' },
-        { x: 15, y: 23, w: 2, h: 1, name: 'Dev Desk 5' },
-        { x: 18, y: 23, w: 2, h: 1, name: 'Dev Desk 6' },
-        { x: 13, y: 21, w: 1, h: 1, name: 'Mini Server Rig' },
+        // Engineering Pit (interior X: 2..27, Y: 24..39)
+        { x: 6,  y: 27, w: 3, h: 1, name: 'Dev Desk 1' },
+        { x: 11, y: 27, w: 3, h: 1, name: 'Dev Desk 2' },
+        { x: 6,  y: 32, w: 3, h: 1, name: 'Dev Desk 3' },
+        { x: 11, y: 32, w: 3, h: 1, name: 'Dev Desk 4' },
+        { x: 17, y: 30, w: 3, h: 1, name: 'Dev Desk 5' },
+        { x: 22, y: 30, w: 3, h: 1, name: 'Dev Desk 6' },
+        { x: 16, y: 27, w: 1, h: 1, name: 'Mini Server Rig' },
 
-        // Meeting Room (X: 23..39, Y: 19..32)
-        { x: 28, y: 24, w: 7, h: 2, name: 'Conference Table' },
-        { x: 25, y: 19, w: 3, h: 1, name: 'Multi-Mode Whiteboard' },
+        // Meeting Room (interior X: 30..55, Y: 24..39)
+        { x: 38, y: 30, w: 12, h: 3, name: 'Conference Table' },
+        { x: 32, y: 24, w: 5, h: 1,  name: 'Multi-Mode Whiteboard' },
 
-        // Pantry / Lounge (X: 41..58, Y: 19..32)
-        { x: 43, y: 22, w: 4, h: 1, name: 'Espresso Bar Counter' },
-        { x: 51, y: 23, w: 1, h: 1, name: 'Water Cooler' },
-        { x: 45, y: 27, w: 4, h: 1, name: 'Teal Lounge Sofa' },
-        { x: 46, y: 29, w: 2, h: 1, name: 'Coffee Table' },
-        { x: 55, y: 27, w: 2, h: 2, name: 'Snack Vending Machine' }
+        // Pantry / Lounge (interior X: 58..83, Y: 24..39)
+        { x: 60, y: 27, w: 6, h: 1, name: 'Espresso Bar Counter' },
+        { x: 74, y: 28, w: 1, h: 1, name: 'Water Cooler' },
+        { x: 63, y: 33, w: 6, h: 1, name: 'Teal Lounge Sofa' },
+        { x: 68, y: 36, w: 3, h: 1, name: 'Coffee Table' },
+        { x: 78, y: 33, w: 3, h: 2, name: 'Snack Vending Machine' }
       ];
     }
 
     isWalkable(tileX, tileY) {
       const x = Math.floor(tileX);
       const y = Math.floor(tileY);
-      if (x < 0 || x >= (LO.GRID_COLS || 64) || y < 0 || y >= (LO.GRID_ROWS || 36)) return false;
+      if (x < 0 || x >= (LO.GRID_COLS || 88) || y < 0 || y >= (LO.GRID_ROWS || 50)) return false;
       return this.collisionGrid[y][x] === 0;
     }
 
     setCollision(tileX, tileY, isSolid) {
       const x = Math.floor(tileX);
       const y = Math.floor(tileY);
-      if (x >= 0 && x < (LO.GRID_COLS || 64) && y >= 0 && y < (LO.GRID_ROWS || 36)) {
+      if (x >= 0 && x < (LO.GRID_COLS || 88) && y >= 0 && y < (LO.GRID_ROWS || 50)) {
         this.collisionGrid[y][x] = isSolid ? 1 : 0;
       }
     }
@@ -230,8 +227,8 @@
       const grid = customGrid || this.collisionGrid;
       if (!grid) return null;
 
-      const cols = LO.GRID_COLS || 64;
-      const rows = LO.GRID_ROWS || 36;
+      const cols = LO.GRID_COLS || 88;
+      const rows = LO.GRID_ROWS || 50;
       const startX = start.x !== undefined ? start.x : start.col;
       const startY = start.y !== undefined ? start.y : start.row;
       const goalX = goal.x !== undefined ? goal.x : goal.col;
@@ -519,7 +516,7 @@
           watercooler: { x: 51, y: 23, w: 1, h: 1 }
         };
 
-        // a. Context Window Trashcan (Boss Office at tile 14, 5)
+        // a. Context Window Trashcan (Boss Office, from LO.PROPS.trashcan)
         const tc = props.trashcan;
         if (tc) {
           const tcCenterX = (tc.x + (tc.w || 1) / 2) * LO.TILE_SIZE;
@@ -531,11 +528,11 @@
           }
         }
 
-        // b. Multi-Mode Whiteboard (Meeting Room at tiles 25-28, 19-20)
+        // b. Multi-Mode Whiteboard (Meeting Room, 5x2 tiles hanging on the north wall)
         const wb = props.whiteboard;
         if (wb) {
           const wbX1 = wb.x * LO.TILE_SIZE - 4;
-          const wbX2 = (wb.x + (wb.w || 4)) * LO.TILE_SIZE + 4;
+          const wbX2 = (wb.x + (wb.w || 5)) * LO.TILE_SIZE + 4;
           const wbY1 = wb.y * LO.TILE_SIZE - 16;
           const wbY2 = (wb.y + (wb.h || 2)) * LO.TILE_SIZE + 16;
           if (canvasX >= wbX1 && canvasX <= wbX2 && canvasY >= wbY1 && canvasY <= wbY2) {
@@ -547,7 +544,7 @@
           }
         }
 
-        // c. Water Cooler / Pantry Dispenser (Pantry at tile 51, 23)
+        // c. Water Cooler / Pantry Dispenser (from LO.PROPS.watercooler)
         const wc = props.watercooler || props.waterCooler;
         if (wc) {
           const wcCenterX = (wc.x + (wc.w || 1) / 2) * LO.TILE_SIZE;
@@ -737,11 +734,9 @@
               b.facing = dy > 0 ? 'N' : 'S';
             }
 
-            // Room-aware contextual encounters
-            const inMeeting = (a.col >= 23 && a.col <= 39 && a.row >= 19 && a.row <= 32) ||
-                              (b.col >= 23 && b.col <= 39 && b.row >= 19 && b.row <= 32);
-            const inPantry = (a.col >= 41 && a.col <= 58 && a.row >= 19 && a.row <= 32) ||
-                             (b.col >= 41 && b.col <= 58 && b.row >= 19 && b.row <= 32);
+            // Room-aware contextual encounters (bounds come from config.js)
+            const inMeeting = (LO.roomAt(a.col, a.row) === 'meeting') || (LO.roomAt(b.col, b.row) === 'meeting');
+            const inPantry = (LO.roomAt(a.col, a.row) === 'pantry') || (LO.roomAt(b.col, b.row) === 'pantry');
 
             const isBoss = a.id === 'lami' || b.id === 'lami';
             if (isBoss) {
@@ -839,6 +834,10 @@
       for (const c of allChars) {
         c.render(this.ctx);
       }
+
+      // 4. Wall tops, doorway frames & wall decor painted over characters so a
+      //    room reads as an enclosed box (architect-plan / dollhouse depth).
+      if (this.world.renderOverlay) this.world.renderOverlay(this.ctx);
 
       this.ctx.restore();
     }

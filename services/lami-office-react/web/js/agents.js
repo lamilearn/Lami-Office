@@ -634,8 +634,8 @@
               id: 'corkboard',
               name: 'Cek Papan Catatan',
               floor: 0,
-              col: 35,
-              row: 4,
+              col: 32,
+              row: 6,
               facing: 'N',
               duration: 7,
               startBubble: 'Cek hipotesis di papan 📌',
@@ -648,8 +648,8 @@
               id: 'stretch',
               name: 'Peregangan Jendela',
               floor: 0,
-              col: 38,
-              row: 12,
+              col: 54,
+              row: 17,
               facing: 'E',
               duration: 6,
               startBubble: 'Peregangan badan dulu~ ✨',
@@ -662,8 +662,8 @@
               id: 'reading',
               name: 'Membaca Jurnal',
               floor: 0,
-              col: 22,
-              row: 12,
+              col: 33,
+              row: 17,
               facing: 'W',
               duration: 7,
               startBubble: 'Buka referensi jurnal 📖',
@@ -676,8 +676,8 @@
               id: 'coffee_pantry',
               name: 'Ngopi di Pantry',
               floor: 0,
-              col: 45,
-              row: 25,
+              col: 62,
+              row: 30,
               facing: 'N',
               duration: 8,
               startBubble: 'Turun ke pantry, ngopi dulu 🍵',
@@ -690,8 +690,8 @@
               id: 'consult_boss',
               name: 'Lapor Boss Lami',
               floor: 0,
-              col: 11,
-              row: 8,
+              col: 14,
+              row: 9,
               facing: 'N',
               duration: 6.5,
               startBubble: 'Naik ke kantor Boss Lami 👑',
@@ -711,8 +711,8 @@
               id: 'server_mini',
               name: 'Cek Mini Server',
               floor: 0,
-              col: 14,
-              row: 22,
+              col: 20,
+              row: 28,
               facing: 'N',
               duration: 7,
               startBubble: 'Cek build runner lokal ⚙️',
@@ -725,8 +725,8 @@
               id: 'arch_board',
               name: 'Desain Skema',
               floor: 0,
-              col: 20,
-              row: 30,
+              col: 24,
+              row: 37,
               facing: 'E',
               duration: 7,
               startBubble: 'Petakan skema arsitektur 📐',
@@ -739,8 +739,8 @@
               id: 'peer_review',
               name: 'Code Review Tim',
               floor: 0,
-              col: 3,
-              row: 24,
+              col: 4,
+              row: 31,
               facing: 'W',
               duration: 6,
               startBubble: 'Cek PR kodingan teman 👀',
@@ -753,8 +753,8 @@
               id: 'pantry_snack',
               name: 'Cari Cemilan',
               floor: 0,
-              col: 54,
-              row: 28,
+              col: 77,
+              row: 32,
               facing: 'N',
               duration: 8,
               startBubble: 'Turun cari cemilan koding 🍫',
@@ -771,8 +771,8 @@
               id: 'agenda_board',
               name: 'Update Whiteboard',
               floor: 0,
-              col: 26,
-              row: 20,
+              col: 33,
+              row: 26,
               facing: 'N',
               duration: 7,
               startBubble: 'Tulis agenda rapat baru 📝',
@@ -785,8 +785,8 @@
               id: 'podium',
               name: 'Presentasi Progres',
               floor: 0,
-              col: 36,
-              row: 22,
+              col: 52,
+              row: 31,
               facing: 'W',
               duration: 6.5,
               startBubble: 'Siapkan materi presentasi 📊',
@@ -799,8 +799,8 @@
               id: 'report_boss',
               name: 'Lapor Boss Lami',
               floor: 0,
-              col: 11,
-              row: 8,
+              col: 14,
+              row: 9,
               facing: 'N',
               duration: 6.5,
               startBubble: 'Bawa berkas ke Boss Lami 👑',
@@ -819,8 +819,8 @@
               id: 'lounge_relax',
               name: 'Santai di Sofa',
               floor: 0,
-              col: 48,
-              row: 29,
+              col: 67,
+              row: 36,
               facing: 'N',
               duration: 8,
               startBubble: 'Turun santai di sofa lounge 🛋️',
@@ -840,8 +840,8 @@
               id: 'patrol_rack_a',
               name: 'Inspeksi Rack A',
               floor: 0,
-              col: 44,
-              row: 7,
+              col: 64,
+              row: 11,
               facing: 'N',
               duration: 7,
               startBubble: 'Patroli suhu server Rack A ❄️',
@@ -854,8 +854,8 @@
               id: 'patrol_rack_b',
               name: 'Inspeksi Rack B',
               floor: 0,
-              col: 48,
-              row: 7,
+              col: 70,
+              row: 11,
               facing: 'N',
               duration: 7,
               startBubble: 'Cek traffic jaringan Rack B ⚡',
@@ -868,8 +868,8 @@
               id: 'cables_patch',
               name: 'Cek Kabel Jaringan',
               floor: 0,
-              col: 52,
-              row: 7,
+              col: 76,
+              row: 11,
               facing: 'N',
               duration: 6,
               startBubble: 'Cek kerapian kabel switch 🔧',
@@ -882,8 +882,8 @@
               id: 'coffee_break',
               name: 'Ngopi ke Pantry',
               floor: 0,
-              col: 46,
-              row: 24,
+              col: 63,
+              row: 30,
               facing: 'N',
               duration: 8,
               startBubble: 'Naik dari basement, ngopi ☕',
@@ -1056,8 +1056,8 @@
           id: 'window',
           name: 'Menatap Kota',
           floor: 0,
-          col: 16,
-          row: 3,
+          col: 24,
+          row: 5,
           facing: 'N',
           duration: 7,
           startBubble: 'Lihat pemandangan kota dulu 🏙️',
@@ -1071,7 +1071,7 @@
           name: 'Merawat Bonsai',
           floor: 0,
           col: 5,
-          row: 4,
+          row: 5,
           facing: 'W',
           duration: 6,
           startBubble: 'Cek tanaman bonsai kantor 🌱',
@@ -1084,8 +1084,8 @@
           id: 'balcony',
           name: 'Pantau Gedung',
           floor: 0,
-          col: 3,
-          row: 12,
+          col: 4,
+          row: 17,
           facing: 'W',
           duration: 6.5,
           startBubble: 'Tinjau suasana kerja dari balkon 👑',
@@ -1098,8 +1098,8 @@
           id: 'pantry_visit',
           name: 'Sapa Tim di Pantry',
           floor: 0,
-          col: 47,
-          row: 26,
+          col: 76,
+          row: 30,
           facing: 'N',
           duration: 8,
           startBubble: 'Turun ke Pantry sapa tim ☕',
@@ -1331,10 +1331,10 @@
   class MochiCat {
     constructor() {
       this.floor = 0; // single-floor 2D office
-      this.col = 51;
-      this.row = 26;
-      this.targetCol = 51;
-      this.targetRow = 26;
+      this.col = 72;
+      this.row = 36;
+      this.targetCol = 72;
+      this.targetRow = 36;
       this.facing = 'W';
       this.state = 'sit';
       this.sprites = LO.getCatSprites();
@@ -1360,8 +1360,8 @@
         const roll = Math.random();
         if (roll < 0.45) {
           this.state = 'walk';
-          this.targetCol = 50 + Math.random() * 3;   // open lounge floor
-          this.targetRow = 25 + Math.random() * 4;
+          this.targetCol = 70 + Math.random() * 8;   // open lounge floor
+          this.targetRow = 30 + Math.random() * 8;
           this.facing = this.targetCol > this.col ? 'E' : 'W';
         } else if (roll < 0.8) {
           this.state = 'sit';
@@ -1458,8 +1458,8 @@
       this.speed = 2.4;
       this.carriedItem = 'paper'; // carries food box
       this.targetFloor = 0;
-      this.targetCol = 47;
-      this.targetRow = 26;
+      this.targetCol = 70;
+      this.targetRow = 32;
       this.state = 'walk';
       this.phase = 'entering'; // 'entering' | 'delivering' | 'leaving'
       this.waitTimer = 0;
@@ -1493,7 +1493,7 @@
         const office = window.LO?.office;
         if (office) {
           office.pizzaEventTimer = 25.0; // box stays for 25s
-          const pantryStaff = [office.lami, ...office.residents, ...office.subagents.values()].filter((c) => c && Math.hypot(c.col - 47, c.row - 26) < 6);
+          const pantryStaff = [office.lami, ...office.residents, ...office.subagents.values()].filter((c) => c && Math.hypot(c.col - 70, c.row - 32) < 6);
           for (const s of pantryStaff) {
             s.setBubble('Wah mantap, makasih bang! 🎉', 3.0);
             s.setEmote('❤️', 2.5);

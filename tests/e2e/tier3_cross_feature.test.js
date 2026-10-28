@@ -7,40 +7,45 @@
 
 const { describe, it, assert } = require('../runner_utils');
 const ORACLE = require('../oracle');
-const { createBrowserEnvironment } = require('../harness');
+const { createBrowserEnvironment, loadScriptIntoEnv } = require('../harness');
+
+function liveGrid() {
+  const env = createBrowserEnvironment();
+  const LO = loadScriptIntoEnv(env, 'config.js');
+  loadScriptIntoEnv(env, 'office.js');
+  const grid = LO.Office.prototype.buildCollisionGrid.call({
+    getFurnitureObstacles: LO.Office.prototype.getFurnitureObstacles
+  });
+  return { LO, grid };
+}
 
 describe('Tier 3 — Cross-Feature: Movement, Pathfinding & Room Transitions', () => {
-  it('X1: Character navigates between Boss Office and Engineering Pit through hallway', () => {
-    // 64x36 collision grid: all 0 except room boundaries
-    const grid = Array.from({ length: 36 }, () => new Array(64).fill(0));
+  it('X1: Character navigates between Boss Office and the hallway through its doorway', () => {
+    const { LO, grid } = liveGrid();
+    const boss = LO.ROOMS.boss;
+    const door = boss.door;
 
-    // Fill walls around boss room except door (10, 15)
-    const boss = ORACLE.ROOM_DEFINITIONS.boss.bounds;
-    for (let x = boss.x1; x <= boss.x2; x++) {
-      grid[boss.y1][x] = 1;
-      grid[boss.y2][x] = 1;
+    const start = { x: boss.bounds.x1 + 3, y: boss.bounds.y1 + 4 };
+    const goal = { x: door.x, y: LO.HALLWAY.bounds.y1 + 1 };
+    assert.strictEqual(grid[start.y][start.x], 0, 'Start tile must be walkable');
+    assert.strictEqual(grid[goal.y][goal.x], 0, 'Hallway goal must be walkable');
+
+    const path = LO.findOrthogonalPath(start, goal, grid);
+    assert.ok(path, 'Path out of the room through the door must exist');
+    for (const step of path) {
+      assert.strictEqual(grid[step.y][step.x], 0, `Waypoint (${step.x},${step.y}) must be walkable`);
     }
-    for (let y = boss.y1; y <= boss.y2; y++) {
-      grid[y][boss.x1] = 1;
-      grid[y][boss.x2] = 1;
+    for (let i = 1; i < path.length; i++) {
+      const a = path[i - 1], b = path[i];
+      assert.ok(a.x === b.x || a.y === b.y, 'Every segment must be strictly orthogonal');
     }
-    grid[15][10] = 0; // Doorway
 
-    // Start inside boss room (5, 5), Goal in hallway (10, 17)
-    const path = ORACLE.findOrthogonalPath({ x: 5, y: 5 }, { x: 10, y: 17 }, grid);
-    assert.ok(path, 'Path out of room through door must exist');
-
-    // Verify path passes through doorway (10, 15)
-    const hasDoor = path.some(p => p.x === 10 && p.y === 15);
-    assert.strictEqual(hasDoor, true, 'Path must pass through doorway tile (10, 15)');
-
-    // Verify all steps are cardinal
-    for (let i = 0; i < path.length - 1; i++) {
-      const p1 = path[i];
-      const p2 = path[i + 1];
-      const dist = Math.abs(p1.x - p2.x) + Math.abs(p1.y - p2.y);
-      assert.strictEqual(dist, 1, 'Every movement step must be cardinal');
-    }
+    // Sealing the doorway must make the room unreachable: the wall truly encloses it.
+    const sealed = grid.map(row => row.slice());
+    sealed[door.y][door.x] = 1;
+    sealed[door.y][door.x + 1] = 1;
+    const blockedPath = LO.findOrthogonalPath(start, goal, sealed);
+    assert.strictEqual(blockedPath, null, 'With the doorway sealed the hallway must be unreachable');
   });
 });
 

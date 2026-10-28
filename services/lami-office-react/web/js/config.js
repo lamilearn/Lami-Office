@@ -2,12 +2,12 @@
 (function () {
   const LO = (window.LO = window.LO || {});
 
-  // ---- 2D Top-Down Orthogonal World Dimensions (16:9 Desktop Base) ----
+  // ---- 2D Top-Down Orthogonal World Dimensions (Desktop Base) ----
   LO.TILE_SIZE = 16;   // 16x16 pixel tiles
-  LO.GRID_COLS = 64;   // 64 tiles wide (1024 px)
-  LO.GRID_ROWS = 36;   // 36 tiles high (576 px)
-  LO.CONTENT_W = LO.GRID_COLS * LO.TILE_SIZE; // 1024 px
-  LO.CONTENT_H = LO.GRID_ROWS * LO.TILE_SIZE; // 576 px
+  LO.GRID_COLS = 88;   // 88 tiles wide (1408 px)
+  LO.GRID_ROWS = 50;   // 50 tiles high (800 px)
+  LO.CONTENT_W = LO.GRID_COLS * LO.TILE_SIZE; // 1408 px
+  LO.CONTENT_H = LO.GRID_ROWS * LO.TILE_SIZE; // 800 px
 
   // Backward-compatibility geometric aliases
   LO.ISO_TILE_W = LO.TILE_SIZE;
@@ -176,7 +176,12 @@
     return null;
   };
 
-  // ---- Themed 2D Office Rooms (Contiguous Single Floorplan) ----
+  // ---- Themed 2D Office Rooms (Single Contiguous Floorplan / Architect Plan) ----
+  // Bounds are the walkable INTERIOR. Rooms are sealed by shared partition
+  // walls (1-2 tiles): vertical walls between side-by-side rooms and a wall row
+  // above/below the central hallway, each pierced only by a 2-tile doorway.
+  //   2x3 layout: top row boss | research | server over the central hallway,
+  //   bottom row engineering | meeting | pantry beneath it.
   LO.ROOMS = {
     boss: {
       id: 'boss',
@@ -184,14 +189,14 @@
       label: 'BOSS OFFICE',
       short: 'BOSS',
       icon: '👑',
-      bounds: { x1: 2, y1: 2, x2: 19, y2: 14 },
-      door: { x: 10, y: 14 },
+      bounds: { x1: 2, y1: 3, x2: 27, y2: 18 },
+      door: { x: 14, y: 19, side: 'S' },
       floor1: '#fcedd7',
       floor2: '#f7dfbe',
       wall: '#b5834f',
       wallDark: '#875824',
       trim: '#6a431a',
-      carpet: { x1: 5, y1: 5, x2: 16, y2: 11, color: '#9333ea', border: '#c084fc' }
+      carpet: { x1: 5, y1: 6, x2: 24, y2: 15, color: '#9333ea', border: '#c084fc' }
     },
     research: {
       id: 'research',
@@ -199,8 +204,8 @@
       label: 'RESEARCH LAB',
       short: 'LAB',
       icon: '🔍',
-      bounds: { x1: 21, y1: 2, x2: 39, y2: 14 },
-      door: { x: 30, y: 14 },
+      bounds: { x1: 30, y1: 3, x2: 55, y2: 18 },
+      door: { x: 42, y: 19, side: 'S' },
       floor1: '#e1f0fc',
       floor2: '#cee4f8',
       wall: '#609ac5',
@@ -213,8 +218,8 @@
       label: 'SERVER ROOM',
       short: 'SRV',
       icon: '🖥️',
-      bounds: { x1: 41, y1: 2, x2: 58, y2: 14 },
-      door: { x: 49, y: 14 },
+      bounds: { x1: 58, y1: 3, x2: 83, y2: 18 },
+      door: { x: 70, y: 19, side: 'S' },
       floor1: '#262238',
       floor2: '#1d192c',
       wall: '#5c5478',
@@ -227,8 +232,8 @@
       label: 'ENGINEERING PIT',
       short: 'ENG',
       icon: '💻',
-      bounds: { x1: 2, y1: 19, x2: 21, y2: 32 },
-      door: { x: 11, y: 19 },
+      bounds: { x1: 2, y1: 24, x2: 27, y2: 39 },
+      door: { x: 14, y: 23, side: 'N' },
       floor1: '#e6f7ec',
       floor2: '#d1f0db',
       wall: '#4f9b6c',
@@ -241,8 +246,8 @@
       label: 'MEETING ROOM',
       short: 'MEET',
       icon: '📋',
-      bounds: { x1: 23, y1: 19, x2: 39, y2: 32 },
-      door: { x: 31, y: 19 },
+      bounds: { x1: 30, y1: 24, x2: 55, y2: 39 },
+      door: { x: 42, y: 23, side: 'N' },
       floor1: '#fff0e5',
       floor2: '#fde0cf',
       wall: '#b56d43',
@@ -255,8 +260,8 @@
       label: 'PANTRY & LOUNGE',
       short: 'LOUNGE',
       icon: '☕',
-      bounds: { x1: 41, y1: 19, x2: 58, y2: 32 },
-      door: { x: 49, y: 19 },
+      bounds: { x1: 58, y1: 24, x2: 83, y2: 39 },
+      door: { x: 70, y: 23, side: 'N' },
       floor1: '#fff9d6',
       floor2: '#fef1b8',
       wall: '#b89d3b',
@@ -268,20 +273,27 @@
   // Backward compatibility alias: coding -> engineering
   LO.ROOMS.coding = LO.ROOMS.engineering;
 
-  // Central Hallway & Main Entrance
+  // ---- Building Envelope (single floor slab, perimeter walls) ----
+  LO.BUILDING = { x1: 1, y1: 2, x2: 84, y2: 40 };
+
+  // ---- Central hallway: one band between the two room rows, with a west
+  //      entrance stub that opens onto the street. ----
   LO.HALLWAY = {
-    bounds: { x1: 0, y1: 15, x2: 63, y2: 18 },
+    bounds: { x1: 2, y1: 20, x2: 83, y2: 22 },
     floor1: '#f1f3f5',
     floor2: '#e9ecef',
     wall: '#868e96'
   };
-  LO.ENTRANCE = { x: 1, y: 16, facing: 'E' };
-  LO.DOOR_COL = 1;
-  LO.DOOR_ROW = 16;
-  LO.LIFT_COL = 0;
-  LO.LIFT_ROW = 16;
-  LO.LIFT_WAIT_COL = 1;
-  LO.LIFT_WAIT_ROW = 16;
+  LO.ENTRANCE_STUB = { x1: 1, y1: 21, x2: 2, y2: 21 };
+  LO.HALLWAY_BANDS = [LO.HALLWAY.bounds, LO.ENTRANCE_STUB];
+
+  LO.ENTRANCE = { x: 2, y: 21, facing: 'E' };
+  LO.DOOR_COL = 2;
+  LO.DOOR_ROW = 21;
+  LO.LIFT_COL = 1;
+  LO.LIFT_ROW = 21;
+  LO.LIFT_WAIT_COL = 2;
+  LO.LIFT_WAIT_ROW = 21;
 
   // Legacy Floors array & index for backward compatibility with UI/HUD
   LO.FLOORS = [
@@ -308,66 +320,66 @@
   // Facing: 'S' (Down/Front) | 'N' (Up/Back) | 'E' (Right) | 'W' (Left)
   LO.SLOTS = {
     boss: [
-      { x: 11, y: 8,  col: 11, row: 8,  type: 'stand', facing: 'N', report: true }, // visitor report spot
-      { x: 7,  y: 9,  col: 7,  row: 9,  type: 'sit',   facing: 'E' },                // guest chair left
-      { x: 15, y: 9,  col: 15, row: 9,  type: 'sit',   facing: 'W' }                 // guest chair right
+      { x: 14, y: 9,  col: 14, row: 9,  type: 'stand', facing: 'N', report: true }, // visitor report spot
+      { x: 8,  y: 11, col: 8,  row: 11, type: 'sit',   facing: 'E' },                // guest chair left
+      { x: 20, y: 11, col: 20, row: 11, type: 'sit',   facing: 'W' }                 // guest chair right
     ],
     research: [
-      { x: 24, y: 8,  col: 24, row: 8,  type: 'desk',  facing: 'N' }, // Rina (Kepala Riset)
-      { x: 29, y: 8,  col: 29, row: 8,  type: 'desk',  facing: 'N' }, // Researcher 2
-      { x: 34, y: 8,  col: 34, row: 8,  type: 'desk',  facing: 'N' }, // Researcher 3
-      { x: 25, y: 12, col: 25, row: 12, type: 'stand', facing: 'E' }, // Microscope inspection
-      { x: 35, y: 12, col: 35, row: 12, type: 'stand', facing: 'W' }  // Research corkboard
+      { x: 34, y: 10, col: 34, row: 10, type: 'desk',  facing: 'N' }, // Rina (Kepala Riset)
+      { x: 42, y: 10, col: 42, row: 10, type: 'desk',  facing: 'N' }, // Researcher 2
+      { x: 50, y: 10, col: 50, row: 10, type: 'desk',  facing: 'N' }, // Researcher 3
+      { x: 35, y: 15, col: 35, row: 15, type: 'stand', facing: 'E' }, // Microscope inspection
+      { x: 52, y: 15, col: 52, row: 15, type: 'stand', facing: 'W' }  // Research corkboard
     ],
     server: [
-      { x: 48, y: 11, col: 48, row: 11, type: 'desk',  facing: 'N' }, // Bima (Admin Server)
-      { x: 44, y: 6,  col: 44, row: 6,  type: 'stand', facing: 'N' }, // Rack cluster A
-      { x: 48, y: 6,  col: 48, row: 6,  type: 'stand', facing: 'N' }, // Rack cluster B
-      { x: 52, y: 6,  col: 52, row: 6,  type: 'stand', facing: 'N' }  // Rack cluster C
+      { x: 70, y: 15, col: 70, row: 15, type: 'desk',  facing: 'N' }, // Bima (Admin Server)
+      { x: 64, y: 9,  col: 64, row: 9,  type: 'stand', facing: 'N' }, // Rack cluster A
+      { x: 70, y: 9,  col: 70, row: 9,  type: 'stand', facing: 'N' }, // Rack cluster B
+      { x: 76, y: 9,  col: 76, row: 9,  type: 'stand', facing: 'N' }  // Rack cluster C
     ],
     engineering: [
-      { x: 6,  y: 22, col: 6,  row: 22, type: 'desk',  facing: 'N' }, // Dodo (Senior Coder, facing desk & screen)
-      { x: 10, y: 22, col: 10, row: 22, type: 'desk',  facing: 'N' }, // Developer 2
-      { x: 6,  y: 26, col: 6,  row: 26, type: 'desk',  facing: 'N' }, // Developer 3
-      { x: 10, y: 26, col: 10, row: 26, type: 'desk',  facing: 'N' }, // Developer 4
-      { x: 15, y: 24, col: 15, row: 24, type: 'desk',  facing: 'N' }, // Developer 5
-      { x: 19, y: 24, col: 19, row: 24, type: 'desk',  facing: 'N' }  // Developer 6
+      { x: 7,  y: 28, col: 7,  row: 28, type: 'desk',  facing: 'N' }, // Dodo (Senior Coder)
+      { x: 12, y: 28, col: 12, row: 28, type: 'desk',  facing: 'N' }, // Developer 2
+      { x: 7,  y: 33, col: 7,  row: 33, type: 'desk',  facing: 'N' }, // Developer 3
+      { x: 12, y: 33, col: 12, row: 33, type: 'desk',  facing: 'N' }, // Developer 4
+      { x: 18, y: 31, col: 18, row: 31, type: 'desk',  facing: 'N' }, // Developer 5
+      { x: 23, y: 31, col: 23, row: 31, type: 'desk',  facing: 'N' }  // Developer 6
     ],
     meeting: [
-      { x: 29, y: 23, col: 29, row: 23, type: 'sit',   facing: 'S' }, // Sekar (Sekretaris)
-      { x: 31, y: 23, col: 31, row: 23, type: 'sit',   facing: 'S' }, // Attendee 2
-      { x: 33, y: 23, col: 33, row: 23, type: 'sit',   facing: 'S' }, // Attendee 3
-      { x: 29, y: 27, col: 29, row: 27, type: 'sit',   facing: 'N' }, // Attendee 4
-      { x: 31, y: 27, col: 31, row: 27, type: 'sit',   facing: 'N' }, // Attendee 5
-      { x: 33, y: 27, col: 33, row: 27, type: 'sit',   facing: 'N' }  // Attendee 6
+      { x: 41, y: 29, col: 41, row: 29, type: 'sit',   facing: 'S' }, // Sekar (Sekretaris)
+      { x: 44, y: 29, col: 44, row: 29, type: 'sit',   facing: 'S' }, // Attendee 2
+      { x: 47, y: 29, col: 47, row: 29, type: 'sit',   facing: 'S' }, // Attendee 3
+      { x: 41, y: 33, col: 41, row: 33, type: 'sit',   facing: 'N' }, // Attendee 4
+      { x: 44, y: 33, col: 44, row: 33, type: 'sit',   facing: 'N' }, // Attendee 5
+      { x: 47, y: 33, col: 47, row: 33, type: 'sit',   facing: 'N' }  // Attendee 6
     ],
     pantry: [
-      { x: 44, y: 24, col: 44, row: 24, type: 'stand', facing: 'N' }, // Espresso / coffee bar
-      { x: 47, y: 28, col: 47, row: 28, type: 'sit',   facing: 'S' }, // Teal sofa seat 1
-      { x: 49, y: 28, col: 49, row: 28, type: 'sit',   facing: 'S' }, // Teal sofa seat 2
-      { x: 51, y: 24, col: 51, row: 24, type: 'stand', facing: 'N' }, // Water cooler dispenser
-      { x: 55, y: 28, col: 55, row: 28, type: 'stand', facing: 'W' }  // Snack vending machine
+      { x: 63, y: 28, col: 63, row: 28, type: 'stand', facing: 'N' }, // Espresso / coffee bar
+      { x: 64, y: 34, col: 64, row: 34, type: 'sit',   facing: 'S' }, // Teal sofa seat 1
+      { x: 66, y: 34, col: 66, row: 34, type: 'sit',   facing: 'S' }, // Teal sofa seat 2
+      { x: 73, y: 29, col: 73, row: 29, type: 'stand', facing: 'N' }, // Water cooler dispenser
+      { x: 77, y: 34, col: 77, row: 34, type: 'stand', facing: 'W' }  // Snack vending machine
     ]
   };
 
   // Backward compatibility alias for coding slots
   LO.SLOTS.coding = LO.SLOTS.engineering;
 
-  // Boss Lami's Seat (Behind executive desk in Boss Office, facing South towards visitor)
+  // Boss Lami's Seat (behind executive desk in Boss Office, facing South)
   LO.LAMI_SEAT = {
-    x: 11,
-    y: 5,
-    col: 11,
-    row: 5,
+    x: 14,
+    y: 6,
+    col: 14,
+    row: 6,
     floor: 0,
     facing: 'S'
   };
 
   // Interactive Props (2D World Coordinates)
   LO.PROPS = {
-    trashcan: { id: 'trashcan', x: 14, y: 5, col: 14, row: 5, w: 1, h: 1, floor: 0, room: 'boss', name: 'Context Window Trashcan' },
-    whiteboard: { id: 'whiteboard', x: 25, y: 19, col: 25, row: 19, w: 4, h: 2, floor: 3, room: 'meeting', name: 'Multi-Mode Whiteboard' },
-    watercooler: { id: 'watercooler', x: 51, y: 23, col: 51, row: 23, w: 1, h: 1, floor: 4, room: 'pantry', name: 'Water Cooler Dispenser' }
+    trashcan: { id: 'trashcan', x: 20, y: 6, col: 20, row: 6, w: 1, h: 1, floor: 0, room: 'boss', name: 'Context Window Trashcan' },
+    whiteboard: { id: 'whiteboard', x: 32, y: 24, col: 32, row: 24, w: 5, h: 2, floor: 3, room: 'meeting', name: 'Multi-Mode Whiteboard' },
+    watercooler: { id: 'watercooler', x: 74, y: 28, col: 74, row: 28, w: 1, h: 1, floor: 4, room: 'pantry', name: 'Water Cooler Dispenser' }
   };
   LO.PROPS.waterCooler = LO.PROPS.watercooler;
 
@@ -426,57 +438,57 @@
   // ---- Shared room routines (used by staff without a personal script) ----
   LO.ROOM_ROUTINES = {
     research: [
-      { id: 'room-corkboard', name: 'Cek Papan Riset', floor: 0, col: 35, row: 4, facing: 'N', duration: 6,
+      { id: 'room-corkboard', name: 'Cek Papan Riset', floor: 0, col: 32, row: 6, facing: 'N', duration: 6,
         startBubble: 'Cek temuan tim di papan 📌', arriveBubble: 'Hipotesis baru tercatat rapi 💡', arriveEmote: '💡',
         leaveBubble: 'Lanjut olah data 📊', task: 'Review Papan Riset' },
-      { id: 'room-window', name: 'Istirahat Mata', floor: 0, col: 38, row: 12, facing: 'E', duration: 6,
+      { id: 'room-window', name: 'Istirahat Mata', floor: 0, col: 54, row: 17, facing: 'E', duration: 6,
         startBubble: 'Lihat jendela sebentar 🌤️', arriveBubble: 'Mata seger, fokus lagi ✨', arriveEmote: '✨',
         leaveBubble: 'Balik ke meja riset 🔍', task: 'Istirahat Sejenak' },
-      { id: 'room-reading', name: 'Baca Referensi', floor: 0, col: 22, row: 12, facing: 'W', duration: 7,
+      { id: 'room-reading', name: 'Baca Referensi', floor: 0, col: 32, row: 17, facing: 'W', duration: 7,
         startBubble: 'Buka jurnal referensi 📚', arriveBubble: 'Metode ini menarik! 🔍', arriveEmote: '📚',
         leaveBubble: 'Diskusi ke kepala riset 🤝', task: 'Membaca Jurnal' }
     ],
     engineering: [
-      { id: 'room-mini-rig', name: 'Cek Build Runner', floor: 0, col: 14, row: 22, facing: 'N', duration: 6,
+      { id: 'room-mini-rig', name: 'Cek Build Runner', floor: 0, col: 20, row: 28, facing: 'N', duration: 6,
         startBubble: 'Cek build runner lokal ⚙️', arriveBubble: 'Build hijau, test pass ✅', arriveEmote: '⚙️',
         leaveBubble: 'Lanjut coding 💻', task: 'Inspeksi Build Runner' },
-      { id: 'room-corner', name: 'Diskusi Arsitektur', floor: 0, col: 20, row: 30, facing: 'E', duration: 6,
+      { id: 'room-corner', name: 'Diskusi Arsitektur', floor: 0, col: 24, row: 37, facing: 'E', duration: 6,
         startBubble: 'Diskusi skema arsitektur 📐', arriveBubble: 'Desain baru lebih rapi ⚡', arriveEmote: '💡',
         leaveBubble: 'Implementasi sekarang 🚀', task: 'Diskusi Arsitektur' },
-      { id: 'room-review', name: 'Code Review', floor: 0, col: 3, row: 24, facing: 'W', duration: 6,
+      { id: 'room-review', name: 'Code Review', floor: 0, col: 4, row: 31, facing: 'W', duration: 6,
         startBubble: 'Review PR teman 👀', arriveBubble: 'Kode bersih, approve! 👍', arriveEmote: '✅',
         leaveBubble: 'Balik ke terminal ⌨️', task: 'Code Review' }
     ],
     meeting: [
-      { id: 'room-whiteboard', name: 'Update Whiteboard', floor: 0, col: 26, row: 20, facing: 'N', duration: 6,
+      { id: 'room-whiteboard', name: 'Update Whiteboard', floor: 0, col: 33, row: 26, facing: 'N', duration: 6,
         startBubble: 'Tulis agenda rapat 📝', arriveBubble: 'Agenda sinkron semua 🗓️', arriveEmote: '📋',
         leaveBubble: 'Rapikan notulensi ✨', task: 'Update Papan Agenda' },
-      { id: 'room-podium', name: 'Presentasi Progres', floor: 0, col: 36, row: 22, facing: 'W', duration: 6,
+      { id: 'room-podium', name: 'Presentasi Progres', floor: 0, col: 52, row: 31, facing: 'W', duration: 6,
         startBubble: 'Siapkan materi presentasi 📊', arriveBubble: 'Target kuartal on-track! 🎯', arriveEmote: '📢',
         leaveBubble: 'Sesi tanya jawab kelar 🤝', task: 'Presentasi Progres' },
-      { id: 'room-corner', name: 'Ngobrol Tim', floor: 0, col: 38, row: 30, facing: 'E', duration: 6,
+      { id: 'room-corner', name: 'Ngobrol Tim', floor: 0, col: 53, row: 37, facing: 'E', duration: 6,
         startBubble: 'Ngobrol rencana minggu ini 💬', arriveBubble: 'Ide baru muncul! ✨', arriveEmote: '💡',
         leaveBubble: 'Balik ke meja rapat 📋', task: 'Diskusi Tim' }
     ],
     server: [
-      { id: 'room-rack-a', name: 'Patroli Rack A', floor: 0, col: 44, row: 7, facing: 'N', duration: 6,
+      { id: 'room-rack-a', name: 'Patroli Rack A', floor: 0, col: 64, row: 11, facing: 'N', duration: 6,
         startBubble: 'Patroli suhu Rack A ❄️', arriveBubble: 'Suhu 17°C, optimal 🟢', arriveEmote: '🖥️',
         leaveBubble: 'Cek Rack B 🚶', task: 'Inspeksi Rack A' },
-      { id: 'room-rack-c', name: 'Patroli Rack C', floor: 0, col: 52, row: 7, facing: 'N', duration: 6,
+      { id: 'room-rack-c', name: 'Patroli Rack C', floor: 0, col: 76, row: 11, facing: 'N', duration: 6,
         startBubble: 'Cek traffic Rack C ⚡', arriveBubble: 'Throughput 10 Gbps 🚀', arriveEmote: '⚡',
         leaveBubble: 'Jaringan prima 👍', task: 'Inspeksi Rack C' },
-      { id: 'room-console', name: 'Cek Console', floor: 0, col: 43, row: 10, facing: 'W', duration: 6,
+      { id: 'room-console', name: 'Cek Console', floor: 0, col: 61, row: 15, facing: 'W', duration: 6,
         startBubble: 'Buka ops console 🖥️', arriveBubble: 'Semua service sehat ✅', arriveEmote: '✅',
         leaveBubble: 'Balik ke terminal ⌨️', task: 'Monitoring Console' }
     ],
     pantry: [
-      { id: 'room-espresso', name: 'Racik Kopi', floor: 0, col: 46, row: 24, facing: 'N', duration: 6,
+      { id: 'room-espresso', name: 'Racik Kopi', floor: 0, col: 63, row: 30, facing: 'N', duration: 6,
         startBubble: 'Racik kopi buat tim ☕', arriveBubble: 'Espresso siap! ☕✨', arriveEmote: '☕',
         leaveBubble: 'Antar ke meja tim 🚶', task: 'Racik Kopi' },
-      { id: 'room-sofa', name: 'Rapikan Lounge', floor: 0, col: 48, row: 29, facing: 'N', duration: 6,
+      { id: 'room-sofa', name: 'Rapikan Lounge', floor: 0, col: 67, row: 36, facing: 'N', duration: 6,
         startBubble: 'Rapikan sofa lounge 🛋️', arriveBubble: 'Lounge nyaman lagi ✨', arriveEmote: '✨',
         leaveBubble: 'Cek snack stock 🍪', task: 'Rapikan Lounge' },
-      { id: 'room-center', name: 'Sapa Tim', floor: 0, col: 53, row: 26, facing: 'W', duration: 6,
+      { id: 'room-center', name: 'Sapa Tim', floor: 0, col: 76, row: 30, facing: 'W', duration: 6,
         startBubble: 'Sapa tim yang rehat 👋', arriveBubble: 'Semangat terus! 💪', arriveEmote: '❤️',
         leaveBubble: 'Balik ke pantry ☕', task: 'Sapa Tim' }
     ]
@@ -485,6 +497,61 @@
   LO.NAMES = ['Budi', 'Sari', 'Joko', 'Wulan', 'Tono', 'Putri', 'Agus', 'Mega', 'Rudi', 'Intan', 'Bayu', 'Dewi',
     'Fajar', 'Nina', 'Gilang', 'Ayu', 'Eko', 'Lala', 'Raka', 'Citra', 'Dimas', 'Tika', 'Yoga', 'Kiki'];
   LO.ROLE_BY_ROOM = { research: 'Researcher', engineering: 'Coder', coding: 'Coder', meeting: 'Planner', server: 'Ops', pantry: 'Santai', boss: 'Lapor Boss' };
+
+  // ---- Floorplan Helpers (single source of truth for walls, doors & rooms) ----
+  // Walkable room interior as configured in LO.ROOMS.
+  LO.roomInterior = function (roomId) {
+    const room = LO.ROOMS[roomId];
+    return room && room.bounds ? room.bounds : null;
+  };
+
+  // Returns the room whose configured interior contains the tile, or null.
+  LO.roomAt = function (col, row) {
+    for (const key of ['boss', 'research', 'server', 'engineering', 'meeting', 'pantry']) {
+      const b = LO.roomInterior(key);
+      if (b && col >= b.x1 && col <= b.x2 && row >= b.y1 && row <= b.y2) return key;
+    }
+    return null;
+  };
+
+  // Hallway band (north / south / lobby) containing the tile, or null.
+  LO.hallwayAt = function (col, row) {
+    for (const band of LO.HALLWAY_BANDS) {
+      if (band && col >= band.x1 && col <= band.x2 && row >= band.y1 && row <= band.y2) return band;
+    }
+    return null;
+  };
+
+  // Doorways as 2-tile openings anchored on the configured door tile.
+  LO.doorways = function () {
+    const out = [];
+    for (const key of ['boss', 'research', 'server', 'engineering', 'meeting', 'pantry']) {
+      const room = LO.ROOMS[key];
+      if (!room || !room.door) continue;
+      out.push({
+        room: key,
+        x: room.door.x,
+        y: room.door.y,
+        width: 2,
+        side: room.door.side || 'S',
+        tiles: [
+          { x: room.door.x, y: room.door.y },
+          { x: room.door.x + 1, y: room.door.y }
+        ]
+      });
+    }
+    return out;
+  };
+
+  // A tile is walkable when it is inside a room interior, a hallway band or a doorway.
+  LO.isFloorTile = function (col, row) {
+    if (LO.roomAt(col, row)) return true;
+    if (LO.hallwayAt(col, row)) return true;
+    for (const d of LO.doorways()) {
+      for (const t of d.tiles) if (t.x === col && t.y === row) return true;
+    }
+    return false;
+  };
 
   LO.params = typeof location !== 'undefined' ? new URLSearchParams(location.search) : new URLSearchParams();
 })();
