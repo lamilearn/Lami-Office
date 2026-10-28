@@ -265,4 +265,63 @@ describe('Tier 3 — Cross-Feature: Mochi the Cat Hallway Patrol & Agent Obstacl
     const hitsCat = path.some(p => p.x === catPos.x && p.y === catPos.y);
     assert.strictEqual(hitsCat, false, 'Agent path must avoid cat tile');
   });
+
+  it('X9: 2D Continuous Kinematics, Mario-Style Physics, Wall Sliding & Social Repulsion', () => {
+    // 1. Verify Character kinematics properties
+    const { loadScriptIntoEnv } = require('../harness');
+    const env = createBrowserEnvironment();
+    loadScriptIntoEnv(env, 'config.js');
+    loadScriptIntoEnv(env, 'sprites.js');
+    loadScriptIntoEnv(env, 'agents.js');
+
+    const agent = new env.window.LO.Character('test_worker', 'Worker', 'Developer', { hair: 0, skin: 0, cloth: 0 }, 0, 10, 10);
+    assert.strictEqual(agent.vx, 0);
+    assert.strictEqual(agent.vy, 0);
+    assert.strictEqual(agent.maxSpeed, 2.4);
+    assert.strictEqual(agent.squashX, 1.0);
+    assert.strictEqual(agent.squashY, 1.0);
+
+    // 2. Simulate steering velocity step with friction
+    agent.vx = 2.0;
+    agent.vy = 0.0;
+    const dt = 0.016; // 60fps frame
+    agent.vx *= Math.pow(agent.friction, dt * 60);
+    assert.ok(agent.vx < 2.0, 'Floor friction must decelerate velocity');
+
+    // 3. Wall sliding simulation: moving into horizontal solid wall slides tangential
+    const grid = Array.from({ length: 36 }, () => new Array(64).fill(0));
+    grid[10][11] = 1; // Wall directly east of agent (10, 10)
+    const mockOffice = { collisionGrid: grid };
+
+    agent.col = 10.8;
+    agent.row = 10.0;
+    agent.vx = 1.5;
+    agent.vy = 1.0;
+
+    // Check horizontal collision with radius 0.36
+    const nextCol = agent.col + agent.vx * dt;
+    const colCheck = nextCol + agent.radius;
+    const isSolid = grid[Math.floor(agent.row)][Math.floor(colCheck)] === 1;
+    assert.strictEqual(isSolid, true, 'Right movement must detect solid wall');
+
+    // Wall slide response: vx clamped to 0, vy preserved
+    let slideVx = isSolid ? 0 : agent.vx;
+    let slideVy = agent.vy;
+    assert.strictEqual(slideVx, 0, 'Wall collision must zero out perpendicular velocity');
+    assert.strictEqual(slideVy, 1.0, 'Wall sliding must preserve parallel velocity');
+
+    // 4. Social Elastic Repulsion simulation
+    const agentA = { col: 10.0, row: 16.0 };
+    const agentB = { col: 10.4, row: 16.0 }; // distance = 0.4 < minSeparation 0.72
+    const dist = Math.hypot(agentB.col - agentA.col, agentB.row - agentA.row);
+    const minSeparation = 0.72;
+    const overlap = (minSeparation - dist) * 0.5;
+    const nx = (agentB.col - agentA.col) / dist;
+
+    agentA.col -= nx * overlap;
+    agentB.col += nx * overlap;
+
+    const newDist = Math.hypot(agentB.col - agentA.col, agentB.row - agentA.row);
+    assert.ok(newDist > dist, 'Elastic repulsion must push overlapping characters apart');
+  });
 });

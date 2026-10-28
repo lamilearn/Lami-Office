@@ -258,10 +258,41 @@
       ctx.strokeRect(px + 1, py + 1, pw - 2, ph - 2);
     }
 
-    // ---- 5. Walls & Doorways (1.5-Tile Depth) ----
+    // ---- 5. Cozy Pixel RPG Walls & Doorway Archways ----
+    drawCozyBrickFace(ctx, x, y, w, h, baseColor, brickDark, trimOak) {
+      // Base solid fill
+      ctx.fillStyle = baseColor;
+      ctx.fillRect(x, y, w, h);
+
+      // Pixel brick courses (4px course height, 8px brick width, alternating mortar)
+      const courseH = 4;
+      const brickW = 8;
+      const numCourses = Math.floor(h / courseH);
+
+      ctx.fillStyle = brickDark || 'rgba(40, 20, 15, 0.28)';
+      for (let ci = 0; ci < numCourses; ci++) {
+        const cy = y + ci * courseH;
+        // Horizontal mortar seam
+        ctx.fillRect(x, cy + courseH - 1, w, 1);
+
+        // Vertical mortar joints
+        const offset = (ci % 2) * (brickW / 2);
+        for (let bx = x + offset; bx < x + w; bx += brickW) {
+          ctx.fillRect(bx, cy, 1, courseH);
+        }
+      }
+
+      // Subtle top brick highlight
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
+      ctx.fillRect(x, y, w, 1);
+    }
+
     drawWalls(ctx, ts) {
       const rooms = LO.ROOMS || {};
       const wallDepth = 24; // 1.5 tiles (24px)
+      const oakTrim = '#5a3d28';
+      const oakHighlight = '#8c5d3b';
+      const oakShadow = '#382215';
 
       // A. North Exterior Walls for Top Rooms (Y = 2)
       for (const key of ['boss', 'research', 'server']) {
@@ -272,29 +303,68 @@
         const ww = (b.x2 - b.x1 + 1) * ts;
         const wy = b.y1 * ts;
 
-        // Top Ledge / Trim
-        ctx.fillStyle = r.trim || '#875824';
-        ctx.fillRect(wx, wy, ww, 4);
+        // Timber Top Cap / Lintel
+        ctx.fillStyle = oakHighlight;
+        ctx.fillRect(wx, wy, ww, 2);
+        ctx.fillStyle = r.trim || oakTrim;
+        ctx.fillRect(wx, wy + 2, ww, 3);
+        ctx.fillStyle = oakShadow;
+        ctx.fillRect(wx, wy + 5, ww, 1);
 
-        // Wall Face
-        ctx.fillStyle = r.wall || '#b5834f';
-        ctx.fillRect(wx, wy + 4, ww, wallDepth - 8);
+        // Cozy Brick Face
+        const faceH = wallDepth - 10;
+        this.drawCozyBrickFace(ctx, wx, wy + 6, ww, faceH, r.wall || '#b5834f', r.wallDark || '#7a4e25', r.trim);
 
-        // Skirting Board
-        ctx.fillStyle = r.trim || '#875824';
-        ctx.fillRect(wx, wy + wallDepth - 4, ww, 4);
+        // Skirting Baseboard (Wood wainscoting)
+        ctx.fillStyle = oakHighlight;
+        ctx.fillRect(wx, wy + wallDepth - 4, ww, 1);
+        ctx.fillStyle = r.trim || oakTrim;
+        ctx.fillRect(wx, wy + wallDepth - 3, ww, 3);
 
         // Wall Outline & Seams
         ctx.strokeStyle = '#2d2438';
         ctx.lineWidth = 1;
         ctx.strokeRect(wx + 0.5, wy + 0.5, ww - 1, wallDepth - 1);
 
-        // Drop shadow onto floor
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.16)';
+        // Ambient Occlusion / Drop shadow onto floor
+        ctx.fillStyle = 'rgba(15, 10, 25, 0.22)';
         ctx.fillRect(wx, wy + wallDepth, ww, 6);
       }
 
-      // B. Corridor Partition Walls & Clean Doorways (Y = 14, and Y = 19)
+      // Helper to render cozy framed doorway portal
+      const drawDoorwayPortal = (doorX, wy, isTopRoom) => {
+        const px = doorX * ts;
+        const pw = 2 * ts; // 32px
+        const postW = 3;
+
+        // Doorposts (left and right timber jambs)
+        ctx.fillStyle = oakTrim;
+        ctx.fillRect(px, wy, postW, ts);
+        ctx.fillRect(px + pw - postW, wy, postW, ts);
+        // Iron brackets / hardware
+        ctx.fillStyle = '#261b2e';
+        ctx.fillRect(px, wy + 2, postW, 2);
+        ctx.fillRect(px + pw - postW, wy + 2, postW, 2);
+
+        // Arched timber lintel over doorway top
+        ctx.fillStyle = oakHighlight;
+        ctx.fillRect(px, wy, pw, 2);
+        ctx.fillStyle = oakTrim;
+        ctx.fillRect(px, wy + 2, pw, 2);
+        ctx.fillStyle = oakShadow;
+        ctx.fillRect(px + 4, wy + 3, pw - 8, 1);
+
+        // Cozy Brass & Woven Welcome Threshold Strip
+        const ty = isTopRoom ? wy + ts - 4 : wy;
+        ctx.fillStyle = '#d4af37';
+        ctx.fillRect(px + postW, ty, pw - postW * 2, 4);
+        ctx.fillStyle = '#997316';
+        ctx.fillRect(px + postW, ty + 1, pw - postW * 2, 1);
+        ctx.fillStyle = '#fce280';
+        ctx.fillRect(px + postW + 1, ty + 2, pw - postW * 2 - 2, 1);
+      };
+
+      // B. Corridor Partition Walls & Portals (Along Y = 14 and Y = 19)
       // Top Rooms South Wall (along Y = 14)
       for (const key of ['boss', 'research', 'server']) {
         const r = rooms[key];
@@ -306,33 +376,37 @@
         // Left section of wall (before door)
         const leftW = (doorX - b.x1) * ts;
         if (leftW > 0) {
-          ctx.fillStyle = r.wall;
-          ctx.fillRect(b.x1 * ts, wy, leftW, ts);
-          ctx.fillStyle = r.trim || '#6a431a';
-          ctx.fillRect(b.x1 * ts, wy, leftW, 3);
-          ctx.fillRect(b.x1 * ts, wy + ts - 3, leftW, 3);
-          ctx.strokeStyle = '#2d2438';
-          ctx.lineWidth = 1;
-          ctx.strokeRect(b.x1 * ts + 0.5, wy + 0.5, leftW - 1, ts - 1);
+          const lx = b.x1 * ts;
+          this.drawCozyBrickFace(ctx, lx, wy, leftW, ts, r.wall, r.wallDark, r.trim);
+          // Oak top trim & baseboard
+          ctx.fillStyle = oakHighlight; ctx.fillRect(lx, wy, leftW, 2);
+          ctx.fillStyle = r.trim || oakTrim; ctx.fillRect(lx, wy + 2, leftW, 2);
+          ctx.fillStyle = r.trim || oakTrim; ctx.fillRect(lx, wy + ts - 3, leftW, 3);
+          ctx.strokeStyle = '#2d2438'; ctx.lineWidth = 1;
+          ctx.strokeRect(lx + 0.5, wy + 0.5, leftW - 1, ts - 1);
+          // Bottom drop shadow
+          ctx.fillStyle = 'rgba(15, 10, 25, 0.20)';
+          ctx.fillRect(lx, wy + ts, leftW, 5);
         }
 
         // Right section of wall (after door, door width = 2 tiles = 32px)
         const rightStartX = (doorX + 2) * ts;
         const rightW = (b.x2 + 1) * ts - rightStartX;
         if (rightW > 0) {
-          ctx.fillStyle = r.wall;
-          ctx.fillRect(rightStartX, wy, rightW, ts);
-          ctx.fillStyle = r.trim || '#6a431a';
-          ctx.fillRect(rightStartX, wy, rightW, 3);
-          ctx.fillRect(rightStartX, wy + ts - 3, rightW, 3);
-          ctx.strokeStyle = '#2d2438';
-          ctx.lineWidth = 1;
+          this.drawCozyBrickFace(ctx, rightStartX, wy, rightW, ts, r.wall, r.wallDark, r.trim);
+          // Oak top trim & baseboard
+          ctx.fillStyle = oakHighlight; ctx.fillRect(rightStartX, wy, rightW, 2);
+          ctx.fillStyle = r.trim || oakTrim; ctx.fillRect(rightStartX, wy + 2, rightW, 2);
+          ctx.fillStyle = r.trim || oakTrim; ctx.fillRect(rightStartX, wy + ts - 3, rightW, 3);
+          ctx.strokeStyle = '#2d2438'; ctx.lineWidth = 1;
           ctx.strokeRect(rightStartX + 0.5, wy + 0.5, rightW - 1, ts - 1);
+          // Bottom drop shadow
+          ctx.fillStyle = 'rgba(15, 10, 25, 0.20)';
+          ctx.fillRect(rightStartX, wy + ts, rightW, 5);
         }
 
-        // Clean Cut Doorway Threshold Strip (2 tiles wide)
-        ctx.fillStyle = '#d4af37';
-        ctx.fillRect(doorX * ts, wy + ts - 4, 2 * ts, 4);
+        // Timber archway doorway
+        drawDoorwayPortal(doorX, wy, true);
       }
 
       // Bottom Rooms North Wall (along Y = 19)
@@ -346,41 +420,45 @@
         // Left section of wall (before door)
         const leftW = (doorX - b.x1) * ts;
         if (leftW > 0) {
-          ctx.fillStyle = r.wall;
-          ctx.fillRect(b.x1 * ts, wy, leftW, ts);
-          ctx.fillStyle = r.trim || '#1e4b2e';
-          ctx.fillRect(b.x1 * ts, wy, leftW, 3);
-          ctx.fillRect(b.x1 * ts, wy + ts - 3, leftW, 3);
-          ctx.strokeStyle = '#2d2438';
-          ctx.lineWidth = 1;
-          ctx.strokeRect(b.x1 * ts + 0.5, wy + 0.5, leftW - 1, ts - 1);
+          const lx = b.x1 * ts;
+          this.drawCozyBrickFace(ctx, lx, wy, leftW, ts, r.wall, r.wallDark, r.trim);
+          // Oak top trim & baseboard
+          ctx.fillStyle = oakHighlight; ctx.fillRect(lx, wy, leftW, 2);
+          ctx.fillStyle = r.trim || oakTrim; ctx.fillRect(lx, wy + 2, leftW, 2);
+          ctx.fillStyle = r.trim || oakTrim; ctx.fillRect(lx, wy + ts - 3, leftW, 3);
+          ctx.strokeStyle = '#2d2438'; ctx.lineWidth = 1;
+          ctx.strokeRect(lx + 0.5, wy + 0.5, leftW - 1, ts - 1);
+          // Top drop shadow towards corridor
+          ctx.fillStyle = 'rgba(15, 10, 25, 0.15)';
+          ctx.fillRect(lx, wy - 4, leftW, 4);
         }
 
         // Right section of wall (after door)
         const rightStartX = (doorX + 2) * ts;
         const rightW = (b.x2 + 1) * ts - rightStartX;
         if (rightW > 0) {
-          ctx.fillStyle = r.wall;
-          ctx.fillRect(rightStartX, wy, rightW, ts);
-          ctx.fillStyle = r.trim || '#1e4b2e';
-          ctx.fillRect(rightStartX, wy, rightW, 3);
-          ctx.fillRect(rightStartX, wy + ts - 3, rightW, 3);
-          ctx.strokeStyle = '#2d2438';
-          ctx.lineWidth = 1;
+          this.drawCozyBrickFace(ctx, rightStartX, wy, rightW, ts, r.wall, r.wallDark, r.trim);
+          // Oak top trim & baseboard
+          ctx.fillStyle = oakHighlight; ctx.fillRect(rightStartX, wy, rightW, 2);
+          ctx.fillStyle = r.trim || oakTrim; ctx.fillRect(rightStartX, wy + 2, rightW, 2);
+          ctx.fillStyle = r.trim || oakTrim; ctx.fillRect(rightStartX, wy + ts - 3, rightW, 3);
+          ctx.strokeStyle = '#2d2438'; ctx.lineWidth = 1;
           ctx.strokeRect(rightStartX + 0.5, wy + 0.5, rightW - 1, ts - 1);
+          // Top drop shadow towards corridor
+          ctx.fillStyle = 'rgba(15, 10, 25, 0.15)';
+          ctx.fillRect(rightStartX, wy - 4, rightW, 4);
         }
 
-        // Clean Cut Doorway Threshold Strip (2 tiles wide)
-        ctx.fillStyle = '#d4af37';
-        ctx.fillRect(doorX * ts, wy, 2 * ts, 4);
+        // Timber archway doorway
+        drawDoorwayPortal(doorX, wy, false);
       }
 
-      // C. Vertical Room Partition Walls (Width: 1 tile = 16px)
+      // C. Cozy Vertical Room Partition Walls (Width: 1 tile = 16px)
       const partitions = [
-        { x: 20, y1: 2, y2: 14, color: '#3f3b52' }, // Boss | Research
-        { x: 40, y1: 2, y2: 14, color: '#3f3b52' }, // Research | Server
-        { x: 22, y1: 19, y2: 32, color: '#3f3b52' }, // Engineering | Meeting
-        { x: 40, y1: 19, y2: 32, color: '#3f3b52' }  // Meeting | Pantry
+        { x: 20, y1: 2, y2: 14, color: '#4a3b32', dark: '#33241c', label: 'W1' }, // Boss | Research
+        { x: 40, y1: 2, y2: 14, color: '#3d3b48', dark: '#282633', label: 'W2' }, // Research | Server
+        { x: 22, y1: 19, y2: 32, color: '#3b473e', dark: '#253328', label: 'W3' }, // Engineering | Meeting
+        { x: 40, y1: 19, y2: 32, color: '#4d3d34', dark: '#332720', label: 'W4' }  // Meeting | Pantry
       ];
 
       for (const p of partitions) {
@@ -388,15 +466,40 @@
         const py = p.y1 * ts;
         const ph = (p.y2 - p.y1 + 1) * ts;
 
-        ctx.fillStyle = p.color;
-        ctx.fillRect(px, py, ts, ph);
+        // Brick body of partition
+        this.drawCozyBrickFace(ctx, px, py, ts, ph, p.color, p.dark, oakTrim);
+
+        // Wooden pilaster columns at corridor ends (corners)
+        const cornerY = p.y1 === 2 ? (p.y2 * ts) : py;
+        ctx.fillStyle = oakHighlight;
+        ctx.fillRect(px, cornerY, ts, 4);
+        ctx.fillStyle = oakTrim;
+        ctx.fillRect(px, cornerY + 4, ts, ts - 4);
+        ctx.fillStyle = '#261b2e';
+        ctx.fillRect(px + 2, cornerY + 2, 2, 2);
+        ctx.fillRect(px + ts - 4, cornerY + 2, 2, 2);
+
+        // Partition outline
         ctx.strokeStyle = '#2d2438';
         ctx.lineWidth = 1;
         ctx.strokeRect(px + 0.5, py + 0.5, ts - 1, ph - 1);
 
-        // Side drop shadows
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.12)';
-        ctx.fillRect(px + ts, py, 4, ph);
+        // Right side drop shadow (depth perspective)
+        ctx.fillStyle = 'rgba(15, 10, 25, 0.22)';
+        ctx.fillRect(px + ts, py, 6, ph);
+
+        // Cozy wall sconce / lantern on the corridor pillar
+        const sconceY = cornerY + 5;
+        ctx.fillStyle = '#54381e';
+        ctx.fillRect(px + 6, sconceY, 4, 3);
+        // Flickering warm flame
+        const flicker = Math.sin(this.timeSec * 12 + p.x) * 0.5 + 0.5;
+        ctx.fillStyle = flicker > 0.4 ? '#ffcf40' : '#ffa500';
+        ctx.fillRect(px + 7, sconceY - 2, 2, 2);
+        ctx.fillStyle = 'rgba(255, 210, 80, 0.18)';
+        ctx.beginPath();
+        ctx.arc(px + 8, sconceY - 1, 8, 0, Math.PI * 2);
+        ctx.fill();
       }
     }
 

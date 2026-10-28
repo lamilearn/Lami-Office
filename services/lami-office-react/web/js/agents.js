@@ -55,8 +55,25 @@
 
       this.facing = 'S'; // 'S' | 'N' | 'E' | 'W'
       this.state = 'idle'; // idle | walk | type | reporting | work
-      this.speed = 2.2; // tiles per second
+      this.speed = 2.4; // tiles per second
       this.sprites = LO.getCharacterSprites(this.look);
+
+      // 2D Continuous Kinematics & Mario-Style Physics Engine
+      this.vx = 0;              // continuous horizontal velocity (tiles/sec)
+      this.vy = 0;              // continuous vertical velocity (tiles/sec)
+      this.ax = 0;              // steering acceleration
+      this.ay = 0;
+      this.friction = 0.82;     // floor friction dampening
+      this.maxSpeed = 2.4;      // maximum speed limit
+      this.accel = 16.0;        // responsive steering acceleration force
+      this.radius = 0.36;       // physical circle collision radius (tile units)
+
+      // Mario-Style Bounciness & Micro-Physics
+      this.bounceTimer = 0;
+      this.bounceHeight = 2.4;  // pixel height for retro walk hop
+      this.squashX = 1.0;       // horizontal squash scale factor
+      this.squashY = 1.0;       // vertical stretch scale factor
+      this.dustTimer = 0;
 
       this.frame = 'idle';
       this.animTimer = 0;
@@ -179,9 +196,13 @@
         this.targetFloor = 0;
       }
 
-      // If paused for social encounter or greeting, pause walking
+      // If paused for social encounter or greeting, smoothly brake walking velocity
       if (this.pauseTimer > 0) {
         this.pauseTimer -= dt;
+        this.vx *= 0.5;
+        this.vy *= 0.5;
+        this.squashX = 1.0;
+        this.squashY = 1.0;
         this.frame = 'idle';
         return;
       }
@@ -194,7 +215,7 @@
         if (!this.path || this.path.length === 0) return;
       }
 
-      // 1. Follow waypoint path (keep semantic states such as 'reporting')
+      // 1. Follow waypoint path with Continuous Kinematic Physics & Steering
       if (this.path && this.path.length > 0) {
         if (this.state !== 'reporting') this.state = 'walk';
         const targetNode = this.path[0];
@@ -202,33 +223,100 @@
         let dy = targetNode.y - this.row;
         let dist = Math.hypot(dx, dy);
 
-        // Strict Orthogonal Axis Locking:
-        // A* paths are strictly orthogonal (either purely X or purely Y).
-        // Align perpendicular coordinate to eliminate drift and prevent diagonal clipping through doorframes.
+        // Update facing direction based on primary travel axis
         if (Math.abs(dx) >= Math.abs(dy)) {
-          if (Math.abs(dx) > 0.001) {
-            this.facing = dx > 0 ? 'E' : 'W';
-            if (Math.abs(dy) > 0.001) {
-              this.row = targetNode.y;
-              dy = 0;
-              dist = Math.abs(dx);
-            }
-          }
+          if (Math.abs(dx) > 0.001) this.facing = dx > 0 ? 'E' : 'W';
         } else {
-          if (Math.abs(dy) > 0.001) {
-            this.facing = dy > 0 ? 'S' : 'N';
-            if (Math.abs(dx) > 0.001) {
-              this.col = targetNode.x;
-              dx = 0;
-              dist = Math.abs(dy);
-            }
+          if (Math.abs(dy) > 0.001) this.facing = dy > 0 ? 'S' : 'N';
+        }
+
+        // Steering Force (Seek & Arrive dampening):
+        // When approaching waypoint or final destination, smoothly decelerate to eliminate jerky snaps.
+        const arriveThreshold = 0.5;
+        const targetSpeed = dist < arriveThreshold ? Math.max(0.6, this.maxSpeed * (dist / arriveThreshold)) : this.maxSpeed;
+        const desiredVx = (dx / (dist || 1)) * targetSpeed;
+        const desiredVy = (dy / (dist || 1)) * targetSpeed;
+
+        // Apply acceleration towards desired velocity
+        this.ax = (desiredVx - this.vx) * this.accel;
+        this.ay = (desiredVy - this.vy) * this.accel;
+
+        this.vx += this.ax * dt;
+        this.vy += this.ay * dt;
+
+        // Apply floor friction drag
+        this.vx *= Math.pow(this.friction, dt * 60);
+        this.vy *= Math.pow(this.friction, dt * 60);
+
+        // Speed clamping
+        const curSpeed = Math.hypot(this.vx, this.vy);
+        if (curSpeed > this.maxSpeed) {
+          this.vx = (this.vx / curSpeed) * this.maxSpeed;
+          this.vy = (this.vy / curSpeed) * this.maxSpeed;
+        }
+
+        // Continuous Circle-to-AABB Wall Sliding Collision Resolution:
+        const collisionGrid = office ? office.collisionGrid : (window.LO?.office?.collisionGrid);
+        let nextCol = this.col + this.vx * dt;
+        let nextRow = this.row + this.vy * dt;
+
+        if (collisionGrid) {
+          const rows = collisionGrid.length;
+          const cols = collisionGrid[0].length;
+          const isSolidTile = (c, r) => {
+            const cx = Math.floor(c);
+            const cy = Math.floor(r);
+            if (cx < 0 || cx >= cols || cy < 0 || cy >= rows) return true;
+            return collisionGrid[cy][cx] === 1;
+          };
+
+          // Slide along vertical wall (check X movement)
+          const colCheck = this.vx > 0 ? (nextCol + this.radius) : (nextCol - this.radius);
+          if (isSolidTile(colCheck, this.row)) {
+            this.vx = 0;
+            nextCol = this.col;
+          }
+
+          // Slide along horizontal wall (check Y movement)
+          const rowCheck = this.vy > 0 ? (nextRow + this.radius) : (nextRow - this.radius);
+          if (isSolidTile(this.col, rowCheck)) {
+            this.vy = 0;
+            nextRow = this.row;
           }
         }
 
-        const step = Math.min(this.speed * dt, dist);
-        if (dist > 0.0001) {
-          this.col += (dx / dist) * step;
-          this.row += (dy / dist) * step;
+        this.col = nextCol;
+        this.row = nextRow;
+
+        // Mario-Style Bounciness step cycle & squash-and-stretch
+        this.bounceTimer += dt * 14;
+        const bouncePhase = Math.sin(this.bounceTimer);
+        if (bouncePhase > 0.6) {
+          this.squashX = 0.94;
+          this.squashY = 1.08;
+        } else if (bouncePhase < -0.3) {
+          this.squashX = 1.08;
+          this.squashY = 0.92;
+        } else {
+          this.squashX = 1.0;
+          this.squashY = 1.0;
+        }
+
+        // Walk dust puff emission
+        this.dustTimer += dt;
+        if (this.dustTimer > 0.35) {
+          this.dustTimer = 0;
+          const screenPos = LO.isoToScreen(this.col, this.row, this.floor);
+          this.particles.push({
+            text: '',
+            icon: '💨',
+            color: '#d6c2a8',
+            x: screenPos.x + (Math.random() * 4 - 2),
+            y: screenPos.y + 1,
+            vy: -8,
+            alpha: 0.6,
+            life: 0.3
+          });
         }
 
         if (this.animTimer > 0.15) {
@@ -237,14 +325,18 @@
         }
         this.frame = this.walkStep ? 'walk' : 'idle';
 
-        if (dist <= step || dist < 0.06) {
+        // Check waypoint completion
+        const remainingDist = Math.hypot(targetNode.x - this.col, targetNode.y - this.row);
+        if (remainingDist <= Math.hypot(this.vx * dt, this.vy * dt) || remainingDist < 0.14) {
           this.col = targetNode.x;
           this.row = targetNode.y;
           this.path.shift();
 
           if (this.path.length === 0) {
-            // Snap to the exact (possibly fractional) target only when the
-            // final waypoint really is its tile; never teleport across rooms.
+            this.vx = 0;
+            this.vy = 0;
+            this.squashX = 1.0;
+            this.squashY = 1.0;
             if (Math.round(this.targetCol) === targetNode.x &&
                 Math.round(this.targetRow) === targetNode.y) {
               this.col = this.targetCol;
@@ -267,9 +359,18 @@
         return;
       }
 
-      // 3. At destination
-      this.col = this.targetCol;
-      this.row = this.targetRow;
+      // 3. At destination: smooth deceleration & resting idle
+      this.vx *= 0.5;
+      this.vy *= 0.5;
+      if (Math.hypot(this.vx, this.vy) < 0.05) {
+        this.vx = 0;
+        this.vy = 0;
+        this.col = this.targetCol;
+        this.row = this.targetRow;
+      }
+      this.squashX = 1.0;
+      this.squashY = 1.0;
+      this.bounceTimer = 0;
       if (this.state === 'walk') {
         this.onArrived();
       }
@@ -371,24 +472,35 @@
       const sprGroup = this.sprites[this.facing] || this.sprites.SE || this.sprites.right;
       const img = sprGroup[this.frame] || sprGroup.idle;
 
-      const px = Math.floor(pos.x - this.sprites.w / 2);
-      const py = Math.floor(pos.y - this.sprites.h + 2);
+      // Mario-Style Bounciness & Squash/Stretch Dynamics
+      const isMoving = Math.hypot(this.vx || 0, this.vy || 0) > 0.08;
+      const hopY = isMoving ? Math.abs(Math.sin(this.bounceTimer || 0)) * (this.bounceHeight || 2.2) : 0;
+      const sx = this.squashX || 1.0;
+      const sy = this.squashY || 1.0;
 
-      // Character Shadow
-      ctx.fillStyle = 'rgba(58, 40, 56, 0.28)';
+      // Dynamic Character Shadow (contracts slightly on hop)
+      ctx.fillStyle = isMoving ? 'rgba(58, 40, 56, 0.20)' : 'rgba(58, 40, 56, 0.28)';
       ctx.beginPath();
-      ctx.ellipse(pos.x, pos.y + 1, 6, 3, 0, 0, Math.PI * 2);
+      const shadowRadius = isMoving ? Math.max(3.8, 6 - hopY * 0.7) : 6;
+      ctx.ellipse(pos.x, pos.y + 1, shadowRadius, 3, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // Draw Chibi Sprite
-      ctx.drawImage(img, px, py);
+      // Draw Chibi Sprite with Mario Squash & Stretch transform
+      ctx.save();
+      ctx.translate(pos.x, pos.y + 2 - hopY);
+      ctx.scale(sx, sy);
+      const halfW = Math.floor(this.sprites.w / 2);
+      ctx.drawImage(img, -halfW, -this.sprites.h);
 
-      // Carried Paper Item
+      // Carried Paper Item (inside sprite transform)
       if (this.carriedItem === 'paper') {
         const paper = LO.getPaperSprite();
-        const paperX = (this.facing === 'E' || this.facing === 'S' || this.facing === 'SE') ? px + this.sprites.w - 3 : px - 2;
-        ctx.drawImage(paper, paperX, py + 9);
+        const paperX = (this.facing === 'E' || this.facing === 'S' || this.facing === 'SE') ? halfW - 3 : -halfW - 2;
+        ctx.drawImage(paper, paperX, -this.sprites.h + 9);
       }
+      ctx.restore();
+
+      const py = Math.floor(pos.y - this.sprites.h + 2 - hopY);
 
       // Emote & Speech Bubble
       if (this.emote) this.renderEmote(ctx, pos.x, py);

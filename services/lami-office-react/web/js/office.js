@@ -679,7 +679,30 @@
         sub.update(dt, this);
       }
 
-      // Check lively coworker hallway encounters & greetings
+      // 2D Character Elastic Separation Physics (Social Anti-Overlap in Hallways & Doors)
+      const allLiving = [this.lami, ...this.residents, ...this.subagents.values()].filter(c => c && c.state !== 'spawn');
+      for (let i = 0; i < allLiving.length; i++) {
+        const c1 = allLiving[i];
+        for (let j = i + 1; j < allLiving.length; j++) {
+          const c2 = allLiving[j];
+          const sepDx = c2.col - c1.col;
+          const sepDy = c2.row - c1.row;
+          const sepDist = Math.hypot(sepDx, sepDy);
+          const minSeparation = 0.72; // tile clearance
+          if (sepDist < minSeparation && sepDist > 0.001) {
+            const overlap = (minSeparation - sepDist) * 0.5;
+            const nx = sepDx / sepDist;
+            const ny = sepDy / sepDist;
+            // Push characters apart along normal to prevent visual stacking
+            c1.col -= nx * overlap * dt * 4.5;
+            c1.row -= ny * overlap * dt * 4.5;
+            c2.col += nx * overlap * dt * 4.5;
+            c2.row += ny * overlap * dt * 4.5;
+          }
+        }
+      }
+
+      // Check lively coworker hallway encounters, meetings & greetings
       this.updateSocials(dt);
     }
 
@@ -714,6 +737,12 @@
               b.facing = dy > 0 ? 'N' : 'S';
             }
 
+            // Room-aware contextual encounters
+            const inMeeting = (a.col >= 23 && a.col <= 39 && a.row >= 19 && a.row <= 32) ||
+                              (b.col >= 23 && b.col <= 39 && b.row >= 19 && b.row <= 32);
+            const inPantry = (a.col >= 41 && a.col <= 58 && a.row >= 19 && a.row <= 32) ||
+                             (b.col >= 41 && b.col <= 58 && b.row >= 19 && b.row <= 32);
+
             const isBoss = a.id === 'lami' || b.id === 'lami';
             if (isBoss) {
               const boss = a.id === 'lami' ? a : b;
@@ -722,6 +751,29 @@
               worker.setBubble('Pagi Boss Lami! ✨', 3.0);
               boss.setEmote('🌟', 2.5);
               boss.setBubble('Semangat kerjanya ya! 👍', 3.0);
+            } else if (inMeeting) {
+              const meetingDialogues = [
+                ['Bahas sprint goal minggu ini 🎯', 'Siap, fitur utama udah on-track! 🚀'],
+                ['Whiteboard-nya rame banget 📊', 'Banyak ide keren nih! 💡'],
+                ['Sprint review jam berapa ya? 📋', 'Setelah lunch break nanti 👍'],
+                ['Desain arsitektur baru udah fix 📐', 'Mantap, gass koding! ✨']
+              ];
+              const d = meetingDialogues[Math.floor(Math.random() * meetingDialogues.length)];
+              a.setEmote('📊', 2.5);
+              a.setBubble(d[0], 3.0);
+              b.setEmote('💡', 2.5);
+              b.setBubble(d[1], 3.0);
+            } else if (inPantry) {
+              const pantryDialogues = [
+                ['Seduh kopi arabika dulu ☕', 'Bagi gulanya dong kak! 🍵'],
+                ['Kulkas ada cemilan baru 🍩', 'Wah mantap buat nemenin koding! 🎉'],
+                ['Istirahat sejenak mata lelah 😴', 'Yuk jalan santai dikit biar seger 🚶']
+              ];
+              const d = pantryDialogues[Math.floor(Math.random() * pantryDialogues.length)];
+              a.setEmote('☕', 2.5);
+              a.setBubble(d[0], 3.0);
+              b.setEmote('😊', 2.5);
+              b.setBubble(d[1], 3.0);
             } else {
               const dialogues = [
                 ['Halo Kak! Semangat ya! 👋', 'Halo juga! Gass koding! 🚀'],
