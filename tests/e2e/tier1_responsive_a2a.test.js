@@ -286,6 +286,26 @@ describe('Tier 1 — Feature 16: Floorplan Decoration', () => {
     }
     assert.ok(walls.some((w) => w), 'Wall layer must still contain walls');
   });
+
+  it('F16.6: Door thresholds render below characters so nobody is hidden in a doorway', () => {
+    const src = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/js/tilemap.js'), 'utf8');
+    const ground = src.slice(src.indexOf('function paintGround'), src.indexOf('function paintOverlay'));
+    const overlay = src.slice(src.indexOf('function paintOverlay'), src.indexOf('function drawLayer'));
+
+    assert.ok(/=== DOOR_TILE/.test(ground), 'paintGround must handle the door tile');
+    assert.ok(/drawTile\(ctx, map, DOOR_TILE/.test(ground), 'the threshold must be painted in the ground pass');
+    assert.ok(!/drawTile\(ctx, map, DOOR_TILE/.test(overlay), 'the threshold must NOT be painted over characters');
+    assert.ok(/name === DOOR_TILE\)\s*continue/.test(overlay), 'the overlay must skip the door tile entirely');
+  });
+
+  it('F16.7: The office render order keeps the wall overlay after the characters', () => {
+    const office = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/js/office.js'), 'utf8');
+    const render = office.slice(office.indexOf('render() {'), office.indexOf('LO.Office = Office'));
+    const charsAt = render.indexOf('c.render(this.ctx)');
+    const overlayAt = render.indexOf('renderOverlay');
+
+    assert.ok(charsAt > -1 && overlayAt > charsAt, 'the overlay must be drawn after the characters for dollhouse depth');
+  });
 });
 
 describe('Tier 1 — Feature 17: A2A Peer Agents & Backend Wiring', () => {

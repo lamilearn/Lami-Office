@@ -149,7 +149,13 @@
     for (let y = 0; y < map.rows; y++) {
       for (let x = 0; x < map.cols; x++) {
         const name = walls[y][x];
-        if (!name || name === DOOR_TILE) continue;
+        if (!name) continue;
+        if (name === DOOR_TILE) {
+          // Door thresholds are walkable floor: draw them below the characters
+          // so someone crossing the doorway is never hidden by the tile.
+          drawTile(ctx, map, DOOR_TILE, x * ts, y * ts);
+          continue;
+        }
         const belowSolid = isSolidWall(map, x, y + 1);
         if (!belowSolid) {
           // south-facing wall: render the face raised, like a room divider
@@ -175,10 +181,7 @@
       for (let x = 0; x < map.cols; x++) {
         const name = walls[y][x];
         if (!name) continue;
-        if (name === DOOR_TILE) {
-          drawTile(ctx, map, DOOR_TILE, x * ts, y * ts);
-          continue;
-        }
+        if (name === DOOR_TILE) continue; // threshold is floor: drawn below characters
         if (isSolidWall(map, x, y + 1)) continue; // flush body already drawn in paintGround
         drawTile(ctx, map, 'wall_top', x * ts, y * ts - WALL_LIFT);
         ctx.fillStyle = 'rgba(58, 40, 56, 0.35)';
