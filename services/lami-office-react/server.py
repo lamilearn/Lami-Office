@@ -50,6 +50,7 @@ DEFAULT_CONFIG = {
     "sessions_glob": "{hermes_home}/sessions/**/*.json*",
     "antigravity_glob": "~/.gemini/antigravity/brain/*/.system_generated/logs/transcript.jsonl",
     "poll_interval": 0.5,
+    "state_file": "~/.lami-office/state.json",   # survives restarts/redeploys
     "subagent_timeout": 900,        # seconds without activity before a sub-agent is sent home
     "max_summary": 40,
     "extra_redact": [],             # extra regex patterns to mask
@@ -85,6 +86,7 @@ def load_config() -> dict:
         "HOST": "host", "PORT": "port", "PUBLIC_MODE": "public_mode",
         "HERMES_HOME": "hermes_home", "INGEST_TOKEN": "ingest_token", "OFFICE_SOURCE": "source",
         "A2A_SECRET": "a2a_secret", "A2A_PEERS": "a2a_peers",
+        "OFFICE_STATE_FILE": "state_file",
         "A2A_POLL_INTERVAL": "a2a_poll_interval", "A2A_PEER_TOKENS": "a2a_peer_tokens",
         "A2A_REPLY_TIMEOUT": "a2a_reply_timeout",
     }
@@ -240,7 +242,16 @@ def sanitize_event(ev: dict) -> dict | None:
 # Hub - keeps state for snapshots and fans events out to every connected browser
 # --------------------------------------------------------------------------------------
 class Hub:
-    def __init__(self):
+    """Live office state: agent registry, today's stats and an activity feed.
+
+    Persisted to disk so a server restart (or a redeploy) does not wipe the day:
+    the last N events and the stats are reloaded on boot.
+    """
+
+    HISTORY_LIMIT = 200       # events kept for the "recent activity" feed
+    HISTORY_TTL = 6 * 3600    # discard anything older than 6 hours
+
+    def __init__(self, state_path: str | None = None):
         self.lock = threading.Lock()
         self.subs: list[queue.Queue] = []
         self.agents: dict[str, dict] = {}
@@ -248,6 +259,10 @@ class Hub:
         self.stats = {"doneToday": 0, "coins": 0, "failedToday": 0}
         self.last_event_ts = 0.0
         self.events_total = 0
+        self.history: list[dict] = []
+        self.state_path = Path(state_path).expanduser() if state_path else None
+        self._dirty = False
+        self._load_state()
 
     def subscribe(self) -> queue.Queue:
         q: queue.Queue = queue.Queue(maxsize=500)
@@ -262,7 +277,59 @@ class Hub:
 
     def snapshot(self) -> dict:
         with self.lock:
-            return {"type": "snapshot", "agents": list(self.agents.values()), "stats": dict(self.stats), "ts": time.time()}
+            return {
+                "type": "snapshot",
+                "agents": list(self.agents.values()),
+                "stats": dict(self.stats),
+                "history": list(self.history[-60:]),
+                "ts": time.time(),
+            }
+
+    # ---- persistence -------------------------------------------------------
+    def _load_state(self):
+        if not self.state_path or not self.state_path.exists():
+            return
+        try:
+            data = json.loads(self.state_path.read_text(encoding="utf-8"))
+        except Exception as exc:  # noqa: BLE001 - a bad file must never block startup
+            print(f"[state] gagal membaca {self.state_path}: {exc}", file=sys.stderr)
+            return
+        cutoff = time.time() - self.HISTORY_TTL
+        hist = [ev for ev in (data.get("history") or []) if isinstance(ev, dict) and (ev.get("ts") or 0) >= cutoff]
+        self.history = hist[-self.HISTORY_LIMIT:]
+        if data.get("day") == self.day:
+            stats = data.get("stats") or {}
+            for key in self.stats:
+                try:
+                    self.stats[key] = int(stats.get(key) or 0)
+                except (TypeError, ValueError):
+                    pass
+        self.events_total = int(data.get("events_total") or 0)
+        if hist:
+            self.last_event_ts = float(hist[-1].get("ts") or 0)
+        # Rebuild "who is working now": replay the WHOLE feed (including
+        # agent_done, so finished agents are not resurrected as working).
+        for ev in self.history:
+            self._apply(ev)
+        print(f"[state] dipulihkan: {len(self.history)} event, {len(self.agents)} agent aktif")
+
+    def _save_state(self):
+        if not self.state_path or not self._dirty:
+            return
+        try:
+            payload = {
+                "day": self.day,
+                "stats": self.stats,
+                "events_total": self.events_total,
+                "history": self.history[-self.HISTORY_LIMIT:],
+            }
+            self.state_path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = self.state_path.with_suffix(".tmp")
+            tmp.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+            tmp.replace(self.state_path)
+            self._dirty = False
+        except Exception as exc:  # noqa: BLE001
+            print(f"[state] gagal menyimpan: {exc}", file=sys.stderr)
 
     def publish(self, raw: dict):
         ev = sanitize_event(raw)
@@ -272,6 +339,11 @@ class Hub:
             self.last_event_ts = time.time()
             self.events_total += 1
             self._apply(ev)
+            if ev["type"] != "snapshot":
+                self.history.append(ev)
+                if len(self.history) > self.HISTORY_LIMIT:
+                    del self.history[: len(self.history) - self.HISTORY_LIMIT]
+                self._dirty = True
             for q in list(self.subs):
                 try:
                     q.put_nowait(ev)
@@ -314,7 +386,7 @@ class Hub:
             self.publish({"type": "agent_done", "agentId": aid, "ok": False, "result": "timeout"})
 
 
-HUB = Hub()
+HUB = Hub(str(CFG["state_file"]))
 
 
 # --------------------------------------------------------------------------------------
@@ -1012,6 +1084,16 @@ def _source_names(sources):
     return [type(s).__name__ for s in sources]
 
 
+def _persist_loop():
+    """Flush hub state even when no watcher sources are configured."""
+    while True:
+        time.sleep(3.0)
+        try:
+            HUB._save_state()
+        except Exception:  # noqa: BLE001
+            pass
+
+
 def watcher_loop():
     tracker = Tracker(HUB)
     sources = []
@@ -1064,6 +1146,7 @@ def watcher_loop():
         WATCHER["ticks"] += 1
         WATCHER["last_tick"] = time.time()
         HUB.reap(float(CFG["subagent_timeout"]))
+        HUB._save_state()
         time.sleep(float(CFG["poll_interval"]))
 
 
@@ -1350,6 +1433,8 @@ def main():
         return probe()
     if CFG["source"] != "none":
         threading.Thread(target=watcher_loop, daemon=True).start()
+    else:
+        threading.Thread(target=_persist_loop, daemon=True).start()
     if A2A.peers:
         threading.Thread(target=a2a_loop, daemon=True).start()
         print(f"[a2a] {len(A2A.peers)} peer: " + ", ".join(f"{p.name}@{p.host}" for p in A2A.peers))
@@ -1360,6 +1445,8 @@ def main():
         srv.serve_forever()
     except KeyboardInterrupt:
         print("\nbye 👋")
+    finally:
+        HUB._save_state()
 
 
 if __name__ == "__main__":

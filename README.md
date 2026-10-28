@@ -114,6 +114,24 @@ Check the Hermes bridge wiring on the agent host:
 python3 deploy/hermes_bridge.py --endpoint http://192.168.3.33:13579 --verify
 ```
 
+## Live State
+
+The office shows what the agents are doing **right now**, and that state is not
+lost when you reload the page or redeploy:
+
+- Agent identity is derived from the agent id, so `sa-abc123` always appears as
+  the same name and sprite.
+- A reload/subscribe rebuilds the current agents straight at their desks (no
+  entrance animation, no duplicate "joined the office" toasts) and fills the
+  activity ticker from the server's recent history.
+- The server persists `{stats, event feed, active agents}` to a JSON file and
+  replays it on boot, so a container restart keeps the floor populated.
+
+```bash
+# where the state lives (mounted as the office-state volume)
+OFFICE_STATE_FILE=/data/office-state.json
+```
+
 ## Responsive Layout
 
 - **Desktop / tablet**: the whole floorplan is fit to the viewport. Opening the

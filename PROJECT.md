@@ -38,7 +38,8 @@ A complete 2D Top-Down / RPG pixel art office (Pokemon / Zelda GBA / RPG Maker a
 | 15 | Responsive Layout & Phone Camera | Desktop fits the whole plan; phones get a pan/zoom camera (fill-width, auto-focus, drag/pinch/double-tap) and desktop canvas shrinks beside the chat drawer. | M5 | ORIGINAL_REQUEST §Responsive |
 | 16 | Floorplan Decoration | Windows, sconces, plants, vents, rugs, wall clocks, posters, bins and entrance awning placed by the tilemap generator. | M5 | ORIGINAL_REQUEST §Decor |
 | 17 | A2A Peer Agents | Four Hermes A2A sidecars on the LAN (192.168.3.91–94) shown in their specialty rooms with live presence and optional message sending. | M5 | ORIGINAL_REQUEST §A2A |
-| 18 | E2E Test Suite Pass (Tiers 1-4) | Comprehensive opaque-box test suite passing 100% of requirements. | M5 | Dual Track Acceptance |
+| 18 | Live State Persistence | Agents keep their identity/position across reloads; office state survives server restarts via a persisted JSON feed. | M6 | ORIGINAL_REQUEST §Realtime |
+| 19 | E2E Test Suite Pass (Tiers 1-4) | Comprehensive opaque-box test suite passing 100% of requirements. | M6 | Dual Track Acceptance |
 
 ---
 
@@ -50,6 +51,7 @@ A complete 2D Top-Down / RPG pixel art office (Pokemon / Zelda GBA / RPG Maker a
 | M3 | Viewport Layout & Staging Sync | Desktop responsive fit, drawer adjustment, smoke test, git push `dev`, staging sync | M2 | DONE |
 | M4 | Tilemap, E2E Pass & Hardening | Committed tilemap/tileset, 100% E2E pass, adversarial hardening | M3 | DONE |
 | M5 | Responsive, Decoration & A2A Peers | Phone camera mode, drawer-aware desktop canvas, floorplan decoration, A2A peer agents on the LAN | M4 | DONE |
+| M6 | Live State Persistence | Deterministic agent identity, in-place snapshot restore, persisted Hub state across restarts | M5 | DONE |
 
 ---
 
@@ -99,7 +101,15 @@ A complete 2D Top-Down / RPG pixel art office (Pokemon / Zelda GBA / RPG Maker a
 - `A2A_POLL_INTERVAL`: seconds between `/health` probes (default 10).
 
 ### Backend ↔ Hermes ingest
-- `GET /events` (SSE): sanitized office events + snapshots.
+- `GET /events` (SSE): sanitized office events + snapshots. A snapshot carries
+  `agents` (current work), `stats` and `history` (recent feed) so a new or
+  reconnected page renders the live floor instead of an empty room.
+- `Hub._load_state()` / `Hub._save_state()`: persist `{day, stats, events_total, history}`
+  to `OFFICE_STATE_FILE` (default `/data/office-state.json`) and replay the feed
+  on boot. Replay includes `agent_done` so finished agents are not resurrected.
+- Frontend identity helpers: `LO.hashString`, `LO.nameForAgent(id, provided)`,
+  `LO.lookForAgent(id)`, `LO.slotIndexForAgent(id, slotCount)` — deterministic,
+  so reloading never renames or reskins an agent.
 - `POST /api/event` (JSON): ingest; allowed from localhost/LAN (`trusted_networks`) or with `X-Office-Token` matching `INGEST_TOKEN`.
 - `services/lami-office-react/deploy/hermes_bridge.py`: tails Hermes `state.db` on another host and POSTs events. `--probe` prints parsed events, `--verify` checks db + endpoint + ingest auth.
 
