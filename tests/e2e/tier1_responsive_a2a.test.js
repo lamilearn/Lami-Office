@@ -171,6 +171,42 @@ describe('Tier 1 — Feature 15: Responsive Layout & Phone Camera', () => {
     assert.ok(/vv\.addEventListener\('resize'/.test(office), 'resize listener required');
     assert.ok(/recompute\(\)/.test(office), 'viewport changes must recompute the view');
   });
+
+  it('F15.12: Phones render the chat drawer as a bottom sheet, not a full-height sidebar', () => {
+    const css = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/css/style.css'), 'utf8');
+    const sheetAt = css.indexOf('.chat-drawer.is-sheet {');
+    assert.ok(sheetAt > -1, 'a bottom-sheet variant must exist');
+    const sheet = css.slice(css.indexOf('.chat-drawer,', sheetAt - 400), sheetAt + 400);
+
+    assert.ok(/top:\s*auto/.test(sheet), 'the sheet must drop the full-height top anchor');
+    assert.ok(/bottom:\s*0/.test(sheet), 'the sheet must anchor to the bottom');
+    assert.ok(/max-height:\s*var\(--sheet-height/.test(sheet), 'the sheet height must be variable');
+    assert.ok(/border-radius:\s*16px 16px 0 0/.test(sheet), 'the sheet needs rounded top corners');
+    assert.ok(/slideUpSheet/.test(css), 'the sheet must animate from the bottom');
+  });
+
+  it('F15.13: The desk drawer stays an inset card with a pixel accent rail', () => {
+    const css = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/css/style.css'), 'utf8');
+    const drawer = css.slice(css.indexOf('.chat-drawer {'), css.indexOf('.chat-drawer.hidden'));
+    assert.ok(/top:\s*calc\(8px \+ env\(safe-area-inset-top\)\)/.test(drawer), 'desktop drawer must float below the HUD');
+    assert.ok(/border-radius:\s*14px/.test(drawer), 'desktop drawer must be rounded, not edge-to-edge');
+    assert.ok(/max-height:\s*calc\(100% - 16px/.test(drawer), 'desktop drawer must not hide the HUD');
+    assert.ok(/repeating-linear-gradient/.test(css), 'pixel accent rail must stay');
+  });
+
+  it('F15.14: The sheet follows the visual viewport so the keyboard never covers the input', () => {
+    const ui = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/js/ui.js'), 'utf8');
+    const html = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/index.html'), 'utf8');
+    const setup = ui.slice(ui.indexOf('setupChatSheet() {'), ui.indexOf('scrollChatToEnd() {'));
+
+    assert.ok(/setupChatSheet\(\)/.test(ui), 'the sheet setup hook must exist');
+    assert.ok(/visualViewport/.test(setup), 'the sheet must consult the visual viewport');
+    assert.ok(/--sheet-height/.test(setup), 'the sheet height must be driven by --sheet-height');
+    assert.ok(/vv\.addEventListener\('resize'/.test(setup), 'keyboard open/close must re-measure');
+    assert.ok(/is-sheet/.test(ui), 'phone mode must toggle the is-sheet class');
+    assert.ok(/chat-grabber/.test(html), 'the sheet needs a grab handle');
+    assert.ok(/classList\.contains\('is-sheet'\)/.test(ui), 'opening the sheet must scroll to the last message');
+  });
 });
 
 describe('Tier 1 — Feature 16: Floorplan Decoration', () => {

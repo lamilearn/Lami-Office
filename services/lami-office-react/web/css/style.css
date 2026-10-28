@@ -297,16 +297,16 @@ html, body {
 /* ===== Slack-style Office Chat Drawer (Collapsible Right Sidebar) ===== */
 .chat-drawer {
   position: absolute;
-  top: 0;
-  right: 0;
-  width: min(var(--drawer-width), 100%);
-  height: 100%;
-  max-width: 100%;
+  top: calc(8px + env(safe-area-inset-top));
+  right: calc(8px + env(safe-area-inset-right));
+  bottom: 8px;
+  width: min(var(--drawer-width), calc(100% - 16px));
+  max-height: calc(100% - 16px - env(safe-area-inset-top));
   background: rgba(255, 252, 247, 0.97);
   backdrop-filter: blur(12px);
-  border-left: 3px solid var(--ink);
-  padding-right: env(safe-area-inset-right);
-  box-shadow: -6px 0 24px rgba(24, 17, 36, 0.35);
+  border: 2px solid var(--ink);
+  border-radius: 14px;
+  box-shadow: -8px 8px 28px rgba(24, 17, 36, 0.3);
   display: flex;
   flex-direction: column;
   z-index: 50;
@@ -314,15 +314,29 @@ html, body {
   animation: slideInRight .22s cubic-bezier(.2, 1.2, .4, 1);
 }
 .chat-drawer.hidden { display: none !important; }
+/* Pixel accent: a small notched tab in the drawer header. */
+.chat-drawer::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 4px; height: 100%;
+  background: repeating-linear-gradient(180deg, var(--pink) 0 6px, transparent 6px 12px);
+  opacity: 0.85;
+}
 
 .chat-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
+  gap: 8px;
+  padding: 12px 16px 12px 18px;
   background: linear-gradient(180deg, #ffeef4, var(--pink));
   border-bottom: 2px solid var(--ink);
+  flex-shrink: 0;
+  cursor: grab;
 }
+.chat-drawer.is-sheet .chat-head { cursor: grab; touch-action: none; }
+.chat-grabber { display: none; }
 .chat-head-title {
   display: flex;
   align-items: center;
@@ -392,6 +406,7 @@ html, body {
   gap: 8px;
   background: #faebe0;
   border-top: 2px solid var(--ink);
+  flex-shrink: 0;
 }
 #chat-input {
   flex: 1;
@@ -553,6 +568,7 @@ html, body {
 @keyframes bump { 0% { transform: scale(1); } 50% { transform: scale(1.15); } 100% { transform: scale(1); } }
 @keyframes load { 0% { background-position: 0 0; } 100% { background-position: 24px 0; } }
 @keyframes slideInRight { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@keyframes slideUpSheet { from { transform: translateY(100%); } to { transform: translateY(0); } }
 @keyframes slideDown { from { transform: translate(-50%, -24px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
 @keyframes slideUp { from { transform: translate(-50%, 20px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
 @keyframes fadeInModal { from { opacity: 0; } to { opacity: 1; } }
@@ -606,6 +622,41 @@ html, body {
   #ticker { left: 10px; bottom: calc(10px + env(safe-area-inset-bottom)); max-width: calc(100vw - 76px); }
   .card { width: calc(100vw - 20px); bottom: calc(10px + env(safe-area-inset-bottom)); }
   .chat-drawer { width: 100%; }
+}
+
+/* Phones: the drawer becomes a bottom sheet that spares the HUD and the keyboard. */
+@media (max-width: 900px) {
+  .chat-drawer,
+  .chat-drawer.is-sheet {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: auto;
+    max-width: 100%;
+    max-height: var(--sheet-height, 72vh);
+    border-width: 2px 0 0;
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -10px 30px rgba(24, 17, 36, 0.32);
+    animation: slideUpSheet .24s cubic-bezier(.2, 1.1, .4, 1);
+    padding-bottom: 0;
+  }
+  .chat-drawer::before { display: none; }
+  .chat-head { flex-direction: column; align-items: stretch; gap: 4px; padding: 0 12px 10px; }
+  .chat-grabber {
+    display: block;
+    width: 44px; height: 4px;
+    margin: 8px auto 6px;
+    border-radius: 99px;
+    background: rgba(24, 17, 36, 0.35);
+  }
+  .chat-head-title { justify-content: center; font-size: 10px; }
+  .chat-head-actions { position: absolute; top: 12px; right: 10px; }
+  .chat-messages { padding: 10px 12px; }
+  #chat-input { font-size: 16px; min-height: 44px; }
+  #chat-send { min-height: 44px; padding: 10px 14px; }
+  .chat-drawer.sheet-dragging .chat-messages { overflow: hidden; }
 }
 
 @media (max-width: 768px) {

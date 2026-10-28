@@ -164,6 +164,8 @@
 
         // Greeting message in Slack chat
         this.appendChatMessage('Boss Lami', 'CEO', 'Selamat datang di Lami Corp! Ketik <code>/help</code> untuk melihat daftar perintah santai. 👑✨', '👑', '#ffd25e');
+
+        this.setupChatSheet();
       }
 
       // Whiteboard Modal bindings
@@ -219,6 +221,7 @@
         this.hideCard();
         this.chatDrawer.classList.remove('hidden');
         LO.audio.pop();
+        if (this.chatDrawer.classList.contains('is-sheet')) this.scrollChatToEnd();
         if (this.chatInput) setTimeout(() => this.chatInput.focus(), 80);
       } else {
         this.chatDrawer.classList.add('hidden');
@@ -234,6 +237,59 @@
       if (!office || typeof office.setDrawerOpen !== 'function') return;
       const width = this.chatDrawer ? this.chatDrawer.getBoundingClientRect().width : 0;
       office.setDrawerOpen(open, width);
+    }
+
+    // Phones: keep the bottom sheet above the soft keyboard by capping its
+    // height to the visual viewport that is actually visible above it.
+    setupChatSheet() {
+      const office = window.LO?.office;
+      const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+      const apply = () => {
+        if (!this.chatDrawer) return;
+        const isSheet = Boolean(office?.isPhoneMode?.());
+        this.chatDrawer.classList.toggle('is-sheet', isSheet);
+        let max = '72vh';
+        if (isSheet && vv && vv.height) {
+          const hidden = Math.max(0, window.innerHeight - vv.height - (vv.offsetTop || 0));
+          const usable = hidden > 80 ? Math.max(180, vv.height - 12) : Math.max(180, vv.height * 0.72);
+          max = `${Math.round(usable)}px`;
+        }
+        const style = this.chatDrawer.style;
+        if (style && typeof style.setProperty === 'function') style.setProperty('--sheet-height', max);
+        else if (style) style['--sheet-height'] = max;
+        if (isSheet) this.scrollChatToEnd();
+      };
+      if (typeof window !== 'undefined' && window.addEventListener) {
+        window.addEventListener('resize', apply);
+        window.addEventListener('orientationchange', apply);
+      }
+      if (vv && vv.addEventListener) {
+        vv.addEventListener('resize', apply);
+        vv.addEventListener('scroll', apply);
+      }
+      if (this.chatInput) {
+        this.chatInput.addEventListener('focus', () => {
+          apply();
+          if (typeof this.chatDrawer?.scrollIntoView === 'function') {
+            this.chatDrawer.scrollIntoView({ block: 'end', behavior: 'smooth' });
+          }
+        });
+      }
+      apply();
+    }
+
+    scrollChatToEnd() {
+      const el = this.chatMessages;
+      if (!el) return;
+      const atBottom = () => {
+        el.scrollTop = el.scrollHeight;
+        if (typeof el.scrollTo === 'function') el.scrollTo({ top: el.scrollHeight });
+      };
+      if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+        window.requestAnimationFrame(atBottom);
+      } else {
+        atBottom();
+      }
     }
 
     appendChatMessage(sender, role, text, icon = '💬', color = '#555', isUser = false, isSystem = false, tsMs = null) {
@@ -259,7 +315,7 @@
       `;
 
       this.chatMessages.appendChild(msg);
-      this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
+      this.scrollChatToEnd();
     }
 
     handleChatSubmit() {
