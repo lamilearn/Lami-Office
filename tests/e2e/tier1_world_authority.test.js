@@ -493,3 +493,53 @@ print(json.dumps({"drift": drift, "kinds": kinds, "restored": sorted(after)}))
     }
   }, { timeout: 120000 });
 });
+
+describe('Feature 28: The spritesheet is never served stale', () => {
+  const TILEMAP = path.join(REPO, 'services/lami-office-react/web/js/tilemap.js');
+  const TILESET = path.join(REPO, 'services/lami-office-react/web/assets/tiles/tileset.json');
+  const MAP = path.join(REPO, 'services/lami-office-react/web/assets/map/office.map.json');
+  const CONFIG = path.join(REPO, 'services/lami-office-react/web/js/config.js');
+
+  it('F28.1: the tileset image is requested with a version derived from the index', () => {
+    const vm = require('node:vm');
+    const env = require('../harness').createBrowserEnvironment();
+    const asked = [];
+    let imgSrc = null;
+
+    env.window.fetch = (url) => {
+      asked.push(url);
+      const body = url.includes('tileset')
+        ? fs.readFileSync(TILESET, 'utf8')
+        : fs.readFileSync(MAP, 'utf8');
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(JSON.parse(body)) });
+    };
+    env.window.Image = class {
+      set src(v) { imgSrc = v; this.width = 128; this.height = 192; setTimeout(() => this.onload && this.onload(), 0); }
+      get src() { return imgSrc; }
+    };
+    env.window.OffscreenCanvas = undefined;
+
+    const context = vm.createContext(env.window);
+    vm.runInContext(fs.readFileSync(CONFIG, 'utf8'), context, { filename: 'config.js' });
+    vm.runInContext(fs.readFileSync(TILEMAP, 'utf8'), context, { filename: 'tilemap.js' });
+
+    const done = env.window.LO.Tilemap.load();
+    return done.then(() => {
+      // Regression: the spritesheet was loaded through <img> with no cache
+      // escape hatch, so a proxy could serve the previous sheet next to the new
+      // index. Because the per-room wall tiles live in cells that were empty in
+      // the older sheet, every wall vanished in production.
+      assert.ok(imgSrc && /\?v=[a-z0-9]+/.test(imgSrc),
+        `the tileset image must be cache-busted, got ${imgSrc}`);
+      assert.ok(imgSrc.indexOf('tileset.png') > -1, 'the version must be on the tileset image');
+    });
+  });
+
+  it('F28.2: a changed index yields a different version', () => {
+    const src = fs.readFileSync(TILEMAP, 'utf8');
+    assert.ok(/function smallHash/.test(src), 'a stable hash is required');
+    assert.ok(/function withVersion/.test(src), 'a version appender is required');
+    assert.ok(/smallHash\(JSON\.stringify\(STATE\.index\)\)/.test(src),
+      'the version must be derived from the tileset index');
+  });
+});
