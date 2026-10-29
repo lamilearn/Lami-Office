@@ -28,6 +28,16 @@ systemctl --user daemon-reload
 systemctl --user enable --now lami-metrics
 sleep 2
 
+# A host with ufw enabled blocks the port unless it is opened from the office
+# LAN, which looks identical to "the agent has no metrics". Report it instead of
+# letting the Server Room silently show a dash.
+if command -v ufw >/dev/null 2>&1 && sudo -n ufw status 2>/dev/null | grep -q '^Status: active'; then
+  if ! sudo -n ufw status 2>/dev/null | grep -q "\b$PORT/tcp"; then
+    echo "NOTE: ufw is active and $PORT is not allowed; run:" >&2
+    echo "  sudo ufw allow from 192.168.3.0/24 to any port $PORT proto tcp comment 'Lami metrics'" >&2
+  fi
+fi
+
 if curl -fsS -m 5 "http://127.0.0.1:$PORT/metrics" | grep -q '"cpu"'; then
   echo "metrics endpoint up for '$AGENT_ID' on port $PORT"
   curl -fsS -m 5 "http://127.0.0.1:$PORT/metrics"

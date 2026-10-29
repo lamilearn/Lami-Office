@@ -194,6 +194,10 @@ The Server Room's wall monitor shows each agent's real CPU/RAM.
 | API | `GET /api/resources` (per-agent CPU/RAM/disk/uptime) and `metrics` inside `GET /api/a2a` |
 | Rendering | `World.drawVmMonitor()` in the Server Room, fed by `office.vmResources` (polled by `net.js` every 15 s) |
 
+If a host runs `ufw`, port 8010 must be allowed from the office LAN
+(`sudo ufw allow from 192.168.3.0/24 to any port 8010 proto tcp`); `.93` needed this and a blocked
+port looks exactly like an agent that reports nothing. The installer warns about it.
+
 `metrics_port` can be overridden per peer in `A2A_PEERS`. A host without the endpoint shows `--`
 rather than an invented number, and an offline agent shows no gauges at all.
 
