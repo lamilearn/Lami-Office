@@ -148,6 +148,35 @@ describe('Tier 4 — HTTP Integration: Ingest over real HTTP', () => {
     assert.strictEqual(res.status, 413);
   }, LONG);
 
+  it('B4b: an oversized body is rejected without breaking the server', async () => {
+    if (!HAVE_PY) return;
+    const http = require('node:http');
+    const post = (body) => new Promise((resolve) => {
+      const payload = Buffer.from(JSON.stringify(body));
+      const req = http.request({
+        host: '127.0.0.1', port: srv.port, method: 'POST', path: '/api/event', agent: false,
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': String(payload.length),
+          Connection: 'close'
+        }
+      }, (res) => { res.resume(); res.on('end', () => resolve(res.statusCode)); });
+      req.setTimeout(15000, () => { req.destroy(); resolve('timeout'); });
+      req.on('error', (e) => resolve('err:' + e.code));
+      req.end(payload);
+    });
+
+    // Regression: rejecting an oversized body deadlocked the connection. The
+    // server drained the unread body with rfile.read(n), which blocks until n
+    // bytes arrive while the client waits for the reply - so the 413 never came
+    // and every later request hung too.
+    assert.strictEqual(await post({ type: 'message', text: 'x'.repeat(300 * 1024) }), 413);
+    assert.strictEqual(await post({ type: 'message', text: 'after a rejection' }), 200,
+      'the server must keep serving requests after a 413');
+    const health = await srv.get('/healthz');
+    assert.strictEqual(health.status, 200);
+  }, { timeout: 45000 });
+
   it('B5: an invalid Content-Length is refused with 400', async () => {
     if (!HAVE_PY) return;
     // Node's http client rewrites Content-Length, so speak raw HTTP to send a bad one.
