@@ -244,6 +244,19 @@ class Bridge:
         self._save_state()
         return sent
 
+    def known_agents(self) -> set[str] | None:
+        """Agents the office currently has. None when the office cannot be asked."""
+        try:
+            base = self.opts.endpoint.rstrip('/')
+            with urllib.request.urlopen(base + '/api/agents', timeout=5) as resp:
+                data = json.loads(resp.read() or b'{}')
+        except Exception:  # noqa: BLE001 - best effort, keep the old behaviour
+            return None
+        agents = data.get('agents')
+        if not isinstance(agents, list):
+            return None
+        return {str(a.get('id')) for a in agents if isinstance(a, dict) and a.get('id')}
+
     def reap(self):
         now = time.time()
         for aid, seen in list(self.last_seen.items()):
@@ -256,6 +269,12 @@ class Bridge:
         rows = self.rows(limit)
         if not rows:
             return 0
+        # The office loses its roster when it restarts, but this bridge only
+        # announces an agent once per process. Re-announce anything the server no
+        # longer knows, otherwise its sessions stay invisible until it idles out.
+        known = self.known_agents()
+        if known is not None:
+            self.spawned = {a for a in self.spawned if a in known}
         batch: list[dict] = []
         for row in rows:
             batch.extend(self.parse(row))

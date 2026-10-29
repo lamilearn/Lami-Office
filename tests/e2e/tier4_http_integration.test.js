@@ -901,3 +901,41 @@ describe('Tier 4 — HTTP Integration: Hermes drives the office (dashboard)', ()
     assert.strictEqual(health.status, 200);
   }, LONG);
 });
+
+describe('Tier 4 — HTTP Integration: Ingest survives an office restart', () => {
+  let srv = null;
+  beforeAll(async () => { srv = await H.startServer({ keepDir: true }); });
+  afterAll(async () => {
+    if (srv) { await srv.stop(); fs.rmSync(srv.dir, { recursive: true, force: true }); }
+    srv = null;
+  });
+
+  it('H7: a tool_start from an unknown agent is adopted, not dropped', async () => {
+    if (!HAVE_PY) return;
+    // The bridge announces an agent once per process. If the office restarts it
+    // loses that agent, and every later tool event used to be ignored because
+    // _apply() only updated agents it already knew.
+    await srv.post('/api/event', { type: 'tool_start', agentId: 'orphan-9', tool: 'terminal', summary: 'adopt me' });
+    await H.sleep(1500);
+    const agents = await srv.get('/api/agents');
+    const adopted = agents.json.agents.find((a) => a.id === 'orphan-9');
+    assert.ok(adopted, 'the unknown agent must be adopted');
+    assert.strictEqual(adopted.tool, 'terminal');
+    const world = await srv.get('/api/world');
+    const sub = world.json.chars.find((c) => c.id === 'orphan-9');
+    assert.ok(sub, 'an adopted agent must appear on the floor');
+    assert.strictEqual(sub.slot && sub.slot.roomId, 'engineering', 'a terminal tool belongs to engineering');
+  }, { timeout: 45000 });
+
+  it('H8: narration authors are never mistaken for agents', async () => {
+    if (!HAVE_PY) return;
+    // "Sistem" is the byline used for office narration; adopting it produced a
+    // phantom character standing in the hallway.
+    await srv.post('/api/event', { type: 'message', agentId: 'Sistem', text: 'kantor siap' });
+    await H.sleep(800);
+    const agents = await srv.get('/api/agents');
+    assert.ok(!agents.json.agents.some((a) => a.id === 'Sistem'), 'Sistem must not become an agent');
+    const world = await srv.get('/api/world');
+    assert.ok(!world.json.chars.some((c) => c.id === 'Sistem'), 'Sistem must not be rendered');
+  }, { timeout: 45000 });
+});

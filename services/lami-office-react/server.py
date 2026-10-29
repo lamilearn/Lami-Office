@@ -395,7 +395,16 @@ class Hub:
         if t == "agent_spawn" and aid != "lami":
             self.agents[aid] = {"id": aid, "task": ev.get("task", ""), "name": ev.get("name", ""),
                                 "tool": None, "summary": "", "status": "working", "since": now, "last": now}
-        elif aid in self.agents:
+        elif (aid not in ("lami", "Sistem") and aid not in self.agents
+              and t in ("tool_start", "agent_status")):
+            # A bridge that already announced this session before our own restart
+            # will not send agent_spawn again, so adopt the agent on first contact
+            # instead of dropping everything it does.
+            self.agents[aid] = {"id": aid, "task": ev.get("summary", ""), "name": ev.get("name", ""),
+                                "tool": None, "summary": "", "status": "working", "since": now, "last": now}
+            self.agents[aid]["tool"] = ev.get("tool") if t == "tool_start" else None
+            self.agents[aid]["summary"] = ev.get("summary", "")
+        if aid in self.agents:
             a = self.agents[aid]
             a["last"] = now
             if t == "tool_start":
