@@ -243,14 +243,10 @@ def build_map(cfg: dict) -> dict:
     if 0 <= ax < cols and 0 <= ay < rows:
         decor[ay][ax] = "shop_awning"
 
-    # ---- door thresholds + room plaques on the hallway side
+    # ---- room plaques on the shared wall beside each doorway
+    # (The doorway floor itself is the sill: door_mid carries the threshold art,
+    # so no separate mat is laid across the hallway.)
     for d in doors:
-        side = d["side"]
-        for t in d["tiles"]:
-            ty = t["y"] + (1 if side == "S" else -1)
-            if 0 <= ty < rows and walls[ty][t["x"]] is None:
-                decor[ty][t["x"]] = "door_threshold"
-        # Room name plaque on the shared wall, beside the doorway
         _decor_on_wall(decor, walls, d["x"] - 2, d["y"], "sign_plaque", cols, rows)
 
     # ---- accent decor: rugs, wall clocks, posters and desk bins

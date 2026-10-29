@@ -238,30 +238,37 @@ def window_tile(theme):
 
 
 def door_post(base, flip=False):
+    """One jamb of a doorway.
+
+    Only the post is painted: the rest of the tile stays transparent so the
+    doorway is an actual opening. Filling the whole tile (as this used to) laid a
+    solid dark slab across the gap and made every door look closed and mis-placed.
+    """
     tile = Tile()
-    tile.rect(0, 0, T, T, base)
     post_x = T - 4 if flip else 0
     tile.rect(post_x, 0, 4, T, shade(base, -0.25))
     tile.rect(post_x, 2, 4, 2, hexc("#261b2e"))
-    tile.hline(0, 0, T - 1, shade(base, 0.4))
+    tile.hline(0, post_x, post_x + 3, shade(base, 0.4))
     return tile
 
 
 def door_mid(base):
+    """The sill under a doorway.
+
+    A warm wooden plank, not a pale panel: the doorway has to read as an opening
+    in the wall that you can walk through, which is what players expect to see
+    between two rooms.
+    """
+    wood = shade(OAK, 0.22)
     tile = Tile()
-    tile.rect(0, 0, T, T, shade(base, 0.55))
-    tile.rect(0, 0, T, 2, shade(base, 0.35))
-    tile.rect(0, T - 2, T, 2, shade(base, 0.2))
+    tile.rect(0, 0, T, T, wood)
+    tile.hline(5, 0, T - 1, shade(wood, -0.28))
+    tile.hline(11, 0, T - 1, shade(wood, -0.28))
+    tile.rect(0, 0, T, 2, shade(wood, 0.34))
+    tile.rect(0, T - 2, T, 2, shade(wood, -0.38))
     return tile
 
 
-def door_threshold(gold):
-    tile = Tile()
-    tile.rect(0, 0, T, T, gold)
-    tile.rect(0, 3, T, 4, shade(gold, -0.35))
-    tile.hline(4, 0, T - 1, shade(gold, 0.45))
-    tile.hline(9, 0, T - 1, shade(gold, -0.2))
-    return tile
 
 
 def sign_plaque(base):
@@ -436,7 +443,6 @@ TILES = {
     "door_left": lambda: door_post(OAK, flip=False),
     "door_mid": lambda: door_mid(OAK),
     "door_right": lambda: door_post(OAK, flip=True),
-    "door_threshold": lambda: door_threshold(GOLD),
     "sign_plaque": lambda: sign_plaque(OAK),
     "sconce": sconce,
     "vent": lambda: vent(hexc("#868e96")),

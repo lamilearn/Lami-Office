@@ -333,11 +333,18 @@ describe('Tier 1 — Feature 16: Floorplan Decoration', () => {
     return counts;
   }
 
-  it('F16.1: Doorways, plaques and sconces are placed around every door', () => {
+  it('F16.1: Doorways carry jambs and a sill, with a plaque and sconce', () => {
     const counts = decorCounts();
     assert.strictEqual(counts.door_left, 6, 'Six doorway left jambs');
     assert.strictEqual(counts.door_right, 6, 'Six doorway right jambs');
-    assert.strictEqual(counts.door_threshold, 12, 'Threshold on both tiles of all six doors');
+    // The threshold is the doorway floor itself (door_mid), painted once per tile
+    // of every door: no separate mat is laid across the hallway, which used to
+    // read as a striped pillar between two facing doors.
+    assert.ok(!counts.door_threshold, 'no threshold mats in the decor layer');
+    const map = JSON.parse(fs.readFileSync(MAP_PATH, 'utf8'));
+    let doorMid = 0;
+    for (const [v, n] of map.layers[1].data) if (v === 'door_mid') doorMid += n;
+    assert.strictEqual(doorMid, 12, 'Two doorway tiles per door, six doors');
     assert.strictEqual(counts.sign_plaque, 6, 'One room plaque per doorway');
     assert.ok(counts.sconce >= 6, `Expected sconces beside doors, got ${counts.sconce || 0}`);
   });

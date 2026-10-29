@@ -606,3 +606,33 @@ describe('Feature 30: Production stays a clean mirror of master', () => {
     assert.ok(/Skipping 'master'/.test(src), 'the default path must skip master and say so');
   });
 });
+
+describe('Feature 32: Doorways read as openings', () => {
+  const TILESET_GEN = path.join(REPO, 'scripts/generate_tileset.py');
+
+  it('F32.1: jamb tiles are posts, not a solid slab across the doorway', () => {
+    const src = fs.readFileSync(TILESET_GEN, 'utf8');
+    const fn = src.slice(src.indexOf('def door_post('), src.indexOf('def door_mid('));
+    // Regression: door_post filled the whole 16x16 tile with oak, so every
+    // doorway looked like a closed dark panel instead of an opening.
+    assert.ok(!/tile\.rect\(0, 0, T, T/.test(fn),
+      'the jamb must not paint the full tile');
+    assert.ok(/tile\.rect\(post_x, 0, 4, T/.test(fn), 'only the post is drawn');
+  });
+
+  it('F32.2: the doorway floor is a warm wooden sill', () => {
+    const src = fs.readFileSync(TILESET_GEN, 'utf8');
+    const fn = src.slice(src.indexOf('def door_mid('), src.indexOf('def sign_plaque('));
+    assert.ok(/shade\(OAK/.test(fn), 'the sill must use the oak palette, not a pale panel');
+    assert.ok(!/shade\(base, 0\.55\)/.test(fn), 'the old pale panel look must be gone');
+  });
+
+  it('F32.3: no threshold mat is laid across the hallway', () => {
+    const tilemapGen = fs.readFileSync(path.join(REPO, 'scripts/generate_tilemap.py'), 'utf8');
+    assert.ok(!/door_threshold/.test(tilemapGen), 'the generator must not place threshold mats');
+    const index = JSON.parse(fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/assets/tiles/tileset.json'), 'utf8'));
+    assert.ok(!index.some((t) => t.name === 'door_threshold'), 'the tile is retired');
+    const tm = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/js/tilemap.js'), 'utf8');
+    assert.ok(!/'door_threshold'/.test(tm), 'the renderer no longer needs to special-case it');
+  });
+});
