@@ -156,6 +156,39 @@ Rules:
 - `world.py` mirrors the floorplan from `web/js/config.js`; `scripts/check_world_sync.py` fails the suite when they drift, and `tests/e2e/tier1_world_authority.test.js` asserts the collision grid and A* routes stay equivalent.
 - Positions are persisted in `OFFICE_STATE_FILE` under the `world` key every ~5 s; on boot `Sim.restore()` resumes the exact walk (remaining `path` included). Entries older than the staleness window or standing on a now-solid tile fall back safely.
 
+## Deployment (production)
+
+Production is a **pure mirror of `master`**; nobody merges or edits code there.
+
+| Step | Command |
+|---|---|
+| 1. Gate | staging verified (suite + smoke) |
+| 2. Release | `git checkout master && git merge --no-ff dev && git tag -a vX.Y.Z && git push origin master vX.Y.Z` |
+| 3. Deploy | `bash scripts/deploy_prod.sh` (fast-forwards `origin/master`, refuses a dirty checkout, rebuilds, waits for `/healthz`) |
+
+Server-side layout on `rumi@192.168.3.33:/home/rumi/projects/office-suite`:
+
+- **Tracked and identical to `master`**: everything, including `.env.production` (with the A2A
+  secrets left empty).
+- **Untracked, never committed** (listed in `.git/info/exclude`):
+  - `.env.production.secrets` — real `A2A_SECRET` / `A2A_PEER_TOKENS`
+  - `docker-compose.override.yml` — `container_name: lami-office-prod`
+  - `.env.production.runtime`, `*.bak-*` — local leftovers
+
+Compose is always invoked with both env files:
+`docker compose --env-file .env.production --env-file .env.production.secrets up -d --build`.
+
+`scripts/push_to_github.sh` no longer pushes `master` unless `ALLOW_MASTER_PUSH=1`, so the
+staging gate cannot be bypassed by accident.
+
+### Cache-busting
+`index.html` references every css/js with a content hash (`?v=<sha8>`), and the spritesheet is
+requested with a version derived from `tileset.json`. The server sends `no-cache` without an
+ETag and the CDN rewrites that to a long TTL, so without the hashes a deploy could pair a new
+index with a stale spritesheet (which is what once made every wall disappear).
+Run `npm run assets:stamp` after editing any `web/js`/`web/css` file; `npm run assets:check`
+fails when a hash is stale.
+
 ## Code & Asset Layout
 - Target Repository: `/home/fatih/Vault/Ecobytes/Project/Lami/ai-office`
 - Active Branch: `dev`

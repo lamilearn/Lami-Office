@@ -61,8 +61,15 @@ echo -n "Checking reachability of ${REPO_URL} ... "
 if git ls-remote "${REPO_URL}" >/dev/null 2>&1; then
     echo -e "${GREEN}REPOSITORY FOUND${NC}"
     
-    echo -e "\n${BLUE}Pushing baseline branch 'master' to ${REMOTE_NAME} ...${NC}"
-    git rev-parse --verify master >/dev/null 2>&1 && git push -u "${REMOTE_NAME}" master || echo "Master branch skipped or already up-to-date"
+    # Releasing to master is a deliberate gate: work lives on dev -> staging and
+    # only reaches master after it is verified. Pushing it implicitly here once
+    # shipped unreviewed code straight to production.
+    if [ "${ALLOW_MASTER_PUSH:-0}" = "1" ]; then
+        echo -e "\n${BLUE}Pushing baseline branch 'master' to ${REMOTE_NAME} ...${NC}"
+        git rev-parse --verify master >/dev/null 2>&1 && git push -u "${REMOTE_NAME}" master || echo "Master branch skipped or already up-to-date"
+    else
+        echo -e "\n${YELLOW}Skipping 'master' (set ALLOW_MASTER_PUSH=1 to release it).${NC}"
+    fi
 
     echo -e "\n${BLUE}Pushing development branch 'dev' to ${REMOTE_NAME} ...${NC}"
     git push -u "${REMOTE_NAME}" dev

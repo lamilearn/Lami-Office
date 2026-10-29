@@ -543,3 +543,66 @@ describe('Feature 28: The spritesheet is never served stale', () => {
       'the version must be derived from the tileset index');
   });
 });
+
+describe('Feature 29: A page load never looks like a position reset', () => {
+  const OFFICE = path.join(REPO, 'services/lami-office-react/web/js/office.js');
+
+  it('F29.1: the first world frame snaps everybody to the server position', () => {
+    const src = fs.readFileSync(OFFICE, 'utf8');
+    const block = src.slice(src.indexOf('    applyWorld(frame) {'),
+      src.indexOf('    applyWorldTargets(dt) {'));
+    // Regression: the snap condition was `worldTargets.size === 1`, which is
+    // false for a normal 20-character frame, so a refresh eased every body from
+    // its spawn tile (desks / doorway) and looked like the office reset itself.
+    assert.ok(/const firstFrame = !this\.worldPlaced/.test(block),
+      'applyWorld must know whether this is the first frame');
+    assert.ok(/if \(firstFrame \|\| char\.col === undefined\)/.test(block),
+      'the first frame must place characters directly');
+    assert.ok(!/worldTargets\.size === 1/.test(block),
+      'the old size-based snap check must not come back');
+    assert.ok(/this\.worldPlaced = true/.test(block), 'the flag must be set after the first frame');
+  });
+
+  it('F29.2: later frames ease instead of snapping', () => {
+    const src = fs.readFileSync(OFFICE, 'utf8');
+    const targets = src.slice(src.indexOf('    applyWorldTargets(dt) {'),
+      src.indexOf('    // ---- Loop ----'));
+    assert.ok(/char\.col \+= dc \* ease/.test(targets), 'later frames must interpolate');
+    assert.ok(/Math\.hypot\(dc, dr\) > 8/.test(targets), 'a genuine jump still snaps');
+  });
+});
+
+describe('Feature 30: Production stays a clean mirror of master', () => {
+  const REPO_ROOT = REPO;
+  const DEPLOY = path.join(REPO_ROOT, 'scripts/deploy_prod.sh');
+  const STAMP = path.join(REPO_ROOT, 'scripts/stamp_assets.py');
+
+  it('F30.1: the deploy script pulls and refuses a dirty checkout', () => {
+    const src = fs.readFileSync(DEPLOY, 'utf8');
+    assert.ok(/git pull --ff-only origin master/.test(src), 'deploy must fast-forward from master');
+    assert.ok(!/git merge/.test(src), 'deploy must never merge on the server');
+    assert.ok(!/git commit/.test(src), 'deploy must never commit on the server');
+    assert.ok(/untracked-files=no/.test(src), 'drift check must look at tracked files');
+    assert.ok(/prod must stay a clean mirror/.test(src), 'the rule must be stated in the failure');
+    assert.ok(/\.env\.production\.secrets/.test(src), 'secrets are supplied from an ignored file');
+  });
+
+  it('F30.2: index.html asset URLs carry content hashes and stay current', () => {
+    const html = fs.readFileSync(path.join(REPO_ROOT, 'services/lami-office-react/web/index.html'), 'utf8');
+    const links = [...html.matchAll(/(?:href|src)="([^"?]+\.(?:css|js))\?v=([0-9a-f]{8})"/g)];
+    assert.ok(links.length >= 10, `expected the css/js bundle to be versioned, found ${links.length}`);
+    // Every version must match the file, otherwise a deploy serves a mismatch.
+    const { execFileSync } = require('node:child_process');
+    execFileSync(process.env.PYTHON || 'python3', [STAMP, '--check'], { stdio: 'pipe' });
+  });
+
+  it('F30.3: no script pushes master without an explicit opt-in', () => {
+    const src = fs.readFileSync(path.join(REPO_ROOT, 'scripts/push_to_github.sh'), 'utf8');
+    // The script used to push master AND dev, silently bypassing the staging gate.
+    assert.ok(/ALLOW_MASTER_PUSH/.test(src), 'master pushes must be gated behind a flag');
+    const gated = src.slice(src.indexOf('ALLOW_MASTER_PUSH'), src.indexOf('Pushing development branch'));
+    assert.ok(/push -u "\$\{REMOTE_NAME\}" master/.test(gated),
+      'the master push must live inside the opt-in branch');
+    assert.ok(/Skipping 'master'/.test(src), 'the default path must skip master and say so');
+  });
+});
