@@ -341,3 +341,71 @@ print(json.dumps({"rooms": rooms, "kinds": kinds}))
     assert.ok(/HUB\.agents/.test(fn), 'agents_active must come from the real roster');
   });
 });
+
+describe('Feature 24: Characters never freeze while walking', () => {
+  it('F24.1: nobody keeps a path and state=walk while standing still', () => {
+    if (!HAVE_PY) return;
+    // Regression for the frozen office: the collision probe used the sign of the
+    // velocity instead of the movement, so a body touching a wall face zeroed
+    // both axes and then blocked itself forever. On staging this left 17 of 19
+    // characters standing still with a full path and state="walk".
+    const out = pyJson(`
+import json, world
+
+report = {}
+for seed in (7, 99, 2024):
+    sim = world.Sim(seed=seed)
+    for _ in range(400):
+        sim.tick(0.1)
+    before = {c.id: (c.col, c.row) for c in sim.all_moving()}
+    for _ in range(80):          # 8 seconds
+        sim.tick(0.1)
+    frozen = [
+        c.id for c in sim.all_moving()
+        if c.id in before
+        and (c.col, c.row) == before[c.id]
+        and c.state == "walk"
+        and c.path
+    ]
+    report[seed] = frozen
+print(json.dumps(report))
+`);
+    for (const [seed, frozen] of Object.entries(out)) {
+      assert.deepStrictEqual(frozen, [],
+        `seed ${seed}: characters froze mid-walk: ${JSON.stringify(frozen)}`);
+    }
+  }, { timeout: 180000 });
+
+  it('F24.2: the waypoint is finished when the body cannot advance', () => {
+    if (!HAVE_PY) return;
+    const out = pyJson(`
+import json, world
+sim = world.Sim(seed=5)
+c = sim.residents[0]
+# Park the body against a wall face with one waypoint left, exactly like the
+# staging freeze: it has a path, state=walk, and cannot move.
+c.col, c.row = 32.61, 9.999
+c.path = [{"x": 34, "y": 10}]
+c.path_goal = {"x": 34, "y": 10}
+c.target_col, c.target_row = 34, 10
+c.state = "walk"
+c.vx = c.vy = 0.0
+for _ in range(40):
+    sim.tick(0.1)
+moved = abs(c.col - 32.61) + abs(c.row - 9.999)
+print(json.dumps({"moved": round(moved, 3), "path_left": len(c.path),
+                  "walkable": world.is_walkable(c.col, c.row)}))
+`);
+    assert.ok(out.moved > 0.5, `a wall-pinned character must resume walking, moved ${out.moved}`);
+    assert.strictEqual(out.walkable, true, 'it must never be left inside a solid tile');
+  }, { timeout: 60000 });
+
+  it('F24.3: the collision probe keys off movement, not the velocity sign', () => {
+    const src = fs.readFileSync(WORLD_PY, 'utf8');
+    const block = src.slice(src.indexOf('step_col0, step_row0'), src.indexOf('# Stuck recovery'));
+    assert.ok(/step_x = next_col - self\.col/.test(block), 'the probe must use the actual delta');
+    assert.ok(/if abs\(step_x\) > 1e-9/.test(block), 'a zero delta must not probe the tile behind');
+    assert.ok(!/next_col \+ self\.radius\) if self\.vx > 0/.test(block),
+      'the old velocity-sign probe froze characters against walls');
+  });
+});

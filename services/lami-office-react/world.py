@@ -594,6 +594,8 @@ class Character:
         self.work_cycle_timer = sim.rng.random() * 4 + 2
         self.work_cycle_mode = "type"
         self.home_room = None
+        # Wall-corner watchdog: time spent without any actual movement.
+        self._stuck_time = 0.0
 
     # ---- narrative helpers ----
     def _chat(self, who, role, text, icon, color):
@@ -702,18 +704,46 @@ class Character:
                 self.vy = (self.vy / cur_speed) * self.max_speed
 
             # Circle-vs-AABB wall sliding against the collision grid.
+            # The probe uses the sign of the *movement*, not of the velocity:
+            # when velocity is 0 the else-branch would probe the tile behind and
+            # a resting character could block itself forever.
+            step_col0, step_row0 = self.col, self.row
             next_col = self.col + self.vx * dt
             next_row = self.row + self.vy * dt
-            col_check = (next_col + self.radius) if self.vx > 0 else (next_col - self.radius)
-            if not is_walkable(col_check, self.row):
-                self.vx = 0
-                next_col = self.col
-            row_check = (next_row + self.radius) if self.vy > 0 else (next_row - self.radius)
-            if not is_walkable(self.col, row_check):
-                self.vy = 0
-                next_row = self.row
+            step_x = next_col - self.col
+            step_y = next_row - self.row
+            if abs(step_x) > 1e-9:
+                col_check = next_col + self.radius if step_x > 0 else next_col - self.radius
+                if not is_walkable(col_check, self.row):
+                    self.vx = 0.0
+                    next_col = self.col
+            if abs(step_y) > 1e-9:
+                row_check = next_row + self.radius if step_y > 0 else next_row - self.radius
+                if not is_walkable(self.col, row_check):
+                    self.vy = 0.0
+                    next_row = self.row
             self.col = next_col
             self.row = next_row
+
+            # Stuck recovery. Waypoints sit on tile centres, so a character
+            # approaching one side-on drives into the wall face and the collision
+            # probe zeroes both velocity components. It then keeps a path and
+            # state=walk while standing still forever (a dead-looking office).
+            # When no real movement happens toward the waypoint, finish that
+            # waypoint instead of nudging coordinates: snapping alone left the
+            # body pressed against the same edge and it froze again immediately.
+            moved_now = math.hypot(self.col - step_col0, self.row - step_row0)
+            if is_walkable(node["x"], node["y"]) and moved_now < 1e-4:
+                self._stuck_time += dt
+                if self._stuck_time > 0.25:
+                    self.col = float(node["x"])
+                    self.row = float(node["y"])
+                    self.vx = self.vy = 0.0
+                    self._stuck_time = 0.0
+                    self._advance_waypoint(node)
+                    return
+            else:
+                self._stuck_time = 0.0
 
             self.bounce_timer += dt * 14
             phase = math.sin(self.bounce_timer)
@@ -733,19 +763,7 @@ class Character:
             if remaining <= math.hypot(self.vx * dt, self.vy * dt) or remaining < 0.14:
                 self.col = float(node["x"])
                 self.row = float(node["y"])
-                self.path.pop(0)
-                if not self.path:
-                    self.vx = self.vy = 0.0
-                    self.squash_x = self.squash_y = 1.0
-                    if _js_round(self.target_col) == node["x"] and _js_round(self.target_row) == node["y"]:
-                        self.col = float(self.target_col)
-                        self.row = float(self.target_row)
-                    else:
-                        self.target_col = self.col
-                        self.target_row = self.row
-                    self.path_goal = {"x": self.target_col, "y": self.target_row}
-                    if self.state in ("walk", "reporting"):
-                        self.on_arrived()
+                self._advance_waypoint(node)
             return
 
         # Destination set without navigate_to.
@@ -764,6 +782,26 @@ class Character:
         if self.state == "walk":
             self.on_arrived()
         self.update_idle_state(dt)
+
+    def _advance_waypoint(self, node):
+        """Pop the reached waypoint and finish the walk when it was the last."""
+        if self.path and self.path[0] == node:
+            self.path.pop(0)
+        else:
+            while self.path and self.path[0]["x"] == node["x"] and self.path[0]["y"] == node["y"]:
+                self.path.pop(0)
+        if not self.path:
+            self.vx = self.vy = 0.0
+            self.squash_x = self.squash_y = 1.0
+            if _js_round(self.target_col) == node["x"] and _js_round(self.target_row) == node["y"]:
+                self.col = float(self.target_col)
+                self.row = float(self.target_row)
+            else:
+                self.target_col = self.col
+                self.target_row = self.row
+            self.path_goal = {"x": self.target_col, "y": self.target_row}
+            if self.state in ("walk", "reporting"):
+                self.on_arrived()
 
     def on_arrived(self):
         self.state = "work"
@@ -1745,19 +1783,43 @@ class Sim:
 
     # ---- separation & socials (mirror of Office.update) --------------------------
     def separate(self, dt):
+        """Keep bodies from overlapping without ever undoing their walk.
+
+        Two characters who want to walk in opposite directions past each other
+        used to push each other back by more than they advanced, so both stayed
+        pinned in place forever (observed on staging: 17 of 19 frozen). The push
+        is now capped well below a walking step, only applied to bodies heading
+        into each other, and never moves anyone through a wall.
+        """
         living = [c for c in self.all_moving() if c.state != "spawn"]
         min_sep = 0.72
+        # A walking body advances ~0.1 tile per 0.1 s tick; keep the nudge far
+        # smaller so separation can never out-run the walk itself.
+        max_push = 0.02
         for i, c1 in enumerate(living):
             for c2 in living[i + 1:]:
                 dx, dy = c2.col - c1.col, c2.row - c1.row
                 dist = math.hypot(dx, dy)
-                if 0.001 < dist < min_sep:
-                    overlap = (min_sep - dist) * 0.5
-                    nx, ny = dx / dist, dy / dist
-                    c1.col -= nx * overlap * dt * 4.5
-                    c1.row -= ny * overlap * dt * 4.5
-                    c2.col += nx * overlap * dt * 4.5
-                    c2.row += ny * overlap * dt * 4.5
+                if not (0.001 < dist < min_sep):
+                    continue
+                # Closing speed: if they are already walking apart, leave them be.
+                approach = ((c2.col - c1.col) * (c2.vx - c1.vx)
+                            + (c2.row - c1.row) * (c2.vy - c1.vy))
+                if approach > 0:
+                    continue
+                overlap = (min_sep - dist) * 0.5
+                push = min(max_push, overlap * dt * 4.5)
+                nx, ny = dx / dist, dy / dist
+                self._nudge(c1, -nx * push, -ny * push)
+                self._nudge(c2, nx * push, ny * push)
+
+    @staticmethod
+    def _nudge(char, dx, dy):
+        """Move by a small offset, refusing to enter a solid tile."""
+        if abs(dx) > 1e-9 and is_walkable(char.col + dx, char.row):
+            char.col += dx
+        if abs(dy) > 1e-9 and is_walkable(char.col, char.row + dy):
+            char.row += dy
 
     def update_socials(self, dt):
         rng = self.rng
