@@ -42,15 +42,26 @@ describe('Tier 1 — Feature 15: Responsive Layout & Phone Camera', () => {
     assert.strictEqual(desktop.LO.isPhoneMode(), false, 'Wide non-touch is desktop mode');
   });
 
-  it('F15.2: Desktop view fits the whole floorplan and centers it', () => {
+  it('F15.2: Desktop view fills the screen without cropping the building', () => {
     const { LO } = loadConfig(1600, false);
     const v = LO.computeViewParams({
       width: 1600, height: 900, contentW: LO.CONTENT_W, contentH: LO.CONTENT_H
     });
-    const expected = Math.min(1600 / LO.CONTENT_W, 900 / LO.CONTENT_H);
-    assert.ok(Math.abs(v.zoom - expected) < 1e-9, 'Zoom must fit the content');
+    const contain = Math.min(1600 / LO.CONTENT_W, 900 / LO.CONTENT_H);
+    // The desktop view deliberately zooms past a bare "contain" fit so the empty
+    // outside margin below the building no longer shows as a letterbox.
+    assert.ok(v.zoom >= contain - 1e-9, 'Zoom must not fall below the contain fit');
+    assert.ok(v.zoom <= contain * LO.DESKTOP_ZOOM_CAP + 1e-9, 'Zoom must respect the cap');
     assert.strictEqual(v.cameraMode, false);
     assert.ok(v.offsetX >= 0 && v.offsetY >= 0, 'Content must stay inside the viewport');
+
+    // Everything the player must see stays visible.
+    const ts = LO.TILE_SIZE;
+    const focus = LO.VIEW_FOCUS;
+    assert.ok(v.offsetX + (focus.x2 - focus.x1) * ts * v.zoom <= 1600 + 0.5,
+      'the building must fit horizontally');
+    assert.ok(v.offsetY + (focus.y2 - focus.y1) * ts * v.zoom <= 900 + 0.5,
+      'the building must fit vertically');
   });
 
   it('F15.3: Phone view fills the width and keeps the focus point centered', () => {
@@ -208,50 +219,62 @@ describe('Tier 1 — Feature 15: Responsive Layout & Phone Camera', () => {
     assert.ok(/classList\.contains\('is-sheet'\)/.test(ui), 'opening the sheet must scroll to the last message');
   });
 
-  it('F15.15: The canvas is pushed below a reserved top band, never pinned to the shell edge', () => {
+  it('F15.15: The canvas fills the shell and the office clears the HUD', () => {
     const css = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/css/style.css'), 'utf8');
     const canvas = css.slice(css.indexOf('#office {'), css.indexOf('#office:active'));
-
-    assert.ok(/top:\s*var\(--stage-top-gap/.test(canvas), 'the canvas must start below --stage-top-gap');
-    assert.ok(!/inset:\s*0/.test(canvas), 'the canvas must not be pinned to the shell edge any more');
-    assert.ok(/bottom:\s*0/.test(canvas), 'the canvas must still reach the bottom edge');
+    assert.ok(/inset:\s*0/.test(canvas), 'the canvas spans the whole shell so the lawn is full-bleed');
+    assert.ok(/width:\s*100%/.test(canvas) && /height:\s*100%/.test(canvas), 'the canvas must fill the shell');
 
     const root = css.slice(css.indexOf(':root {'), css.indexOf('* { box-sizing'));
-    assert.ok(/--stage-top-gap:\s*\d+px/.test(root), 'the top band must be defined once on :root');
-    assert.ok(/--stage-top-gap:\s*22px/.test(css), 'the band must shrink on tablets');
-    assert.ok(/--stage-top-gap:\s*16px/.test(css), 'the band must shrink further on phones');
+    assert.ok(/--stage-top-gap:\s*\d+px/.test(root), 'the HUD margin must be defined once on :root');
+    assert.ok(/--stage-top-gap:\s*20px/.test(css), 'the margin must shrink on tablets');
+    assert.ok(/--stage-top-gap:\s*16px/.test(css), 'the margin must shrink further on phones');
+
+    // The office is drawn below the HUD by a measured inset, not a CSS guess.
+    const js = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/js/office.js'), 'utf8');
+    assert.ok(/topInsetFor\(canvasHeight\)/.test(js), 'the inset must be derived at render time');
+    assert.ok(/this\.hudBottom\(\) \+ this\.stageTopGap\(\)/.test(js),
+      'the inset must be the HUD height plus the margin');
   });
 
-  it('F15.16: The top band is fed into the camera so the office fits below it', () => {
+  it('F15.16: The camera fills the focus region and never crops the building', () => {
     const { LO } = loadConfig(1600, false);
-    const gap = 34;
+    const gap = 64;
+    const w = 1600, h = 838;
     const withGap = LO.computeViewParams({
-      width: 1600, height: 838, contentW: LO.CONTENT_W, contentH: LO.CONTENT_H, topInset: gap
+      width: w, height: h, contentW: LO.CONTENT_W, contentH: LO.CONTENT_H, topInset: gap
     });
     const top = withGap.offsetY;
-    const bottom = withGap.offsetY + LO.CONTENT_H * withGap.zoom;
 
+    // The building + rooftop sign must be fully inside the visible area.
+    const ts = LO.TILE_SIZE;
+    const focus = LO.VIEW_FOCUS;
+    const focusW = (focus.x2 - focus.x1) * ts;
+    const focusH = (focus.y2 - focus.y1) * ts;
+    assert.ok(withGap.offsetX >= -0.5 && withGap.offsetX + focusW * withGap.zoom <= w + 0.5,
+      'the focus width must fit horizontally');
+    assert.ok(top + focusH * withGap.zoom <= h + 0.5, 'the focus height must fit vertically');
     assert.ok(top >= gap - 0.5, `content must start below the band, got ${top}`);
-    assert.ok(bottom <= 838 + 0.5, `content must stay inside the canvas, got ${bottom}`);
     assert.strictEqual(withGap.topInset, gap);
-    assert.ok(withGap.availH === 838 - gap, 'the band must be carved out of the usable height');
 
-    const noGap = LO.computeViewParams({
-      width: 1600, height: 838, contentW: LO.CONTENT_W, contentH: LO.CONTENT_H
-    });
-    assert.ok(withGap.zoom < noGap.zoom, 'reserving a band must shrink the office to keep it whole');
+    // It zooms up versus a plain contain fit, but only within the cap.
+    const contain = Math.min((w) / LO.CONTENT_W, (h - gap) / LO.CONTENT_H);
+    assert.ok(withGap.zoom >= contain - 1e-9, 'the office should fill more than a bare contain fit');
+    assert.ok(withGap.zoom <= contain * (LO.DESKTOP_ZOOM_CAP + 1e-9),
+      'the zoom-up must stay under the cap');
   });
 
-  it('F15.17: topInset of zero reproduces the previous camera numbers exactly', () => {
+  it('F15.17: zero top inset keeps the office top-aligned and uncropped', () => {
     const { LO } = loadConfig(1600, false);
     const v = LO.computeViewParams({
       width: 1600, height: 900, contentW: LO.CONTENT_W, contentH: LO.CONTENT_H, topInset: 0
     });
-    const expectedZoom = Math.min(1600 / LO.CONTENT_W, 900 / LO.CONTENT_H);
-    const expectedY = Math.floor((900 - LO.CONTENT_H * expectedZoom) / 2);
-
-    assert.ok(Math.abs(v.zoom - expectedZoom) < 1e-12, 'zoom must be unchanged without a band');
-    assert.strictEqual(v.offsetY, expectedY, 'offset must be unchanged without a band');
+    assert.strictEqual(v.topInset, 0);
+    assert.strictEqual(v.offsetY, 0, 'with no band the content starts at the top');
+    const focusH = (LO.VIEW_FOCUS.y2 - LO.VIEW_FOCUS.y1) * LO.TILE_SIZE;
+    assert.ok(focusH * v.zoom <= 900 + 0.5, 'the focus region must still fit');
+    assert.ok(v.zoom >= Math.min(1600 / LO.CONTENT_W, 900 / LO.CONTENT_H) - 1e-9,
+      'the zoom must never fall below the contain fit');
   });
 
   it('F15.18: Screen<->world conversion stays exact with a top band', () => {
@@ -262,25 +285,22 @@ describe('Tier 1 — Feature 15: Responsive Layout & Phone Camera', () => {
     office.canvas = {
       clientWidth: 1600,
       clientHeight: 838,
-      // CSS pushed the canvas 34px below the shell edge, so the band is already
-      // applied by layout and must not be applied a second time by the camera.
-      clientTop: 34,
-      // The canvas is its own coordinate frame: CSS already moved it below the
-      // band, so client coordinates inside it start at 0 and the camera must
-      // not subtract the band a second time.
+      // The canvas fills the shell; the HUD sits above it and the office is
+      // pushed down by the measured inset.
       getBoundingClientRect: () => ({ left: 0, top: 0, width: 1600, height: 838, right: 1600, bottom: 838, x: 0, y: 0 })
     };
     office.camera = { x: 44, y: 25, targetX: 44, targetY: 25, zoom: null };
     office.drawerInset = 0;
-    office._topGap = 34;
+    office._topGap = 64;
 
     const view = office.computeView(1600, 838);
-    // The mock reports the canvas at the top of its own frame, so the camera
-    // supplies the band itself, and the office must start below it.
-    assert.strictEqual(office.topInsetFor(838), 34, 'the band is applied when CSS has not moved the canvas');
-    assert.ok(view.offsetY >= 34, `the office must start below the band, got ${view.offsetY}`);
-    assert.ok(view.offsetY + LO.CONTENT_H * view.zoom <= 838 + 0.5,
-      'the office must still fit inside the canvas below the band');
+    assert.strictEqual(office.topInsetFor(838), 64, 'the inset is the HUD height plus the margin');
+    assert.ok(view.offsetY >= 64, `the office must start below the HUD, got ${view.offsetY}`);
+    // The building + sign must fit; the empty margin below it is allowed to run
+    // off the bottom (that is what removes the letterbox).
+    const focusH = (LO.VIEW_FOCUS.y2 - LO.VIEW_FOCUS.y1) * LO.TILE_SIZE;
+    assert.ok(view.offsetY + focusH * view.zoom <= 838 + 0.5,
+      'the building must still fit inside the canvas below the HUD');
     // Pick a point that is actually inside the visible content box; a fit view
     // legitimately clamps taps that fall in the letterbox area.
     const worldX = LO.CONTENT_W / 2;
@@ -704,5 +724,62 @@ describe('Tier 1 — Feature 25: Per-room wall palette', () => {
     const palette = [...roomsBlock.matchAll(/wall:\s*'(#[0-9a-fA-F]{6})'/g)].map((m) => m[1].toLowerCase());
     assert.strictEqual(palette.length, ROOMS6.length, `expected ${ROOMS6.length} wall colours`);
     assert.strictEqual(new Set(palette).size, ROOMS6.length, 'each room needs its own wall colour');
+  });
+});
+
+describe('Tier 1 — Feature 31: Full-bleed office view', () => {
+  const CONFIG = path.join(REPO, 'services/lami-office-react/web/js/config.js');
+  const OFFICE = path.join(REPO, 'services/lami-office-react/web/js/office.js');
+  const TILEMAP = path.join(REPO, 'services/lami-office-react/web/js/tilemap.js');
+
+  it('F31.1: the desktop zoom fills the focus region but never crops the building', () => {
+    const { LO } = loadConfig(1920, false);
+    const ts = LO.TILE_SIZE;
+    const focus = LO.VIEW_FOCUS;
+    const fw = (focus.x2 - focus.x1) * ts;
+    const fh = (focus.y2 - focus.y1) * ts;
+
+    for (const [w, h] of [[1366, 706], [1440, 830], [1800, 910], [2560, 900], [1200, 1000], [1920, 1018]]) {
+      const gap = 78;
+      const v = LO.computeViewParams({ width: w, height: h, topInset: gap });
+      const contain = Math.min(w / LO.CONTENT_W, (h - gap) / LO.CONTENT_H);
+      assert.ok(v.zoom >= contain - 1e-9, `${w}x${h}: zoom must not drop below the contain fit`);
+      assert.ok(v.zoom <= contain * LO.DESKTOP_ZOOM_CAP + 1e-9, `${w}x${h}: zoom must respect the cap`);
+      assert.ok(v.offsetX >= 0, `${w}x${h}: a negative offset would clip the west wall`);
+      assert.ok(v.offsetX + fw * v.zoom <= w + 0.5, `${w}x${h}: the building must fit horizontally`);
+      assert.ok(v.offsetY + fh * v.zoom <= h + 0.5, `${w}x${h}: the building must fit vertically`);
+      assert.ok(v.offsetY >= gap - 0.5, `${w}x${h}: the office must start below the HUD band`);
+    }
+  });
+
+  it('F31.2: the empty outside margin is what gets cropped, not the rooms', () => {
+    const { LO } = loadConfig(1920, false);
+    const v = LO.computeViewParams({ width: 1800, height: 910, topInset: 78 });
+    // The old behaviour fit the whole 800px canvas, which forced a big letterbox.
+    const renderedH = LO.CONTENT_H * v.zoom;
+    const availH = 910 - 78;
+    assert.ok(renderedH > availH, 'the canvas intentionally overflows so the margin is cropped');
+    const buildingBottom = (LO.BUILDING.y2 + 1) * LO.TILE_SIZE;
+    assert.ok(v.offsetY + buildingBottom * v.zoom <= 910 + 0.5,
+      'the building bottom must remain on screen');
+  });
+
+  it('F31.3: the letterbox is painted with the outside terrain, not black', () => {
+    const tm = fs.readFileSync(TILEMAP, 'utf8');
+    assert.ok(/function drawOutsideFill/.test(tm), 'a terrain filler must exist');
+    assert.ok(/drawOutsideFill/.test(tm.slice(tm.indexOf('LO.Tilemap = {'))),
+      'it must be exported for the renderer');
+    const office = fs.readFileSync(OFFICE, 'utf8');
+    assert.ok(/LO\.Tilemap\.drawOutsideFill\(this\.ctx, w, h, view\.zoom\)/.test(office),
+      'the renderer must fill the canvas with the terrain at the current zoom');
+    assert.ok(!/this\.ctx\.fillStyle = '#141226'/.test(office),
+      'the old near-black background fill must be gone');
+  });
+
+  it('F31.4: the band behind the translucent HUD stays dark', () => {
+    const office = fs.readFileSync(OFFICE, 'utf8');
+    assert.ok(/const hudBand = Math\.max\(0, this\.topInsetFor\(h\) - this\.stageTopGap\(\)\)/.test(office),
+      'the HUD band must be derived from the inset');
+    assert.ok(/'#181124'/.test(office), 'the HUD band must be repainted with the shell colour');
   });
 });

@@ -241,6 +241,24 @@
     drawLayer(ctx, 'decor');
   }
 
+  // Fill an arbitrary screen rect with the outside terrain, so the letterbox
+  // around the floorplan continues the lawn instead of showing black bars.
+  // `scale` keeps the tile size in step with the current zoom.
+  function drawOutsideFill(ctx, w, h, scale) {
+    if (!isReady()) return false;
+    const tile = tileRect(STATE.map, OUTSIDE_TILE);
+    if (!tile || !STATE.image) return false;
+    const size = Math.max(1, Math.round((STATE.map.tileSize || 16) * (scale || 1)));
+    ctx.fillStyle = '#2b3b2f';
+    ctx.fillRect(0, 0, w, h);
+    for (let y = 0; y < h; y += size) {
+      for (let x = 0; x < w; x += size) {
+        ctx.drawImage(STATE.image, tile.sx, tile.sy, tile.sw, tile.sh, x, y, size, size);
+      }
+    }
+    return true;
+  }
+
   // Paint one tile layer across the whole map.
   function drawLayer(ctx, layerName) {
     if (!isReady()) return false;
@@ -323,6 +341,7 @@
     load,
     isReady,
     drawGround,
-    drawWallOverlay
+    drawWallOverlay,
+    drawOutsideFill
   };
 })();

@@ -28,7 +28,7 @@
      painted in the canopy above the building, so without this gap the HUD sat
      right on top of it and the top rooms had no room for speech bubbles.
      office.js reads this value once and feeds it to the camera as topInset. */
-  --stage-top-gap: 34px;
+  --stage-top-gap: 24px;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -71,17 +71,15 @@ html, body {
 }
 
 /* ===== Office Isometric Canvas ===== */
-/* The canvas starts below --stage-top-gap instead of touching the shell edge.
-   Only the canvas is pushed down (not #stage), so the HUD, ticker, card and
-   drawer keep their existing anchors and the rooftop sign stays visible. */
+/* The canvas fills the shell (the HUD is layered above it). The office itself is
+   drawn below the HUD by a top inset computed in office.js from the HUD's real
+   height plus --stage-top-gap, so a HUD that wraps onto a second row can never
+   cover the rooftop sign. */
 #office {
   position: absolute;
-  top: var(--stage-top-gap, 0px);
-  right: 0;
-  bottom: 0;
-  left: 0;
+  inset: 0;
   width: 100%;
-  height: auto;
+  height: 100%;
   z-index: 1;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
@@ -628,7 +626,7 @@ html, body {
 
 /* ===== Responsive Breakpoints ===== */
 @media (max-width: 900px) {
-  :root { --header-height: 50px; --drawer-width: 100%; --stage-top-gap: 22px; }
+  :root { --header-height: 50px; --drawer-width: 100%; --stage-top-gap: 20px; }
   #hud { padding: 6px 10px; gap: 6px; }
   .hud-brand { padding: 4px 9px; border-width: 2px; }
   .hud-logo { font-size: 14px; }
