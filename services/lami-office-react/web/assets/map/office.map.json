@@ -11442,31 +11442,39 @@
      177
     ],
     [
-     "wall_top",
+     "wall_top_boss",
      1
     ],
     [
-     "wall_face",
+     "wall_face_boss",
      26
     ],
     [
-     "wall_top",
-     2
+     "wall_top_boss",
+     1
     ],
     [
-     "wall_face",
+     "wall_top_research",
+     1
+    ],
+    [
+     "wall_face_research",
      26
     ],
     [
-     "wall_top",
-     2
+     "wall_top_research",
+     1
     ],
     [
-     "wall_face",
+     "wall_top_server",
+     1
+    ],
+    [
+     "wall_face_server",
      26
     ],
     [
-     "wall_top",
+     "wall_top_server",
      1
     ],
     [
@@ -11474,7 +11482,7 @@
      4
     ],
     [
-     "wall_face",
+     "wall_face_boss",
      1
     ],
     [
@@ -11482,23 +11490,11 @@
      26
     ],
     [
-     "wall_side_l",
+     "wall_side_l_boss",
      1
     ],
     [
-     "wall_side_r",
-     1
-    ],
-    [
-     null,
-     26
-    ],
-    [
-     "wall_side_l",
-     1
-    ],
-    [
-     "wall_side_r",
+     "wall_side_r_research",
      1
     ],
     [
@@ -11506,7 +11502,19 @@
      26
     ],
     [
-     "wall_face",
+     "wall_side_l_research",
+     1
+    ],
+    [
+     "wall_side_r_server",
+     1
+    ],
+    [
+     null,
+     26
+    ],
+    [
+     "wall_face_server",
      1
     ],
     [
@@ -11514,7 +11522,7 @@
      4
     ],
     [
-     "wall_face",
+     "wall_face_boss",
      1
     ],
     [
@@ -11522,23 +11530,11 @@
      26
     ],
     [
-     "wall_side_l",
+     "wall_side_l_boss",
      1
     ],
     [
-     "wall_side_r",
-     1
-    ],
-    [
-     null,
-     26
-    ],
-    [
-     "wall_side_l",
-     1
-    ],
-    [
-     "wall_side_r",
+     "wall_side_r_research",
      1
     ],
     [
@@ -11546,7 +11542,19 @@
      26
     ],
     [
-     "wall_face",
+     "wall_side_l_research",
+     1
+    ],
+    [
+     "wall_side_r_server",
+     1
+    ],
+    [
+     null,
+     26
+    ],
+    [
+     "wall_face_server",
      1
     ],
     [
@@ -11554,7 +11562,7 @@
      4
     ],
     [
-     "wall_face",
+     "wall_face_boss",
      1
     ],
     [
@@ -11562,23 +11570,11 @@
      26
     ],
     [
-     "wall_side_l",
+     "wall_side_l_boss",
      1
     ],
     [
-     "wall_side_r",
-     1
-    ],
-    [
-     null,
-     26
-    ],
-    [
-     "wall_side_l",
-     1
-    ],
-    [
-     "wall_side_r",
+     "wall_side_r_research",
      1
     ],
     [
@@ -11586,7 +11582,19 @@
      26
     ],
     [
-     "wall_face",
+     "wall_side_l_research",
+     1
+    ],
+    [
+     "wall_side_r_server",
+     1
+    ],
+    [
+     null,
+     26
+    ],
+    [
+     "wall_face_server",
      1
     ],
     [
@@ -11594,7 +11602,7 @@
      4
     ],
     [
-     "wall_face",
+     "wall_face_boss",
      1
     ],
     [
@@ -11602,23 +11610,11 @@
      26
     ],
     [
-     "wall_side_l",
+     "wall_side_l_boss",
      1
     ],
     [
-     "wall_side_r",
-     1
-    ],
-    [
-     null,
-     26
-    ],
-    [
-     "wall_side_l",
-     1
-    ],
-    [
-     "wall_side_r",
+     "wall_side_r_research",
      1
     ],
     [
@@ -11626,7 +11622,19 @@
      26
     ],
     [
-     "wall_face",
+     "wall_side_l_research",
+     1
+    ],
+    [
+     "wall_side_r_server",
+     1
+    ],
+    [
+     null,
+     26
+    ],
+    [
+     "wall_face_server",
      1
     ],
     [
@@ -11634,7 +11642,7 @@
      4
     ],
     [
-     "wall_face",
+     "wall_face_boss",
      1
     ],
     [
@@ -11642,23 +11650,11 @@
      26
     ],
     [
-     "wall_side_l",
+     "wall_side_l_boss",
      1
     ],
     [
-     "wall_side_r",
-     1
-    ],
-    [
-     null,
-     26
-    ],
-    [
-     "wall_side_l",
-     1
-    ],
-    [
-     "wall_side_r",
+     "wall_side_r_research",
      1
     ],
     [
@@ -11666,7 +11662,19 @@
      26
     ],
     [
-     "wall_face",
+     "wall_side_l_research",
+     1
+    ],
+    [
+     "wall_side_r_server",
+     1
+    ],
+    [
+     null,
+     26
+    ],
+    [
+     "wall_face_server",
      1
     ],
     [
@@ -11674,7 +11682,7 @@
      4
     ],
     [
-     "wall_face",
+     "wall_face_boss",
      1
     ],
     [
@@ -11682,23 +11690,11 @@
      26
     ],
     [
-     "wall_side_l",
+     "wall_side_l_boss",
      1
     ],
     [
-     "wall_side_r",
-     1
-    ],
-    [
-     null,
-     26
-    ],
-    [
-     "wall_side_l",
-     1
-    ],
-    [
-     "wall_side_r",
+     "wall_side_r_research",
      1
     ],
     [
@@ -11706,7 +11702,19 @@
      26
     ],
     [
-     "wall_face",
+     "wall_side_l_research",
+     1
+    ],
+    [
+     "wall_side_r_server",
+     1
+    ],
+    [
+     null,
+     26
+    ],
+    [
+     "wall_face_server",
      1
     ],
     [
@@ -11714,7 +11722,7 @@
      4
     ],
     [
-     "wall_face",
+     "wall_face_boss",
      1
     ],
     [
@@ -11722,23 +11730,11 @@
      26
     ],
     [
-     "wall_side_l",
+     "wall_side_l_boss",
      1
     ],
     [
-     "wall_side_r",
-     1
-    ],
-    [
-     null,
-     26
-    ],
-    [
-     "wall_side_l",
-     1
-    ],
-    [
-     "wall_side_r",
+     "wall_side_r_research",
      1
     ],
     [
@@ -11746,7 +11742,19 @@
      26
     ],
     [
-     "wall_face",
+     "wall_side_l_research",
+     1
+    ],
+    [
+     "wall_side_r_server",
+     1
+    ],
+    [
+     null,
+     26
+    ],
+    [
+     "wall_face_server",
      1
     ],
     [
@@ -11754,7 +11762,7 @@
      4
     ],
     [
-     "wall_face",
+     "wall_face_boss",
      1
     ],
     [
@@ -11762,23 +11770,11 @@
      26
     ],
     [
-     "wall_side_l",
+     "wall_side_l_boss",
      1
     ],
     [
-     "wall_side_r",
-     1
-    ],
-    [
-     null,
-     26
-    ],
-    [
-     "wall_side_l",
-     1
-    ],
-    [
-     "wall_side_r",
+     "wall_side_r_research",
      1
     ],
     [
@@ -11786,7 +11782,19 @@
      26
     ],
     [
-     "wall_face",
+     "wall_side_l_research",
+     1
+    ],
+    [
+     "wall_side_r_server",
+     1
+    ],
+    [
+     null,
+     26
+    ],
+    [
+     "wall_face_server",
      1
     ],
     [
@@ -11794,7 +11802,7 @@
      4
     ],
     [
-     "wall_face",
+     "wall_face_boss",
      1
     ],
     [
@@ -11802,23 +11810,11 @@
      26
     ],
     [
-     "wall_side_l",
+     "wall_side_l_boss",
      1
     ],
     [
-     "wall_side_r",
-     1
-    ],
-    [
-     null,
-     26
-    ],
-    [
-     "wall_side_l",
-     1
-    ],
-    [
-     "wall_side_r",
+     "wall_side_r_research",
      1
     ],
     [
@@ -11826,7 +11822,19 @@
      26
     ],
     [
-     "wall_face",
+     "wall_side_l_research",
+     1
+    ],
+    [
+     "wall_side_r_server",
+     1
+    ],
+    [
+     null,
+     26
+    ],
+    [
+     "wall_face_server",
      1
     ],
     [
@@ -11834,7 +11842,7 @@
      4
     ],
     [
-     "wall_face",
+     "wall_face_boss",
      1
     ],
     [
@@ -11842,23 +11850,11 @@
      26
     ],
     [
-     "wall_side_l",
+     "wall_side_l_boss",
      1
     ],
     [
-     "wall_side_r",
-     1
-    ],
-    [
-     null,
-     26
-    ],
-    [
-     "wall_side_l",
-     1
-    ],
-    [
-     "wall_side_r",
+     "wall_side_r_research",
      1
     ],
     [
@@ -11866,7 +11862,19 @@
      26
     ],
     [
-     "wall_face",
+     "wall_side_l_research",
+     1
+    ],
+    [
+     "wall_side_r_server",
+     1
+    ],
+    [
+     null,
+     26
+    ],
+    [
+     "wall_face_server",
      1
     ],
     [
@@ -11874,7 +11882,7 @@
      4
     ],
     [
-     "wall_face",
+     "wall_face_boss",
      1
     ],
     [
@@ -11882,23 +11890,11 @@
      26
     ],
     [
-     "wall_side_l",
+     "wall_side_l_boss",
      1
     ],
     [
-     "wall_side_r",
-     1
-    ],
-    [
-     null,
-     26
-    ],
-    [
-     "wall_side_l",
-     1
-    ],
-    [
-     "wall_side_r",
+     "wall_side_r_research",
      1
     ],
     [
@@ -11906,7 +11902,19 @@
      26
     ],
     [
-     "wall_face",
+     "wall_side_l_research",
+     1
+    ],
+    [
+     "wall_side_r_server",
+     1
+    ],
+    [
+     null,
+     26
+    ],
+    [
+     "wall_face_server",
      1
     ],
     [
@@ -11914,7 +11922,7 @@
      4
     ],
     [
-     "wall_face",
+     "wall_face_boss",
      1
     ],
     [
@@ -11922,23 +11930,11 @@
      26
     ],
     [
-     "wall_side_l",
+     "wall_side_l_boss",
      1
     ],
     [
-     "wall_side_r",
-     1
-    ],
-    [
-     null,
-     26
-    ],
-    [
-     "wall_side_l",
-     1
-    ],
-    [
-     "wall_side_r",
+     "wall_side_r_research",
      1
     ],
     [
@@ -11946,7 +11942,19 @@
      26
     ],
     [
-     "wall_face",
+     "wall_side_l_research",
+     1
+    ],
+    [
+     "wall_side_r_server",
+     1
+    ],
+    [
+     null,
+     26
+    ],
+    [
+     "wall_face_server",
      1
     ],
     [
@@ -11954,7 +11962,7 @@
      4
     ],
     [
-     "wall_face",
+     "wall_face_boss",
      1
     ],
     [
@@ -11962,23 +11970,11 @@
      26
     ],
     [
-     "wall_side_l",
+     "wall_side_l_boss",
      1
     ],
     [
-     "wall_side_r",
-     1
-    ],
-    [
-     null,
-     26
-    ],
-    [
-     "wall_side_l",
-     1
-    ],
-    [
-     "wall_side_r",
+     "wall_side_r_research",
      1
     ],
     [
@@ -11986,7 +11982,19 @@
      26
     ],
     [
-     "wall_face",
+     "wall_side_l_research",
+     1
+    ],
+    [
+     "wall_side_r_server",
+     1
+    ],
+    [
+     null,
+     26
+    ],
+    [
+     "wall_face_server",
      1
     ],
     [
@@ -11994,7 +12002,7 @@
      4
     ],
     [
-     "wall_face",
+     "wall_face_boss",
      1
     ],
     [
@@ -12002,23 +12010,11 @@
      26
     ],
     [
-     "wall_side_l",
+     "wall_side_l_boss",
      1
     ],
     [
-     "wall_side_r",
-     1
-    ],
-    [
-     null,
-     26
-    ],
-    [
-     "wall_side_l",
-     1
-    ],
-    [
-     "wall_side_r",
+     "wall_side_r_research",
      1
     ],
     [
@@ -12026,7 +12022,19 @@
      26
     ],
     [
-     "wall_face",
+     "wall_side_l_research",
+     1
+    ],
+    [
+     "wall_side_r_server",
+     1
+    ],
+    [
+     null,
+     26
+    ],
+    [
+     "wall_face_server",
      1
     ],
     [
@@ -12034,7 +12042,7 @@
      4
     ],
     [
-     "wall_face",
+     "wall_face_boss",
      1
     ],
     [
@@ -12042,23 +12050,11 @@
      26
     ],
     [
-     "wall_side_l",
+     "wall_side_l_boss",
      1
     ],
     [
-     "wall_side_r",
-     1
-    ],
-    [
-     null,
-     26
-    ],
-    [
-     "wall_side_l",
-     1
-    ],
-    [
-     "wall_side_r",
+     "wall_side_r_research",
      1
     ],
     [
@@ -12066,7 +12062,19 @@
      26
     ],
     [
-     "wall_face",
+     "wall_side_l_research",
+     1
+    ],
+    [
+     "wall_side_r_server",
+     1
+    ],
+    [
+     null,
+     26
+    ],
+    [
+     "wall_face_server",
      1
     ],
     [
@@ -12074,7 +12082,7 @@
      4
     ],
     [
-     "wall_face",
+     "wall_face_boss",
      1
     ],
     [
@@ -12082,23 +12090,11 @@
      26
     ],
     [
-     "wall_side_l",
+     "wall_side_l_boss",
      1
     ],
     [
-     "wall_side_r",
-     1
-    ],
-    [
-     null,
-     26
-    ],
-    [
-     "wall_side_l",
-     1
-    ],
-    [
-     "wall_side_r",
+     "wall_side_r_research",
      1
     ],
     [
@@ -12106,7 +12102,19 @@
      26
     ],
     [
-     "wall_face",
+     "wall_side_l_research",
+     1
+    ],
+    [
+     "wall_side_r_server",
+     1
+    ],
+    [
+     null,
+     26
+    ],
+    [
+     "wall_face_server",
      1
     ],
     [
@@ -12114,11 +12122,11 @@
      4
     ],
     [
-     "wall_side_l",
+     "wall_side_l_boss",
      1
     ],
     [
-     "wall_face",
+     "wall_face_boss",
      12
     ],
     [
@@ -12126,27 +12134,35 @@
      2
     ],
     [
-     "wall_face",
-     26
+     "wall_face_boss",
+     13
+    ],
+    [
+     "wall_face_research",
+     13
     ],
     [
      "door_mid",
      2
     ],
     [
-     "wall_face",
-     26
+     "wall_face_research",
+     13
+    ],
+    [
+     "wall_face_server",
+     13
     ],
     [
      "door_mid",
      2
     ],
     [
-     "wall_face",
+     "wall_face_server",
      12
     ],
     [
-     "wall_side_r",
+     "wall_side_r_server",
      1
     ],
     [
@@ -12194,11 +12210,11 @@
      4
     ],
     [
-     "wall_side_l",
+     "wall_side_l_engineering",
      1
     ],
     [
-     "wall_face",
+     "wall_face_engineering",
      12
     ],
     [
@@ -12206,31 +12222,19 @@
      2
     ],
     [
-     "wall_face",
+     "wall_face_engineering",
      12
     ],
     [
-     "wall_top",
-     2
+     "wall_top_engineering",
+     1
     ],
     [
-     "wall_face",
-     12
+     "wall_top_meeting",
+     1
     ],
     [
-     "door_mid",
-     2
-    ],
-    [
-     "wall_face",
-     12
-    ],
-    [
-     "wall_top",
-     2
-    ],
-    [
-     "wall_face",
+     "wall_face_meeting",
      12
     ],
     [
@@ -12238,11 +12242,31 @@
      2
     ],
     [
-     "wall_face",
+     "wall_face_meeting",
      12
     ],
     [
-     "wall_side_r",
+     "wall_top_meeting",
+     1
+    ],
+    [
+     "wall_top_pantry",
+     1
+    ],
+    [
+     "wall_face_pantry",
+     12
+    ],
+    [
+     "door_mid",
+     2
+    ],
+    [
+     "wall_face_pantry",
+     12
+    ],
+    [
+     "wall_side_r_pantry",
      1
     ],
     [
@@ -12250,7 +12274,7 @@
      4
     ],
     [
-     "wall_face",
+     "wall_face_engineering",
      1
     ],
     [
@@ -12258,23 +12282,11 @@
      26
     ],
     [
-     "wall_side_l",
+     "wall_side_l_engineering",
      1
     ],
     [
-     "wall_side_r",
-     1
-    ],
-    [
-     null,
-     26
-    ],
-    [
-     "wall_side_l",
-     1
-    ],
-    [
-     "wall_side_r",
+     "wall_side_r_meeting",
      1
     ],
     [
@@ -12282,7 +12294,19 @@
      26
     ],
     [
-     "wall_face",
+     "wall_side_l_meeting",
+     1
+    ],
+    [
+     "wall_side_r_pantry",
+     1
+    ],
+    [
+     null,
+     26
+    ],
+    [
+     "wall_face_pantry",
      1
     ],
     [
@@ -12290,7 +12314,7 @@
      4
     ],
     [
-     "wall_face",
+     "wall_face_engineering",
      1
     ],
     [
@@ -12298,23 +12322,11 @@
      26
     ],
     [
-     "wall_side_l",
+     "wall_side_l_engineering",
      1
     ],
     [
-     "wall_side_r",
-     1
-    ],
-    [
-     null,
-     26
-    ],
-    [
-     "wall_side_l",
-     1
-    ],
-    [
-     "wall_side_r",
+     "wall_side_r_meeting",
      1
     ],
     [
@@ -12322,7 +12334,19 @@
      26
     ],
     [
-     "wall_face",
+     "wall_side_l_meeting",
+     1
+    ],
+    [
+     "wall_side_r_pantry",
+     1
+    ],
+    [
+     null,
+     26
+    ],
+    [
+     "wall_face_pantry",
      1
     ],
     [
@@ -12330,7 +12354,7 @@
      4
     ],
     [
-     "wall_face",
+     "wall_face_engineering",
      1
     ],
     [
@@ -12338,23 +12362,11 @@
      26
     ],
     [
-     "wall_side_l",
+     "wall_side_l_engineering",
      1
     ],
     [
-     "wall_side_r",
-     1
-    ],
-    [
-     null,
-     26
-    ],
-    [
-     "wall_side_l",
-     1
-    ],
-    [
-     "wall_side_r",
+     "wall_side_r_meeting",
      1
     ],
     [
@@ -12362,7 +12374,19 @@
      26
     ],
     [
-     "wall_face",
+     "wall_side_l_meeting",
+     1
+    ],
+    [
+     "wall_side_r_pantry",
+     1
+    ],
+    [
+     null,
+     26
+    ],
+    [
+     "wall_face_pantry",
      1
     ],
     [
@@ -12370,7 +12394,7 @@
      4
     ],
     [
-     "wall_face",
+     "wall_face_engineering",
      1
     ],
     [
@@ -12378,23 +12402,11 @@
      26
     ],
     [
-     "wall_side_l",
+     "wall_side_l_engineering",
      1
     ],
     [
-     "wall_side_r",
-     1
-    ],
-    [
-     null,
-     26
-    ],
-    [
-     "wall_side_l",
-     1
-    ],
-    [
-     "wall_side_r",
+     "wall_side_r_meeting",
      1
     ],
     [
@@ -12402,7 +12414,19 @@
      26
     ],
     [
-     "wall_face",
+     "wall_side_l_meeting",
+     1
+    ],
+    [
+     "wall_side_r_pantry",
+     1
+    ],
+    [
+     null,
+     26
+    ],
+    [
+     "wall_face_pantry",
      1
     ],
     [
@@ -12410,7 +12434,7 @@
      4
     ],
     [
-     "wall_face",
+     "wall_face_engineering",
      1
     ],
     [
@@ -12418,23 +12442,11 @@
      26
     ],
     [
-     "wall_side_l",
+     "wall_side_l_engineering",
      1
     ],
     [
-     "wall_side_r",
-     1
-    ],
-    [
-     null,
-     26
-    ],
-    [
-     "wall_side_l",
-     1
-    ],
-    [
-     "wall_side_r",
+     "wall_side_r_meeting",
      1
     ],
     [
@@ -12442,7 +12454,19 @@
      26
     ],
     [
-     "wall_face",
+     "wall_side_l_meeting",
+     1
+    ],
+    [
+     "wall_side_r_pantry",
+     1
+    ],
+    [
+     null,
+     26
+    ],
+    [
+     "wall_face_pantry",
      1
     ],
     [
@@ -12450,7 +12474,7 @@
      4
     ],
     [
-     "wall_face",
+     "wall_face_engineering",
      1
     ],
     [
@@ -12458,23 +12482,11 @@
      26
     ],
     [
-     "wall_side_l",
+     "wall_side_l_engineering",
      1
     ],
     [
-     "wall_side_r",
-     1
-    ],
-    [
-     null,
-     26
-    ],
-    [
-     "wall_side_l",
-     1
-    ],
-    [
-     "wall_side_r",
+     "wall_side_r_meeting",
      1
     ],
     [
@@ -12482,7 +12494,19 @@
      26
     ],
     [
-     "wall_face",
+     "wall_side_l_meeting",
+     1
+    ],
+    [
+     "wall_side_r_pantry",
+     1
+    ],
+    [
+     null,
+     26
+    ],
+    [
+     "wall_face_pantry",
      1
     ],
     [
@@ -12490,7 +12514,7 @@
      4
     ],
     [
-     "wall_face",
+     "wall_face_engineering",
      1
     ],
     [
@@ -12498,23 +12522,11 @@
      26
     ],
     [
-     "wall_side_l",
+     "wall_side_l_engineering",
      1
     ],
     [
-     "wall_side_r",
-     1
-    ],
-    [
-     null,
-     26
-    ],
-    [
-     "wall_side_l",
-     1
-    ],
-    [
-     "wall_side_r",
+     "wall_side_r_meeting",
      1
     ],
     [
@@ -12522,7 +12534,19 @@
      26
     ],
     [
-     "wall_face",
+     "wall_side_l_meeting",
+     1
+    ],
+    [
+     "wall_side_r_pantry",
+     1
+    ],
+    [
+     null,
+     26
+    ],
+    [
+     "wall_face_pantry",
      1
     ],
     [
@@ -12530,7 +12554,7 @@
      4
     ],
     [
-     "wall_face",
+     "wall_face_engineering",
      1
     ],
     [
@@ -12538,23 +12562,11 @@
      26
     ],
     [
-     "wall_side_l",
+     "wall_side_l_engineering",
      1
     ],
     [
-     "wall_side_r",
-     1
-    ],
-    [
-     null,
-     26
-    ],
-    [
-     "wall_side_l",
-     1
-    ],
-    [
-     "wall_side_r",
+     "wall_side_r_meeting",
      1
     ],
     [
@@ -12562,7 +12574,19 @@
      26
     ],
     [
-     "wall_face",
+     "wall_side_l_meeting",
+     1
+    ],
+    [
+     "wall_side_r_pantry",
+     1
+    ],
+    [
+     null,
+     26
+    ],
+    [
+     "wall_face_pantry",
      1
     ],
     [
@@ -12570,7 +12594,7 @@
      4
     ],
     [
-     "wall_face",
+     "wall_face_engineering",
      1
     ],
     [
@@ -12578,23 +12602,11 @@
      26
     ],
     [
-     "wall_side_l",
+     "wall_side_l_engineering",
      1
     ],
     [
-     "wall_side_r",
-     1
-    ],
-    [
-     null,
-     26
-    ],
-    [
-     "wall_side_l",
-     1
-    ],
-    [
-     "wall_side_r",
+     "wall_side_r_meeting",
      1
     ],
     [
@@ -12602,7 +12614,19 @@
      26
     ],
     [
-     "wall_face",
+     "wall_side_l_meeting",
+     1
+    ],
+    [
+     "wall_side_r_pantry",
+     1
+    ],
+    [
+     null,
+     26
+    ],
+    [
+     "wall_face_pantry",
      1
     ],
     [
@@ -12610,7 +12634,7 @@
      4
     ],
     [
-     "wall_face",
+     "wall_face_engineering",
      1
     ],
     [
@@ -12618,23 +12642,11 @@
      26
     ],
     [
-     "wall_side_l",
+     "wall_side_l_engineering",
      1
     ],
     [
-     "wall_side_r",
-     1
-    ],
-    [
-     null,
-     26
-    ],
-    [
-     "wall_side_l",
-     1
-    ],
-    [
-     "wall_side_r",
+     "wall_side_r_meeting",
      1
     ],
     [
@@ -12642,7 +12654,19 @@
      26
     ],
     [
-     "wall_face",
+     "wall_side_l_meeting",
+     1
+    ],
+    [
+     "wall_side_r_pantry",
+     1
+    ],
+    [
+     null,
+     26
+    ],
+    [
+     "wall_face_pantry",
      1
     ],
     [
@@ -12650,7 +12674,7 @@
      4
     ],
     [
-     "wall_face",
+     "wall_face_engineering",
      1
     ],
     [
@@ -12658,23 +12682,11 @@
      26
     ],
     [
-     "wall_side_l",
+     "wall_side_l_engineering",
      1
     ],
     [
-     "wall_side_r",
-     1
-    ],
-    [
-     null,
-     26
-    ],
-    [
-     "wall_side_l",
-     1
-    ],
-    [
-     "wall_side_r",
+     "wall_side_r_meeting",
      1
     ],
     [
@@ -12682,7 +12694,19 @@
      26
     ],
     [
-     "wall_face",
+     "wall_side_l_meeting",
+     1
+    ],
+    [
+     "wall_side_r_pantry",
+     1
+    ],
+    [
+     null,
+     26
+    ],
+    [
+     "wall_face_pantry",
      1
     ],
     [
@@ -12690,7 +12714,7 @@
      4
     ],
     [
-     "wall_face",
+     "wall_face_engineering",
      1
     ],
     [
@@ -12698,23 +12722,11 @@
      26
     ],
     [
-     "wall_side_l",
+     "wall_side_l_engineering",
      1
     ],
     [
-     "wall_side_r",
-     1
-    ],
-    [
-     null,
-     26
-    ],
-    [
-     "wall_side_l",
-     1
-    ],
-    [
-     "wall_side_r",
+     "wall_side_r_meeting",
      1
     ],
     [
@@ -12722,7 +12734,19 @@
      26
     ],
     [
-     "wall_face",
+     "wall_side_l_meeting",
+     1
+    ],
+    [
+     "wall_side_r_pantry",
+     1
+    ],
+    [
+     null,
+     26
+    ],
+    [
+     "wall_face_pantry",
      1
     ],
     [
@@ -12730,7 +12754,7 @@
      4
     ],
     [
-     "wall_face",
+     "wall_face_engineering",
      1
     ],
     [
@@ -12738,23 +12762,11 @@
      26
     ],
     [
-     "wall_side_l",
+     "wall_side_l_engineering",
      1
     ],
     [
-     "wall_side_r",
-     1
-    ],
-    [
-     null,
-     26
-    ],
-    [
-     "wall_side_l",
-     1
-    ],
-    [
-     "wall_side_r",
+     "wall_side_r_meeting",
      1
     ],
     [
@@ -12762,7 +12774,19 @@
      26
     ],
     [
-     "wall_face",
+     "wall_side_l_meeting",
+     1
+    ],
+    [
+     "wall_side_r_pantry",
+     1
+    ],
+    [
+     null,
+     26
+    ],
+    [
+     "wall_face_pantry",
      1
     ],
     [
@@ -12770,7 +12794,7 @@
      4
     ],
     [
-     "wall_face",
+     "wall_face_engineering",
      1
     ],
     [
@@ -12778,23 +12802,11 @@
      26
     ],
     [
-     "wall_side_l",
+     "wall_side_l_engineering",
      1
     ],
     [
-     "wall_side_r",
-     1
-    ],
-    [
-     null,
-     26
-    ],
-    [
-     "wall_side_l",
-     1
-    ],
-    [
-     "wall_side_r",
+     "wall_side_r_meeting",
      1
     ],
     [
@@ -12802,7 +12814,19 @@
      26
     ],
     [
-     "wall_face",
+     "wall_side_l_meeting",
+     1
+    ],
+    [
+     "wall_side_r_pantry",
+     1
+    ],
+    [
+     null,
+     26
+    ],
+    [
+     "wall_face_pantry",
      1
     ],
     [
@@ -12810,7 +12834,7 @@
      4
     ],
     [
-     "wall_face",
+     "wall_face_engineering",
      1
     ],
     [
@@ -12818,23 +12842,11 @@
      26
     ],
     [
-     "wall_side_l",
+     "wall_side_l_engineering",
      1
     ],
     [
-     "wall_side_r",
-     1
-    ],
-    [
-     null,
-     26
-    ],
-    [
-     "wall_side_l",
-     1
-    ],
-    [
-     "wall_side_r",
+     "wall_side_r_meeting",
      1
     ],
     [
@@ -12842,7 +12854,19 @@
      26
     ],
     [
-     "wall_face",
+     "wall_side_l_meeting",
+     1
+    ],
+    [
+     "wall_side_r_pantry",
+     1
+    ],
+    [
+     null,
+     26
+    ],
+    [
+     "wall_face_pantry",
      1
     ],
     [
@@ -12850,7 +12874,7 @@
      4
     ],
     [
-     "wall_face",
+     "wall_face_engineering",
      1
     ],
     [
@@ -12858,23 +12882,11 @@
      26
     ],
     [
-     "wall_side_l",
+     "wall_side_l_engineering",
      1
     ],
     [
-     "wall_side_r",
-     1
-    ],
-    [
-     null,
-     26
-    ],
-    [
-     "wall_side_l",
-     1
-    ],
-    [
-     "wall_side_r",
+     "wall_side_r_meeting",
      1
     ],
     [
@@ -12882,7 +12894,19 @@
      26
     ],
     [
-     "wall_face",
+     "wall_side_l_meeting",
+     1
+    ],
+    [
+     "wall_side_r_pantry",
+     1
+    ],
+    [
+     null,
+     26
+    ],
+    [
+     "wall_face_pantry",
      1
     ],
     [
@@ -12890,8 +12914,16 @@
      4
     ],
     [
-     "wall_face",
-     84
+     "wall_face_engineering",
+     28
+    ],
+    [
+     "wall_face_meeting",
+     28
+    ],
+    [
+     "wall_face_pantry",
+     28
     ],
     [
      null,
@@ -12908,7 +12940,7 @@
      184
     ],
     [
-     "window",
+     "window_boss",
      1
     ],
     [
@@ -12916,7 +12948,7 @@
      11
     ],
     [
-     "window",
+     "window_boss",
      1
     ],
     [
@@ -12924,7 +12956,7 @@
      15
     ],
     [
-     "window",
+     "window_research",
      1
     ],
     [
@@ -12932,7 +12964,7 @@
      11
     ],
     [
-     "window",
+     "window_research",
      1
     ],
     [
@@ -12940,7 +12972,7 @@
      15
     ],
     [
-     "window",
+     "window_server",
      1
     ],
     [
@@ -12948,7 +12980,7 @@
      11
     ],
     [
-     "window",
+     "window_server",
      1
     ],
     [
@@ -13004,7 +13036,7 @@
      270
     ],
     [
-     "window",
+     "window_boss",
      1
     ],
     [
@@ -13012,7 +13044,7 @@
      82
     ],
     [
-     "window",
+     "window_server",
      1
     ],
     [
@@ -13028,7 +13060,7 @@
      194
     ],
     [
-     "window",
+     "window_boss",
      1
     ],
     [
@@ -13036,7 +13068,7 @@
      82
     ],
     [
-     "window",
+     "window_server",
      1
     ],
     [
@@ -13420,7 +13452,7 @@
      270
     ],
     [
-     "window",
+     "window_engineering",
      1
     ],
     [
@@ -13428,7 +13460,7 @@
      82
     ],
     [
-     "window",
+     "window_pantry",
      1
     ],
     [
@@ -13468,7 +13500,7 @@
      46
     ],
     [
-     "window",
+     "window_engineering",
      1
     ],
     [
@@ -13484,7 +13516,7 @@
      17
     ],
     [
-     "window",
+     "window_pantry",
      1
     ],
     [
@@ -13544,7 +13576,7 @@
      101
     ],
     [
-     "window",
+     "window_engineering",
      1
     ],
     [
@@ -13552,7 +13584,7 @@
      11
     ],
     [
-     "window",
+     "window_engineering",
      1
     ],
     [
@@ -13560,7 +13592,7 @@
      15
     ],
     [
-     "window",
+     "window_meeting",
      1
     ],
     [
@@ -13568,7 +13600,7 @@
      11
     ],
     [
-     "window",
+     "window_meeting",
      1
     ],
     [
@@ -13576,7 +13608,7 @@
      15
     ],
     [
-     "window",
+     "window_pantry",
      1
     ],
     [
@@ -13584,7 +13616,7 @@
      11
     ],
     [
-     "window",
+     "window_pantry",
      1
     ],
     [

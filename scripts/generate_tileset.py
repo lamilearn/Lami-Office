@@ -27,7 +27,7 @@ PNG_PATH = TILE_DIR / "tileset.png"
 
 T = 16
 COLS = 8
-ROWS = 7
+ROWS = 12
 
 # ---------------------------------------------------------------- colour helpers
 TRANSPARENT = (0, 0, 0, 0)
@@ -373,6 +373,16 @@ PANTRY = hexc("#b89d3b")
 OAK = hexc("#5a3d28")
 GOLD = hexc("#d4af37")
 
+ROOM_PALETTE = {
+    "boss": BOSS,
+    "research": RESEARCH,
+    "server": SERVER,
+    "engineering": ENGINEERING,
+    "meeting": MEETING,
+    "pantry": PANTRY,
+}
+
+
 TILES = {
     "floor_boss_a": lambda: floor_boss(hexc("#fcedd7"), hexc("#f7dfbe")),
     "floor_boss_b": lambda: floor_boss(hexc("#f7dfbe"), hexc("#fcedd7")),
@@ -390,10 +400,35 @@ TILES = {
     "floor_hall_b": lambda: floor_hall(hexc("#e9ecef"), hexc("#f1f3f5")),
     "floor_lobby": lambda: floor_lobby(hexc("#e9ecef")),
     "floor_outside": lambda: floor_outside(hexc("#2b3b2f")),
+    # Default (hallway / perimeter) wall, kept for tiles outside a room.
     "wall_face": lambda: wall_face(BOSS, shade(BOSS, -0.35)),
     "wall_top": lambda: wall_top(BOSS),
     "wall_side_l": lambda: wall_side(BOSS, flip=False),
     "wall_side_r": lambda: wall_side(BOSS, flip=True),
+    # Per-room wall variants. Every room has its own palette in config.js, and
+    # the tilemap tags each wall tile with its room id; without these the whole
+    # building rendered in the boss-office oak and all rooms looked identical.
+    **{
+        f"wall_face_{rid}": (lambda base: lambda: wall_face(base, shade(base, -0.35)))(base)
+        for rid, base in ((r, ROOM_PALETTE[r]) for r in ROOM_PALETTE)
+    },
+    **{
+        f"wall_top_{rid}": (lambda base: lambda: wall_top(base))(base)
+        for rid, base in ((r, ROOM_PALETTE[r]) for r in ROOM_PALETTE)
+    },
+    **{
+        f"wall_side_l_{rid}": (lambda base: lambda: wall_side(base, flip=False))(base)
+        for rid, base in ((r, ROOM_PALETTE[r]) for r in ROOM_PALETTE)
+    },
+    **{
+        f"wall_side_r_{rid}": (lambda base: lambda: wall_side(base, flip=True))(base)
+        for rid, base in ((r, ROOM_PALETTE[r]) for r in ROOM_PALETTE)
+    },
+    # Windows are set into the wall, so they must share the room's palette too.
+    **{
+        f"window_{rid}": (lambda base: lambda: window_tile(base))(base)
+        for rid, base in ((r, ROOM_PALETTE[r]) for r in ROOM_PALETTE)
+    },
     "wall_trim": lambda: wall_trim(OAK),
     "wall_partition": lambda: wall_partition(hexc("#4a3b32")),
     "baseboard": lambda: baseboard(OAK),
@@ -413,16 +448,6 @@ TILES = {
     "poster": poster,
     "bin_small": bin_small,
 }
-
-ROOM_PALETTE = {
-    "boss": BOSS,
-    "research": RESEARCH,
-    "server": SERVER,
-    "engineering": ENGINEERING,
-    "meeting": MEETING,
-    "pantry": PANTRY,
-}
-
 
 # ---------------------------------------------------------------- PNG writer
 def write_png(path: Path, pixels, width: int, height: int):

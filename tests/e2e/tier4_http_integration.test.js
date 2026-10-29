@@ -467,6 +467,31 @@ describe('Tier 4 — HTTP Integration: Hermes bridge end-to-end', () => {
     if (!HAVE_PY) return;
     const db = path.join(dir, 'state.db');
     const stateFile = path.join(dir, 'bridge-state.json');
+    // Self-contained: seed a known DB and run one pass, so this test does not
+    // depend on F1 having written the state file first (that made it flaky).
+    if (!H.readBridgeState(stateFile)) {
+      // The bridge only writes its state file after a successful POST, so make
+      // sure the office is actually answering before seeding.
+      await H.waitForHealth(srv.port, 15000);
+      H.createHermesDb(db, [
+        { session_id: 'sess-state', role: 'user', content: 'Siapkan laporan', timestamp: 1 },
+        {
+          session_id: 'sess-state', role: 'assistant', content: '',
+          tool_calls: JSON.stringify([{ function: { name: 'grep', arguments: { pattern: 'TODO' } } }]),
+          timestamp: 2
+        },
+        { session_id: 'sess-state', role: 'tool', content: '{}', tool_name: 'grep', timestamp: 3 }
+      ]);
+      let seed = H.runBridge({ db, endpoint: `http://127.0.0.1:${srv.port}`, stateFile });
+      if (!H.readBridgeState(stateFile)) {
+        // One retry: the very first POST can race the server's thread startup.
+        await H.sleep(500);
+        seed = H.runBridge({ db, endpoint: `http://127.0.0.1:${srv.port}`, stateFile });
+      }
+      assert.strictEqual(seed.code, 0, `seed pass failed: ${seed.stderr.slice(-500)}`);
+      assert.ok(H.readBridgeState(stateFile),
+        `seed pass did not write a state file: ${seed.stderr.slice(-500)}`);
+    }
     const first = H.readBridgeState(stateFile);
     assert.ok(first && first.last_rowid >= 3, `state file must record the last rowid, got ${JSON.stringify(first)}`);
 
@@ -474,7 +499,11 @@ describe('Tier 4 — HTTP Integration: Hermes bridge end-to-end', () => {
     const again = H.runBridge({ db, endpoint: `http://127.0.0.1:${srv.port}`, stateFile });
     assert.strictEqual(again.code, 0, again.stderr.slice(-500));
     const afterRun = await srv.get('/api/integration');
-    assert.strictEqual(afterRun.json.events_total, before.json.events_total, 'no new rows means no new events');
+    // The office narrates on its own (tickers/bubbles), so events_total grows
+    // even when the bridge forwards nothing. Compare the ingest-only delta.
+    const ingestedBefore = before.json.events_total - (before.json.world.narrated || 0);
+    const ingestedAfter = afterRun.json.events_total - (afterRun.json.world.narrated || 0);
+    assert.strictEqual(ingestedAfter, ingestedBefore, 'no new rows means no new events');
     assert.strictEqual(H.readBridgeState(stateFile).last_rowid, first.last_rowid);
   }, LONG);
 

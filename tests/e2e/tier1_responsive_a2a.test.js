@@ -330,7 +330,9 @@ describe('Tier 1 — Feature 16: Floorplan Decoration', () => {
     let windows = 0;
     for (let y = 0; y < map.rows; y++) {
       for (let x = 0; x < map.cols; x++) {
-        if (flat[y * map.cols + x] !== 'window') continue;
+        const tile = flat[y * map.cols + x];
+        // Windows are tagged with the room they belong to (window_research, ...).
+        if (typeof tile !== 'string' || !tile.startsWith('window')) continue;
         windows++;
         const onEnvelope = y === meta.building.y1 || y === meta.building.y2 ||
           x === meta.building.x1 || x === meta.building.x2;
@@ -631,5 +633,76 @@ describe('Tier 1 — Feature 20: Mesh Sidecar Roles & Recipient Mapping', () => 
       const txt = fsx.readFileSync(pathx.join(REPO, f), 'utf8');
       assert.ok(!/a2a_secret_mesh_ebi_2026/.test(txt), `${f} must not contain the mesh secret`);
     }
+  });
+});
+
+describe('Tier 1 — Feature 25: Per-room wall palette', () => {
+  const ROOMS6 = ['boss', 'research', 'server', 'engineering', 'meeting', 'pantry'];
+  const TILESET = path.join(REPO, 'services/lami-office-react/web/assets/tiles/tileset.json');
+  const WALL_MAP = path.join(REPO, 'services/lami-office-react/web/assets/map/office.map.json');
+
+  it('F25.1: every room has a tileset entry for each wall variant and window', () => {
+    const index = JSON.parse(fs.readFileSync(TILESET, 'utf8'));
+    const names = new Set(index.map((t) => t.name));
+    for (const room of ROOMS6) {
+      for (const kind of ['wall_face', 'wall_top', 'wall_side_l', 'wall_side_r', 'window']) {
+        assert.ok(names.has(`${kind}_${room}`),
+          `${room} is missing ${kind}_${room}; the room would fall back to the generic wall`);
+      }
+    }
+  });
+
+  it('F25.2: tileset entries stay inside the spritesheet grid', () => {
+    const index = JSON.parse(fs.readFileSync(TILESET, 'utf8'));
+    const seen = new Set();
+    for (const t of index) {
+      const key = `${t.col},${t.row}`;
+      assert.ok(!seen.has(key), `two tiles share the cell ${key} (${t.name})`);
+      seen.add(key);
+      assert.ok(t.col >= 0 && t.col < 8, `${t.name} col out of range`);
+      assert.ok(t.row >= 0 && t.row < 16, `${t.name} row out of range`);
+    }
+  });
+
+  it('F25.3: every wall tile in the map carries its room tag', () => {
+    const map = JSON.parse(fs.readFileSync(WALL_MAP, 'utf8'));
+    const walls = map.layers.find((l) => l.name === 'walls');
+    const flat = [];
+    for (const [v, n] of walls.data) for (let k = 0; k < n; k++) flat.push(v);
+
+    const tagged = {};
+    for (let y = 0; y < map.rows; y++) {
+      for (let x = 0; x < map.cols; x++) {
+        const name = flat[y * map.cols + x];
+        if (typeof name !== 'string' || !name.startsWith('wall_')) continue;
+        if (name === 'wall_face' || name === 'wall_top' || name === 'wall_partition') continue;
+        const room = name.slice(name.lastIndexOf('_') + 1);
+        tagged[room] = (tagged[room] || 0) + 1;
+      }
+    }
+    for (const room of ROOMS6) {
+      assert.ok(tagged[room] > 10, `${room} has only ${tagged[room] || 0} room-tagged wall tiles`);
+    }
+  });
+
+  it('F25.4: tilemap.js resolves room tops and treats tagged walls as solid', () => {
+    const src = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/js/tilemap.js'), 'utf8');
+    assert.ok(/function wallRoomSuffix/.test(src), 'a room-suffix resolver must exist');
+    assert.ok(/function wallTopFor/.test(src), 'wall tops must match the body room');
+    assert.ok(/name\.indexOf\('wall_'\) === 0/.test(src),
+      'every wall_* variant must count as solid');
+    assert.ok(/wallTopFor\(name\)/.test(src), 'the renderer must use the room-matched top');
+  });
+
+  it('F25.5: the six room colours are actually distinct', () => {
+    const cfg = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/js/config.js'), 'utf8');
+    // Restrict to the LO.ROOMS block: LO.HALLWAY also has a `wall` colour.
+    const start = cfg.indexOf('LO.ROOMS = {');
+    const end = cfg.indexOf('LO.HALLWAY', start);
+    assert.ok(start > -1 && end > start, 'the LO.ROOMS block must be locatable');
+    const roomsBlock = cfg.slice(start, end);
+    const palette = [...roomsBlock.matchAll(/wall:\s*'(#[0-9a-fA-F]{6})'/g)].map((m) => m[1].toLowerCase());
+    assert.strictEqual(palette.length, ROOMS6.length, `expected ${ROOMS6.length} wall colours`);
+    assert.strictEqual(new Set(palette).size, ROOMS6.length, 'each room needs its own wall colour');
   });
 });

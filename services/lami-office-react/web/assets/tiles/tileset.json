@@ -1,40 +1,342 @@
 [
-  { "name": "floor_boss_a", "col": 0, "row": 0 },
-  { "name": "floor_boss_b", "col": 1, "row": 0 },
-  { "name": "floor_research_a", "col": 2, "row": 0 },
-  { "name": "floor_research_b", "col": 3, "row": 0 },
-  { "name": "floor_server_a", "col": 0, "row": 1 },
-  { "name": "floor_server_b", "col": 1, "row": 1 },
-  { "name": "floor_engineering_a", "col": 2, "row": 1 },
-  { "name": "floor_engineering_b", "col": 3, "row": 1 },
-  { "name": "floor_meeting_a", "col": 0, "row": 2 },
-  { "name": "floor_meeting_b", "col": 1, "row": 2 },
-  { "name": "floor_pantry_a", "col": 2, "row": 2 },
-  { "name": "floor_pantry_b", "col": 3, "row": 2 },
-  { "name": "floor_hall_a", "col": 0, "row": 3 },
-  { "name": "floor_hall_b", "col": 1, "row": 3 },
-  { "name": "floor_lobby", "col": 2, "row": 3 },
-  { "name": "floor_outside", "col": 3, "row": 3 },
-  { "name": "wall_face", "col": 0, "row": 4 },
-  { "name": "wall_top", "col": 1, "row": 4 },
-  { "name": "wall_side_l", "col": 2, "row": 4 },
-  { "name": "wall_side_r", "col": 3, "row": 4 },
-  { "name": "wall_trim", "col": 4, "row": 4 },
-  { "name": "wall_partition", "col": 5, "row": 4 },
-  { "name": "baseboard", "col": 6, "row": 4 },
-  { "name": "window", "col": 7, "row": 4 },
-  { "name": "door_left", "col": 0, "row": 5 },
-  { "name": "door_mid", "col": 1, "row": 5 },
-  { "name": "door_right", "col": 2, "row": 5 },
-  { "name": "door_threshold", "col": 3, "row": 5 },
-  { "name": "sign_plaque", "col": 4, "row": 5 },
-  { "name": "sconce", "col": 5, "row": 5 },
-  { "name": "vent", "col": 6, "row": 5 },
-  { "name": "plant", "col": 7, "row": 5 },
-  { "name": "shop_awning", "col": 0, "row": 6 },
-  { "name": "lobby_mat", "col": 1, "row": 6 },
-  { "name": "rug", "col": 2, "row": 6 },
-  { "name": "wall_clock", "col": 3, "row": 6 },
-  { "name": "poster", "col": 4, "row": 6 },
-  { "name": "bin_small", "col": 5, "row": 6 }
+ {
+  "name": "floor_boss_a",
+  "col": 0,
+  "row": 0
+ },
+ {
+  "name": "floor_boss_b",
+  "col": 1,
+  "row": 0
+ },
+ {
+  "name": "floor_research_a",
+  "col": 2,
+  "row": 0
+ },
+ {
+  "name": "floor_research_b",
+  "col": 3,
+  "row": 0
+ },
+ {
+  "name": "floor_server_a",
+  "col": 0,
+  "row": 1
+ },
+ {
+  "name": "floor_server_b",
+  "col": 1,
+  "row": 1
+ },
+ {
+  "name": "floor_engineering_a",
+  "col": 2,
+  "row": 1
+ },
+ {
+  "name": "floor_engineering_b",
+  "col": 3,
+  "row": 1
+ },
+ {
+  "name": "floor_meeting_a",
+  "col": 0,
+  "row": 2
+ },
+ {
+  "name": "floor_meeting_b",
+  "col": 1,
+  "row": 2
+ },
+ {
+  "name": "floor_pantry_a",
+  "col": 2,
+  "row": 2
+ },
+ {
+  "name": "floor_pantry_b",
+  "col": 3,
+  "row": 2
+ },
+ {
+  "name": "floor_hall_a",
+  "col": 0,
+  "row": 3
+ },
+ {
+  "name": "floor_hall_b",
+  "col": 1,
+  "row": 3
+ },
+ {
+  "name": "floor_lobby",
+  "col": 2,
+  "row": 3
+ },
+ {
+  "name": "floor_outside",
+  "col": 3,
+  "row": 3
+ },
+ {
+  "name": "wall_face",
+  "col": 0,
+  "row": 4
+ },
+ {
+  "name": "wall_top",
+  "col": 1,
+  "row": 4
+ },
+ {
+  "name": "wall_side_l",
+  "col": 2,
+  "row": 4
+ },
+ {
+  "name": "wall_side_r",
+  "col": 3,
+  "row": 4
+ },
+ {
+  "name": "wall_trim",
+  "col": 4,
+  "row": 4
+ },
+ {
+  "name": "wall_partition",
+  "col": 5,
+  "row": 4
+ },
+ {
+  "name": "baseboard",
+  "col": 6,
+  "row": 4
+ },
+ {
+  "name": "window",
+  "col": 7,
+  "row": 4
+ },
+ {
+  "name": "door_left",
+  "col": 0,
+  "row": 5
+ },
+ {
+  "name": "door_mid",
+  "col": 1,
+  "row": 5
+ },
+ {
+  "name": "door_right",
+  "col": 2,
+  "row": 5
+ },
+ {
+  "name": "door_threshold",
+  "col": 3,
+  "row": 5
+ },
+ {
+  "name": "sign_plaque",
+  "col": 4,
+  "row": 5
+ },
+ {
+  "name": "sconce",
+  "col": 5,
+  "row": 5
+ },
+ {
+  "name": "vent",
+  "col": 6,
+  "row": 5
+ },
+ {
+  "name": "plant",
+  "col": 7,
+  "row": 5
+ },
+ {
+  "name": "shop_awning",
+  "col": 0,
+  "row": 6
+ },
+ {
+  "name": "lobby_mat",
+  "col": 1,
+  "row": 6
+ },
+ {
+  "name": "rug",
+  "col": 2,
+  "row": 6
+ },
+ {
+  "name": "wall_clock",
+  "col": 3,
+  "row": 6
+ },
+ {
+  "name": "poster",
+  "col": 4,
+  "row": 6
+ },
+ {
+  "name": "bin_small",
+  "col": 5,
+  "row": 6
+ },
+ {
+  "name": "wall_face_boss",
+  "col": 4,
+  "row": 0
+ },
+ {
+  "name": "wall_face_research",
+  "col": 5,
+  "row": 0
+ },
+ {
+  "name": "wall_face_server",
+  "col": 6,
+  "row": 0
+ },
+ {
+  "name": "wall_face_engineering",
+  "col": 7,
+  "row": 0
+ },
+ {
+  "name": "wall_face_meeting",
+  "col": 4,
+  "row": 1
+ },
+ {
+  "name": "wall_face_pantry",
+  "col": 5,
+  "row": 1
+ },
+ {
+  "name": "wall_top_boss",
+  "col": 6,
+  "row": 1
+ },
+ {
+  "name": "wall_top_research",
+  "col": 7,
+  "row": 1
+ },
+ {
+  "name": "wall_top_server",
+  "col": 4,
+  "row": 2
+ },
+ {
+  "name": "wall_top_engineering",
+  "col": 5,
+  "row": 2
+ },
+ {
+  "name": "wall_top_meeting",
+  "col": 6,
+  "row": 2
+ },
+ {
+  "name": "wall_top_pantry",
+  "col": 7,
+  "row": 2
+ },
+ {
+  "name": "wall_side_l_boss",
+  "col": 4,
+  "row": 3
+ },
+ {
+  "name": "wall_side_l_research",
+  "col": 5,
+  "row": 3
+ },
+ {
+  "name": "wall_side_l_server",
+  "col": 6,
+  "row": 3
+ },
+ {
+  "name": "wall_side_l_engineering",
+  "col": 7,
+  "row": 3
+ },
+ {
+  "name": "wall_side_l_meeting",
+  "col": 6,
+  "row": 6
+ },
+ {
+  "name": "wall_side_l_pantry",
+  "col": 7,
+  "row": 6
+ },
+ {
+  "name": "wall_side_r_boss",
+  "col": 0,
+  "row": 7
+ },
+ {
+  "name": "wall_side_r_research",
+  "col": 1,
+  "row": 7
+ },
+ {
+  "name": "wall_side_r_server",
+  "col": 2,
+  "row": 7
+ },
+ {
+  "name": "wall_side_r_engineering",
+  "col": 3,
+  "row": 7
+ },
+ {
+  "name": "wall_side_r_meeting",
+  "col": 4,
+  "row": 7
+ },
+ {
+  "name": "wall_side_r_pantry",
+  "col": 5,
+  "row": 7
+ },
+ {
+  "name": "window_boss",
+  "col": 6,
+  "row": 7
+ },
+ {
+  "name": "window_research",
+  "col": 7,
+  "row": 7
+ },
+ {
+  "name": "window_server",
+  "col": 0,
+  "row": 8
+ },
+ {
+  "name": "window_engineering",
+  "col": 1,
+  "row": 8
+ },
+ {
+  "name": "window_meeting",
+  "col": 2,
+  "row": 8
+ },
+ {
+  "name": "window_pantry",
+  "col": 3,
+  "row": 8
+ }
 ]

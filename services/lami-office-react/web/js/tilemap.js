@@ -6,6 +6,11 @@
   const DEFAULT_MAP = 'assets/map/office.map.json';
   const TILESET_PNG = 'assets/tiles/tileset.png';
   const DOOR_TILE = 'door_mid';
+  // Wall tiles are tagged with their room (e.g. "wall_face_research") so every
+  // room keeps its own palette. These are the neutral variants used outside a
+  // room (building perimeter, hallway-facing faces).
+  const WALL_FACE = 'wall_face';
+  const WALL_TOP = 'wall_top';
   const OUTSIDE_TILE = 'floor_outside';
   const WALL_LIFT = 14; // px the north-wall face rises above its tile (fake height)
 
@@ -124,6 +129,23 @@
     };
   }
 
+  // "wall_face_research" -> "research"; null for untagged/neutral tiles.
+  function wallRoomSuffix(name) {
+    if (!name || name.indexOf('wall_') !== 0) return null;
+    const cut = name.lastIndexOf('_');
+    if (cut <= 4) return null;
+    const suffix = name.slice(cut + 1);
+    if (suffix === 'l' || suffix === 'r' || suffix === 'face' || suffix === 'top') return null;
+    if (!LO.ROOMS || !LO.ROOMS[suffix]) return null;
+    return suffix;
+  }
+
+  // Pick the wall top tile that belongs to the same room as the wall body.
+  function wallTopFor(name) {
+    const room = wallRoomSuffix(name);
+    return room ? `${WALL_TOP}_${room}` : WALL_TOP;
+  }
+
   function drawTile(ctx, map, name, dx, dy) {
     const rect = tileRect(map, name);
     if (!rect || !STATE.image) return false;
@@ -136,7 +158,10 @@
     if (!map || !map.layers.walls) return false;
     if (y < 0 || y >= map.rows || x < 0 || x >= map.cols) return true;
     const name = map.layers.walls[y][x];
-    return !!name && name !== OUTSIDE_TILE && name !== DOOR_TILE;
+    if (!name) return false;
+    if (name === OUTSIDE_TILE || name === DOOR_TILE) return false;
+    // Any wall tile, including the per-room variants, is solid.
+    return name.indexOf('wall_') === 0 || name === 'baseboard' || name === 'window';
   }
 
   // Floors + the flush/set-back parts of walls (drawn below characters).
@@ -159,8 +184,10 @@
         const belowSolid = isSolidWall(map, x, y + 1);
         if (!belowSolid) {
           // south-facing wall: render the face raised, like a room divider
-          drawTile(ctx, map, 'wall_top', x * ts, y * ts - WALL_LIFT);
-          drawTile(ctx, map, name === 'wall_top' ? 'wall_top' : name, x * ts, y * ts - WALL_LIFT + 4);
+          const top = wallTopFor(name);
+          drawTile(ctx, map, top, x * ts, y * ts - WALL_LIFT);
+          const isTopVariant = name.indexOf('wall_top') === 0;
+          drawTile(ctx, map, isTopVariant ? top : name, x * ts, y * ts - WALL_LIFT + 4);
           ctx.fillStyle = 'rgba(15, 10, 25, 0.22)';
           ctx.fillRect(x * ts, y * ts + ts, ts, 6);
         } else {
@@ -183,7 +210,7 @@
         if (!name) continue;
         if (name === DOOR_TILE) continue; // threshold is floor: drawn below characters
         if (isSolidWall(map, x, y + 1)) continue; // flush body already drawn in paintGround
-        drawTile(ctx, map, 'wall_top', x * ts, y * ts - WALL_LIFT);
+        drawTile(ctx, map, wallTopFor(name), x * ts, y * ts - WALL_LIFT);
         ctx.fillStyle = 'rgba(58, 40, 56, 0.35)';
         ctx.fillRect(x * ts, y * ts + ts, ts, 1);
       }

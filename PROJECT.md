@@ -171,5 +171,6 @@ Rules:
   - `tiles/tileset.png` + `tiles/tileset.json`: 16x16 spritesheet + index.
   - `map/office.map.json`: RLE floor/walls/decor layers + meta derived from `config.js`.
 - Server Simulation: `services/lami-office-react/world.py` (stdlib only) — floorplan data, A*, collision grid, character kinematics, staff/boss routines, sub-agents, Mochi, delivery rider, socials, random events. Parity guard: `scripts/check_world_sync.py`.
+- Per-room wall palette: each room's `wall`/`wallDark` in `config.js` is baked into its own tileset variants (`wall_face_<room>`, `wall_top_<room>`, `wall_side_l_<room>`, `wall_side_r_<room>`, `window_<room>`). `generate_tilemap.py` tags every wall and window with its room id, and `web/js/tilemap.js` resolves the matching variant, so every room is visually distinct. The shared building perimeter keeps the neutral `wall_face`/`wall_top`.
 - Asset Generators (stdlib Python): `scripts/generate_tileset.py`, `scripts/generate_tilemap.py` (both support `--check`).
 - Smoke Tests: `scripts/smoke_test.sh`
