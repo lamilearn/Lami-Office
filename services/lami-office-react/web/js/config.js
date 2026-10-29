@@ -9,6 +9,15 @@
   LO.CONTENT_W = LO.GRID_COLS * LO.TILE_SIZE; // 1408 px
   LO.CONTENT_H = LO.GRID_ROWS * LO.TILE_SIZE; // 800 px
 
+  // The desktop view fits this region instead of the whole canvas. It covers the
+  // rooftop sign through the building's bottom wall, so the empty outside margin
+  // under the building no longer forces a letterbox. Everything the player must
+  // see stays inside this rect, which is what guarantees no room is ever cropped.
+  LO.VIEW_FOCUS = { x1: 0, y1: 0, x2: LO.GRID_COLS, y2: 42 };
+  // Hard ceiling on the desktop zoom-up, relative to the classic "contain" fit.
+  // Keeps very wide or very tall screens from zooming to an absurd scale.
+  LO.DESKTOP_ZOOM_CAP = 1.25;
+
   // Backward-compatibility geometric aliases
   LO.ISO_TILE_W = LO.TILE_SIZE;
   LO.ISO_TILE_H = LO.TILE_SIZE;
@@ -665,12 +674,29 @@
       return { zoom, offsetX, offsetY, availW, availH, topInset, cameraMode: true };
     }
 
-    const zoom = Math.min(availW / contentW, availH / contentH);
-    const offsetX = Math.floor((availW - contentW * zoom) / 2);
-    // Flooring a centred fit of an odd remainder can dip to -1, which would
-    // shave the rooftop sign off the top edge. Never render above the band.
+    // Fit the focus region (rooftop sign .. building bottom) rather than the full
+    // canvas. The outside margin below the building is decorative, so letting it
+    // fall off-screen removes most of the letterbox without cropping a room.
+    const focus = LO.VIEW_FOCUS || { x1: 0, y1: 0, x2: LO.GRID_COLS, y2: LO.GRID_ROWS };
+    const ts = LO.TILE_SIZE || 16;
+    const focusW = (focus.x2 - focus.x1) * ts;
+    const focusH = (focus.y2 - focus.y1) * ts;
+
+    const containZoom = Math.min(availW / contentW, availH / contentH);
+    const focusZoom = Math.min(availW / focusW, availH / focusH);
+    // Never zoom past the focus fit (that would crop the building) and never more
+    // than DESKTOP_ZOOM_CAP beyond a plain contain fit.
+    const zoom = Math.max(containZoom, Math.min(focusZoom, containZoom * (LO.DESKTOP_ZOOM_CAP || 1.25)));
+
+    // Clamp: a focus-fit can land a hair below zero through float rounding, and a
+    // negative offset would shave a column off the left wall.
+    const offsetX = Math.max(0, Math.floor((availW - contentW * zoom) / 2));
+    // Anchor to the top band: any overflow is the outside margin at the bottom.
+    // Flooring a centred fit of an odd remainder can dip to -1, which would shave
+    // the rooftop sign off the top edge, so never render above the band.
     const offsetY = Math.max(topInset, Math.floor(topInset + (availH - contentH * zoom) / 2));
-    return { zoom, offsetX, offsetY, availW, availH, topInset, cameraMode: false };
+    return { zoom, offsetX, offsetY, availW, availH, topInset, cameraMode: false,
+             focusZoom, containZoom };
   };
 
   // Classify a pointer sequence as a tap (select) or a drag (camera pan).

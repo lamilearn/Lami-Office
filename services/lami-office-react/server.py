@@ -451,7 +451,11 @@ class A2APeer:
         # The mesh registry may know this peer under a different id (e.g. the
         # .92 host is "agent-aurora" but the A2A registry calls it "clark").
         self.recipient = str(spec.get("recipient") or self.id)
+        # The Server Room shows this host's real CPU/RAM. Each agent runs the
+        # tiny metrics endpoint from deploy/metrics_agent.py on this port.
+        self.metrics_port = int(spec.get("metrics_port") or 8010)
         self.online = False
+        self.metrics = {}
         self.hostname = ""
         self.protocol_detected = ""
         self.skills = []
@@ -472,6 +476,7 @@ class A2APeer:
             "latency_ms": self.latency_ms, "error": self.error,
             "endpoint": self.base, "protocol": self.protocol_detected or self.protocol,
             "skills": self.skills, "card_url": self.card_url, "recipient": self.recipient,
+            "metrics": self.metrics,
         }
 
     def _get_json(self, path: str, timeout: float = 3):
@@ -483,6 +488,7 @@ class A2APeer:
         want = self.protocol
         if want in ("auto", "a2a"):
             if self._check_a2a():
+                self._check_metrics()
                 self.latency_ms = round((time.time() - started) * 1000)
                 self.checked_at = time.time()
                 return self.to_dict()
@@ -492,6 +498,7 @@ class A2APeer:
                 self.checked_at = time.time()
                 return self.to_dict()
         self._check_custom()
+        self._check_metrics()
         self.latency_ms = round((time.time() - started) * 1000)
         self.checked_at = time.time()
         return self.to_dict()
@@ -524,9 +531,43 @@ class A2APeer:
         except Exception as exc:  # noqa: BLE001
             self._fail(str(exc))
 
+    def _check_metrics(self) -> None:
+        """Fetch this host's real CPU/RAM/disk from its metrics endpoint.
+
+        Best-effort: an agent without the endpoint simply shows no gauges instead
+        of made-up numbers.
+        """
+        try:
+            url = f"http://{self.host}:{self.metrics_port}/metrics"
+            with urllib.request.urlopen(url, timeout=3) as resp:
+                data = json.loads(resp.read() or b"{}")
+        except Exception:  # noqa: BLE001 - the gauge is optional
+            self.metrics = {}
+            return
+        if not isinstance(data, dict) or not isinstance(data.get("cpu"), dict):
+            self.metrics = {}
+            return
+        cpu = data.get("cpu") or {}
+        mem = data.get("mem") or {}
+        disk = data.get("disk") or {}
+        self.metrics = {
+            "ts": data.get("ts"),
+            "uptime_s": data.get("uptime_s"),
+            "cpu_percent": cpu.get("percent"),
+            "cpu_cores": cpu.get("cores"),
+            "load1": cpu.get("load1"),
+            "mem_percent": mem.get("percent"),
+            "mem_used_mb": mem.get("used_mb"),
+            "mem_total_mb": mem.get("total_mb"),
+            "disk_percent": disk.get("percent"),
+            "disk_used_gb": disk.get("used_gb"),
+            "disk_total_gb": disk.get("total_gb"),
+        }
+
     def _fail(self, message: str):
         self.online = False
         self.hostname = ""
+        self.metrics = {}   # an offline host has no live gauges
         self.error = message[:80]
 
 
@@ -1427,6 +1468,25 @@ class Handler(BaseHTTPRequestHandler):
             frame = SIM.world_frame(world_status())
             frame["flags"] = SIM.flags()
             return self.send_json(200, frame)
+        if path == "/api/resources":
+            peers = A2A.snapshot()
+            agents = []
+            for p in peers:
+                m = p.get("metrics") or {}
+                agents.append({
+                    "id": p["id"], "name": p["name"], "room": p["room"],
+                    "icon": p["icon"], "color": p["color"],
+                    "online": p["online"], "host": p["host"],
+                    "cpu_percent": m.get("cpu_percent"), "cpu_cores": m.get("cpu_cores"),
+                    "load1": m.get("load1"),
+                    "mem_percent": m.get("mem_percent"),
+                    "mem_used_mb": m.get("mem_used_mb"), "mem_total_mb": m.get("mem_total_mb"),
+                    "disk_percent": m.get("disk_percent"),
+                    "disk_used_gb": m.get("disk_used_gb"), "disk_total_gb": m.get("disk_total_gb"),
+                    "uptime_s": m.get("uptime_s"), "measured_at": m.get("ts"),
+                    "has_metrics": bool(m),
+                })
+            return self.send_json(200, {"agents": agents, "generated_at": time.time()})
         if path == "/api/roster":
             reconcile_roster()
             frame = SIM.world_frame(world_status())

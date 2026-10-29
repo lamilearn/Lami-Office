@@ -73,6 +73,9 @@
       // unavailable and the local demo controller takes over.
       this.simulatedExternally = false;
       this.lastWorldAt = 0;
+      // Latest per-agent VM metrics (Server Room monitor), filled by net.js.
+      this.vmResources = null;
+      this.vmResourcesAt = 0;
       // True once a world frame has positioned everybody (the first frame snaps,
       // later frames ease). Reset only on a full page load, never on reconnect.
       this.worldPlaced = false;
@@ -839,12 +842,42 @@
     // The band is expressed in CSS pixels against the shell. If the canvas still
     // hugs the top of the viewport it needs the inset; if CSS already pushed it
     // below the band (the normal case) no extra inset is applied.
+    // The office is drawn this far below the top of the canvas: the HUD's real
+    // height plus the configured breathing room. Measured from the element so a
+    // wrapped/notched header cannot hide the rooftop sign.
     topInsetFor(canvasHeight) {
-      const gap = this.stageTopGap();
-      if (gap <= 0) return 0;
-      const viewportTop = this.canvasViewportTop();
-      const remaining = Math.max(0, gap - viewportTop);
-      return Math.min(remaining, canvasHeight);
+      const inset = this.hudBottom() + this.stageTopGap();
+      return Math.max(0, Math.min(inset, canvasHeight));
+    }
+
+    // Height of the HUD in canvas-relative pixels (its own bottom minus its own
+    // top), or the reserved header height when it cannot be measured.
+    hudBottom() {
+      if (typeof document !== 'undefined' && document.getElementById) {
+        const hud = document.getElementById('hud');
+        if (hud && typeof hud.getBoundingClientRect === 'function') {
+          try {
+            const rect = hud.getBoundingClientRect();
+            const height = (rect && typeof rect.bottom === 'number' && typeof rect.top === 'number')
+              ? rect.bottom - rect.top : 0;
+            // Ignore implausible measurements (some test doubles report the
+            // canvas box for every element).
+            const limit = (this.canvas ? this.canvas.clientHeight : 0) * 0.4;
+            if (height > 0 && (!limit || height <= limit)) return height;
+          } catch (e) { /* fall through to the header height */ }
+        }
+      }
+      return this.headerHeight();
+    }
+
+    headerHeight() {
+      if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+        try {
+          const raw = getComputedStyle(document.documentElement).getPropertyValue('--header-height');
+          return parseFloat(raw) || 0;
+        } catch (e) { return 0; }
+      }
+      return 0;
     }
 
     // Viewport-relative top of the canvas. The shell never scrolls (overflow is
@@ -1421,12 +1454,25 @@
       this.ctx.rect(0, 0, w, h);
       this.ctx.clip();
 
-      // Background fill across the whole canvas so the drawer inset area is
-      // never a black gap.
-      this.ctx.fillStyle = '#141226';
-      this.ctx.fillRect(0, 0, w, h);
-
       const view = this.computeView(w, h);
+
+      // Background across the whole canvas: continue the outside lawn so the
+      // letterbox around the floorplan reads as full-bleed instead of black
+      // bars. Falls back to a solid colour before the tileset loads.
+      if (!(LO.Tilemap && LO.Tilemap.drawOutsideFill
+            && LO.Tilemap.drawOutsideFill(this.ctx, w, h, view.zoom))) {
+        this.ctx.fillStyle = '#2b3b2f';
+        this.ctx.fillRect(0, 0, w, h);
+      }
+
+      // Keep the band behind the HUD dark: the header fades to transparent, and
+      // without this the lawn would show through it.
+      const hudBand = Math.max(0, this.topInsetFor(h) - this.stageTopGap());
+      if (hudBand > 0) {
+        this.ctx.fillStyle = '#181124';
+        this.ctx.fillRect(0, 0, w, hudBand);
+      }
+
       this.ctx.translate(view.offsetX, view.offsetY);
       this.ctx.scale(view.zoom, view.zoom);
 

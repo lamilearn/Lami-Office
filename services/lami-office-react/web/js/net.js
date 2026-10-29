@@ -42,6 +42,9 @@
       // 4. A2A peer agents (Hermes sidecars on the LAN): presence + roster
       this.syncA2A();
       this.a2aTimer = setInterval(() => this.syncA2A(), 15000);
+      // 5. Per-agent VM resources for the Server Room wall monitor
+      this.syncResources();
+      this.resourceTimer = setInterval(() => this.syncResources(), 15000);
     }
 
     async syncA2A() {
@@ -58,6 +61,21 @@
         }
       } catch (e) {
         /* peer presence is best-effort; the office keeps running */
+      }
+    }
+
+    // Real CPU/RAM per agent host, shown on the Server Room monitor.
+    async syncResources() {
+      try {
+        const res = await fetch('/api/resources');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data && Array.isArray(data.agents) && this.office) {
+          this.office.vmResources = data;
+          this.office.vmResourcesAt = Date.now();
+        }
+      } catch (e) {
+        /* gauges are best-effort; the Server Room keeps rendering */
       }
     }
 

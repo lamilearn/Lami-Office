@@ -178,6 +178,40 @@ Server-side layout on `rumi@192.168.3.33:/home/rumi/projects/office-suite`:
 Compose is always invoked with both env files:
 `docker compose --env-file .env.production --env-file .env.production.secrets up -d --build`.
 
+Staging follows the same pattern with `.env.development` + `.env.development.secrets`, deployed by
+`bash scripts/deploy_staging.sh` (fast-forward of `dev`, refuses drift, then asserts
+`/api/a2a` reports `can_send: true`).
+
+### Agent VM resources (Server Room)
+The Server Room's wall monitor shows each agent's real CPU/RAM.
+
+| Piece | Where |
+|---|---|
+| Metrics endpoint | `deploy/metrics_agent.py` (stdlib only, reads `/proc` + `os.statvfs`) |
+| Installer | `deploy/install_metrics_agent.sh <agent-id> [port]` → systemd user unit `lami-metrics`, port **8010** |
+| Agents that run it | `lami` (`.31`), `yuna`/`aurora`/`kira`/`cyro` (`.91–.94`) |
+| Office polling | `A2APeer._check_metrics()` reads `http://<host>:8010/metrics` on every A2A probe |
+| API | `GET /api/resources` (per-agent CPU/RAM/disk/uptime) and `metrics` inside `GET /api/a2a` |
+| Rendering | `World.drawVmMonitor()` in the Server Room, fed by `office.vmResources` (polled by `net.js` every 15 s) |
+
+If a host runs `ufw`, port 8010 must be allowed from the office LAN
+(`sudo ufw allow from 192.168.3.0/24 to any port 8010 proto tcp`); `.93` needed this and a blocked
+port looks exactly like an agent that reports nothing. The installer warns about it.
+
+`metrics_port` can be overridden per peer in `A2A_PEERS`. A host without the endpoint shows `--`
+rather than an invented number, and an offline agent shows no gauges at all.
+
+### A2A credentials
+| Peer | Auth | Where it lives |
+|---|---|---|
+| `lami` (`.31:9900`, official A2A) | `Authorization: Bearer <A2A_BEARER_TOKEN>` | `~/.hermes/.env` on `.31`; mirrored into `A2A_PEER_TOKENS` |
+| `yuna`/`aurora`/`kira`/`cyro` (`.91–.94:8000`) | `x-a2a-token: <mesh secret>` | `SECRET` in `~/a2a-mesh/a2a_daemon.py` |
+
+`A2A_SECRET` is the shared mesh secret and `A2A_PEER_TOKENS` maps peer ids to their own token
+(JSON object or `id:token,...`); a per-peer token wins, the shared secret is the fallback. Without
+either, `/api/a2a` reports `can_send: false` and `/api/a2a/send` returns 503 — the peers still show
+as online because presence probing does not need a token.
+
 `scripts/push_to_github.sh` no longer pushes `master` unless `ALLOW_MASTER_PUSH=1`, so the
 staging gate cannot be bypassed by accident.
 

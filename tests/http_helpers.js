@@ -294,6 +294,36 @@ async function startStubPeer({ protocol = 'custom', failSend = false, rpcError =
   };
 }
 
+// --- Agent metrics stub ---------------------------------------------------
+// Serves the same payload shape as deploy/metrics_agent.py so the office can be
+// tested without touching the real agent hosts.
+async function startMetricsStub({ agent = 'stub', cpu = 42.5, mem = 32.3, disk = 20, fail = false } = {}) {
+  const port = await freePort();
+  const srv = http.createServer((req, res) => {
+    const send = (code, obj) => {
+      const body = Buffer.from(JSON.stringify(obj));
+      res.writeHead(code, { 'Content-Type': 'application/json', 'Content-Length': String(body.length) });
+      res.end(body);
+    };
+    const path = req.url.split('?')[0];
+    if (!fail && path === '/metrics') {
+      return send(200, {
+        agent, host: `stub-${agent}`, ts: Date.now() / 1000, uptime_s: 1234,
+        cpu: { cores: 2, percent: cpu, load1: 0.4, load5: 0.3, load15: 0.2 },
+        mem: { total_mb: 3819, used_mb: 1234, available_mb: 2585, percent: mem },
+        disk: { mount: '/', total_gb: 30, used_gb: 6, percent: disk }
+      });
+    }
+    if (path === '/health') return send(200, { status: 'online', hostname: `stub-${agent}` });
+    return send(404, { error: 'not found' });
+  });
+  await new Promise((resolve, reject) => {
+    srv.once('error', reject);
+    srv.listen(port, '127.0.0.1', resolve);
+  });
+  return { port, async stop() { await new Promise((r) => srv.close(r)); } };
+}
+
 // --- Hermes bridge fixtures ----------------------------------------------
 
 // Creates a Hermes-shaped state.db so the real bridge can be exercised.
@@ -370,6 +400,7 @@ module.exports = {
   sleep,
   startServer,
   startStubPeer,
+  startMetricsStub,
   createHermesDb,
   runBridge,
   readBridgeState

@@ -606,3 +606,203 @@ describe('Feature 30: Production stays a clean mirror of master', () => {
     assert.ok(/Skipping 'master'/.test(src), 'the default path must skip master and say so');
   });
 });
+
+describe('Feature 32: Doorways read as openings', () => {
+  const TILESET_GEN = path.join(REPO, 'scripts/generate_tileset.py');
+
+  it('F32.1: jamb tiles are posts, not a solid slab across the doorway', () => {
+    const src = fs.readFileSync(TILESET_GEN, 'utf8');
+    const fn = src.slice(src.indexOf('def door_post('), src.indexOf('def door_mid('));
+    // Regression: door_post filled the whole 16x16 tile with oak, so every
+    // doorway looked like a closed dark panel instead of an opening.
+    assert.ok(!/tile\.rect\(0, 0, T, T/.test(fn),
+      'the jamb must not paint the full tile');
+    assert.ok(/tile\.rect\(post_x, 0, 4, T/.test(fn), 'only the post is drawn');
+  });
+
+  it('F32.2: the doorway floor is a warm wooden sill', () => {
+    const src = fs.readFileSync(TILESET_GEN, 'utf8');
+    const fn = src.slice(src.indexOf('def door_mid('), src.indexOf('def sign_plaque('));
+    assert.ok(/shade\(OAK/.test(fn), 'the sill must use the oak palette, not a pale panel');
+    assert.ok(!/shade\(base, 0\.55\)/.test(fn), 'the old pale panel look must be gone');
+  });
+
+  it('F32.3: no threshold mat is laid across the hallway', () => {
+    const tilemapGen = fs.readFileSync(path.join(REPO, 'scripts/generate_tilemap.py'), 'utf8');
+    assert.ok(!/door_threshold/.test(tilemapGen), 'the generator must not place threshold mats');
+    const index = JSON.parse(fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/assets/tiles/tileset.json'), 'utf8'));
+    assert.ok(!index.some((t) => t.name === 'door_threshold'), 'the tile is retired');
+    const tm = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/js/tilemap.js'), 'utf8');
+    assert.ok(!/'door_threshold'/.test(tm), 'the renderer no longer needs to special-case it');
+  });
+});
+
+describe('Feature 33: A2A credentials are wired end to end', () => {
+  const STAGING_DEPLOY = path.join(REPO, 'scripts/deploy_staging.sh');
+  const PROD_DEPLOY = path.join(REPO, 'scripts/deploy_prod.sh');
+  const SERVER = path.join(REPO, 'services/lami-office-react/server.py');
+
+  it('F33.1: staging is deployed with the untracked secrets file', () => {
+    const src = fs.readFileSync(STAGING_DEPLOY, 'utf8');
+    // Credentials are never committed, so a deploy that forgets the second env
+    // file silently ships an office that cannot message any peer (can_send:false).
+    assert.ok(/--env-file \.env\.development/.test(src), 'the profile env must be passed');
+    assert.ok(/--env-file \.env\.development\.secrets/.test(src),
+      'the secrets env must also be passed');
+    assert.ok(/can_send/.test(src), 'the deploy must verify that sending is enabled');
+    assert.ok(/git pull --ff-only/.test(src), 'staging must fast-forward, never merge');
+  });
+
+  it('F33.2: production is deployed with its own secrets file', () => {
+    const src = fs.readFileSync(PROD_DEPLOY, 'utf8');
+    assert.ok(/--env-file \.env\.production --env-file \.env\.production\.secrets/.test(src));
+    assert.ok(!/git merge/.test(src) && !/git commit/.test(src));
+  });
+
+  it('F33.3: can_send reflects real credentials, and per-peer tokens win', () => {
+    const src = fs.readFileSync(SERVER, 'utf8');
+    assert.ok(/"can_send": bool\(str\(CFG\.get\("a2a_secret"\) or ""\) or CFG\.get\("a2a_peer_tokens"\)\)/.test(src),
+      'can_send must require a secret or per-peer tokens');
+    const tokenFor = src.slice(src.indexOf('def token_for(self, peer'), src.indexOf('def send(self, peer_id'));
+    assert.ok(/tokens\.get\(peer\.id\)/.test(tokenFor), 'a per-peer token must take precedence');
+    assert.ok(/return str\(CFG\.get\("a2a_secret"\)/.test(tokenFor),
+      'the shared mesh secret is the fallback');
+    // The official A2A peer authenticates with a Bearer token, the sidecars with
+    // the x-a2a-token header; both must be sent.
+    assert.ok(/add_header\("Authorization", f"Bearer \{token\}"\)/.test(src));
+    assert.ok(/add_header\("x-a2a-token", token\)/.test(src));
+  });
+
+  it('F33.4: no credential is committed to the repo', () => {
+    const tracked = [
+      '.env.development', '.env.production', 'services/lami-office-react/server.py',
+      'scripts/deploy_staging.sh', 'scripts/deploy_prod.sh'
+    ];
+    for (const rel of tracked) {
+      const text = fs.readFileSync(path.join(REPO, rel), 'utf8');
+      assert.ok(!/a2a_secret_mesh_ebi/.test(text), `${rel} must not contain the mesh secret`);
+      assert.ok(!/A2A_BEARER_TOKEN\s*=\s*\S/.test(text), `${rel} must not contain a bearer token`);
+    }
+  });
+});
+
+describe('Feature 34: Server Room shows real agent VM resources', () => {
+  const AGENT = path.join(REPO, 'services/lami-office-react/deploy/metrics_agent.py');
+  const WORLD = path.join(REPO, 'services/lami-office-react/web/js/world.js');
+  const NET = path.join(REPO, 'services/lami-office-react/web/js/net.js');
+
+  it('F34.1: the metrics agent reports real CPU/RAM/disk from this host', () => {
+    if (!HAVE_PY) return;
+    const out = pyJson(`
+import json, sys
+sys.path.insert(0, 'deploy')
+import metrics_agent as m
+d = m.metrics()
+print(json.dumps({
+  "agent": d["agent"], "has_cpu": isinstance(d["cpu"].get("percent"), float),
+  "cores": d["cpu"]["cores"], "has_mem": d["mem"]["total_mb"] > 0,
+  "mem_pct": d["mem"]["percent"], "has_disk": d["disk"]["total_gb"] > 0,
+  "uptime": d["uptime_s"] > 0,
+}))
+`);
+    assert.ok(out.has_cpu, 'CPU percent must be measured');
+    assert.ok(out.cores >= 1, 'core count must be real');
+    assert.ok(out.has_mem && out.mem_pct >= 0, 'memory must be read from /proc/meminfo');
+    assert.ok(out.has_disk && out.uptime, 'disk and uptime must be real');
+  }, { timeout: 60000 });
+
+  it('F34.2: the office parses peer metrics into /api/resources', async () => {
+    if (!HAVE_PY) return;
+    const H = require('../http_helpers');
+    const stub = await H.startMetricsStub({ agent: 'yuna', cpu: 42.5, mem: 32.3 });
+    const srv = await H.startServer({
+      env: {
+        A2A_PEERS: JSON.stringify([
+          { id: 'yuna', name: 'Yuna', host: '127.0.0.1', port: stub.port, metrics_port: stub.port, room: 'research' }
+        ]),
+        A2A_POLL_INTERVAL: '1'
+      }
+    });
+    try {
+      await H.sleep(1800);
+      const res = await srv.get('/api/resources');
+      assert.strictEqual(res.status, 200);
+      const yuna = res.json.agents.find((a) => a.id === 'yuna');
+      assert.ok(yuna, 'the agent must be listed');
+      assert.strictEqual(yuna.has_metrics, true);
+      assert.strictEqual(yuna.cpu_percent, 42.5);
+      assert.strictEqual(yuna.mem_percent, 32.3);
+      assert.strictEqual(yuna.mem_total_mb, 3819);
+      // And it is exposed on the peer too, for the A2A panel.
+      const a2a = await srv.get('/api/a2a');
+      assert.strictEqual(a2a.json.peers[0].metrics.cpu_percent, 42.5);
+    } finally {
+      await srv.stop();
+      await stub.stop();
+    }
+  }, { timeout: 60000 });
+
+  it('F34.3: an agent that does not report metrics is never given fake numbers', async () => {
+    if (!HAVE_PY) return;
+    const H = require('../http_helpers');
+    const stub = await H.startMetricsStub({ agent: 'kira', fail: true });
+    const srv = await H.startServer({
+      env: {
+        A2A_PEERS: JSON.stringify([
+          { id: 'kira', name: 'Kira', host: '127.0.0.1', port: stub.port, metrics_port: stub.port, room: 'server' }
+        ]),
+        A2A_POLL_INTERVAL: '1'
+      }
+    });
+    try {
+      await H.sleep(1800);
+      const res = await srv.get('/api/resources');
+      const kira = res.json.agents.find((a) => a.id === 'kira');
+      assert.strictEqual(kira.has_metrics, false, 'no endpoint means no metrics');
+      assert.strictEqual(kira.cpu_percent, null, 'CPU must be null, not invented');
+      assert.strictEqual(kira.mem_percent, null);
+    } finally {
+      await srv.stop();
+      await stub.stop();
+    }
+  }, { timeout: 60000 });
+
+  it('F34.4: the Server Room monitor draws each agent and dashes missing gauges', () => {
+    const src = fs.readFileSync(WORLD, 'utf8');
+    assert.ok(/drawVmMonitor\(ctx, ts\)/.test(src), 'the server room must draw the monitor');
+    assert.ok(/VM RESOURCES/.test(src), 'the panel must be labelled');
+    assert.ok(/office\.vmResources/.test(src), 'it must read the polled resources');
+    assert.ok(/'--'/.test(src), 'a missing gauge must show a dash, not a number');
+
+    const vm = require('node:vm');
+    const env = require('../harness').createBrowserEnvironment();
+    const LO = require('../harness').loadScriptIntoEnv(env, 'config.js');
+    require('../harness').loadScriptIntoEnv(env, 'sprites.js');
+    require('../harness').loadScriptIntoEnv(env, 'world.js');
+    env.window.LO = LO;
+    env.window.LO.office = { vmResources: { agents: [
+      { id: 'lami', name: 'Lami', icon: '👑', online: true, has_metrics: true, cpu_percent: 54.5, mem_percent: 64.4 },
+      { id: 'cyro', name: 'Cyro', icon: '🛠️', online: false, has_metrics: false }
+    ] } };
+    const world = new LO.World();
+    const ctx = env.document.createElement('canvas').getContext('2d');
+    world.drawVmMonitor(ctx, 16);
+    const texts = ctx.drawCalls.filter((c) => c.type === 'fillText').map((c) => c.text);
+    assert.ok(texts.includes('VM RESOURCES'));
+    assert.ok(texts.some((t) => /Lami/.test(t)), 'the reporting agent must be listed');
+    assert.ok(texts.includes('55%') && texts.includes('64%'), 'real percentages must be shown');
+    const dashes = texts.filter((t) => t === '--').length;
+    assert.strictEqual(dashes, 2, 'the silent agent gets two dashes (CPU + RAM)');
+    assert.ok(vm, 'sanity');
+  });
+
+  it('F34.5: the client polls /api/resources and the deploy ships the agent', () => {
+    const net = fs.readFileSync(NET, 'utf8');
+    assert.ok(/syncResources\(\)/.test(net), 'the client must poll resources');
+    assert.ok(/fetch\('\/api\/resources'\)/.test(net));
+    const installer = fs.readFileSync(path.join(REPO, 'services/lami-office-react/deploy/install_metrics_agent.sh'), 'utf8');
+    assert.ok(/lami-metrics/.test(installer) && /\/metrics/.test(installer), 'the installer must verify the endpoint');
+    const service = fs.readFileSync(path.join(REPO, 'services/lami-office-react/deploy/lami-metrics.service'), 'utf8');
+    assert.ok(/METRICS_PORT/.test(service) && /AGENT_ID/.test(service));
+  });
+});

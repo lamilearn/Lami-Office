@@ -135,11 +135,6 @@
   "row": 5
  },
  {
-  "name": "door_threshold",
-  "col": 3,
-  "row": 5
- },
- {
   "name": "sign_plaque",
   "col": 4,
   "row": 5
