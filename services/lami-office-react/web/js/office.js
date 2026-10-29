@@ -761,6 +761,8 @@
 
     // Re-evaluate mode, view transform and camera bounds after a viewport change.
     recompute() {
+      // Breakpoints may change --stage-top-gap (e.g. resizing into phone width).
+      this._topGap = null;
       this.refreshMode();
       this.reclampCamera();
     }
@@ -815,6 +817,47 @@
       this.drawerInset = this.isPhoneMode() ? 0 : width;
     }
 
+    // Empty band reserved at the top of the canvas (below the HUD). Read from
+    // --stage-top-gap so CSS stays the single source of truth; cached because
+    // getComputedStyle is expensive and only changes on a resize.
+    stageTopGap() {
+      if (this._topGap !== undefined && this._topGap !== null) return this._topGap;
+      let gap = 0;
+      if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+        try {
+          const raw = getComputedStyle(document.documentElement).getPropertyValue('--stage-top-gap');
+          gap = parseFloat(raw) || 0;
+        } catch (e) { gap = 0; }
+      }
+      this._topGap = gap;
+      return gap;
+    }
+
+    // The band is expressed in CSS pixels against the shell. If the canvas still
+    // hugs the top of the viewport it needs the inset; if CSS already pushed it
+    // below the band (the normal case) no extra inset is applied.
+    topInsetFor(canvasHeight) {
+      const gap = this.stageTopGap();
+      if (gap <= 0) return 0;
+      const viewportTop = this.canvasViewportTop();
+      const remaining = Math.max(0, gap - viewportTop);
+      return Math.min(remaining, canvasHeight);
+    }
+
+    // Viewport-relative top of the canvas. The shell never scrolls (overflow is
+    // hidden), so rect.top and clientTop agree; rect is preferred because it is
+    // also what screenToWorld uses, keeping the two in the same frame.
+    canvasViewportTop() {
+      if (!this.canvas) return 0;
+      if (typeof this.canvas.getBoundingClientRect === 'function') {
+        try {
+          const rect = this.canvas.getBoundingClientRect();
+          if (rect && typeof rect.top === 'number') return rect.top;
+        } catch (e) { /* fall through */ }
+      }
+      return typeof this.canvas.clientTop === 'number' ? this.canvas.clientTop : 0;
+    }
+
     computeView(width, height) {
       const w = width || (this.canvas ? this.canvas.clientWidth : LO.CONTENT_W);
       const h = height || (this.canvas ? this.canvas.clientHeight : LO.CONTENT_H);
@@ -825,6 +868,7 @@
         contentW: LO.CONTENT_W,
         contentH: LO.CONTENT_H,
         drawerInset: this.drawerInset || 0,
+        topInset: this.topInsetFor(h),
         cameraMode,
         zoom: cameraMode ? (this.camera.zoom || null) : null,
         focusX: this.camera.x,
@@ -842,7 +886,11 @@
     screenToWorld(clientX, clientY) {
       if (!this.canvas || typeof this.canvas.getBoundingClientRect !== 'function') return null;
       const rect = this.canvas.getBoundingClientRect();
-      const view = this.view && this.view.zoom ? this.view : this.computeView();
+      // Strictly derive the transform from the current box: a cached view from an
+      // earlier layout (or another size) would map taps to the wrong tile.
+      const width = (rect && rect.width) || this.canvas.clientWidth || LO.CONTENT_W;
+      const height = (rect && rect.height) || this.canvas.clientHeight || LO.CONTENT_H;
+      const view = this.computeView(width, height);
       const zoom = view.zoom || 1;
       return {
         x: (clientX - rect.left - view.offsetX) / zoom,
@@ -851,7 +899,14 @@
     }
 
     worldToScreen(worldX, worldY) {
-      const view = this.view && this.view.zoom ? this.view : this.computeView();
+      let width = this.canvas && this.canvas.clientWidth;
+      let height = this.canvas && this.canvas.clientHeight;
+      if ((!width || !height) && this.canvas && typeof this.canvas.getBoundingClientRect === 'function') {
+        const rect = this.canvas.getBoundingClientRect();
+        width = width || (rect && rect.width);
+        height = height || (rect && rect.height);
+      }
+      const view = this.computeView(width || LO.CONTENT_W, height || LO.CONTENT_H);
       const zoom = view.zoom || 1;
       return {
         x: worldX * zoom + view.offsetX,
@@ -1335,6 +1390,13 @@
       this.ctx.imageSmoothingEnabled = false;
       this.ctx.save();
       this.ctx.scale(dpr, dpr);
+
+      // Confine drawing to the canvas box. With a top band reserved, a centred
+      // fit can sit slightly above the canvas, so clip instead of leaking over
+      // the HUD band.
+      this.ctx.beginPath();
+      this.ctx.rect(0, 0, w, h);
+      this.ctx.clip();
 
       // Background fill across the whole canvas so the drawer inset area is
       // never a black gap.

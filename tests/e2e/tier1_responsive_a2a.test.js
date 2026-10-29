@@ -207,6 +207,97 @@ describe('Tier 1 — Feature 15: Responsive Layout & Phone Camera', () => {
     assert.ok(/chat-grabber/.test(html), 'the sheet needs a grab handle');
     assert.ok(/classList\.contains\('is-sheet'\)/.test(ui), 'opening the sheet must scroll to the last message');
   });
+
+  it('F15.15: The canvas is pushed below a reserved top band, never pinned to the shell edge', () => {
+    const css = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/css/style.css'), 'utf8');
+    const canvas = css.slice(css.indexOf('#office {'), css.indexOf('#office:active'));
+
+    assert.ok(/top:\s*var\(--stage-top-gap/.test(canvas), 'the canvas must start below --stage-top-gap');
+    assert.ok(!/inset:\s*0/.test(canvas), 'the canvas must not be pinned to the shell edge any more');
+    assert.ok(/bottom:\s*0/.test(canvas), 'the canvas must still reach the bottom edge');
+
+    const root = css.slice(css.indexOf(':root {'), css.indexOf('* { box-sizing'));
+    assert.ok(/--stage-top-gap:\s*\d+px/.test(root), 'the top band must be defined once on :root');
+    assert.ok(/--stage-top-gap:\s*22px/.test(css), 'the band must shrink on tablets');
+    assert.ok(/--stage-top-gap:\s*16px/.test(css), 'the band must shrink further on phones');
+  });
+
+  it('F15.16: The top band is fed into the camera so the office fits below it', () => {
+    const { LO } = loadConfig(1600, false);
+    const gap = 34;
+    const withGap = LO.computeViewParams({
+      width: 1600, height: 838, contentW: LO.CONTENT_W, contentH: LO.CONTENT_H, topInset: gap
+    });
+    const top = withGap.offsetY;
+    const bottom = withGap.offsetY + LO.CONTENT_H * withGap.zoom;
+
+    assert.ok(top >= gap - 0.5, `content must start below the band, got ${top}`);
+    assert.ok(bottom <= 838 + 0.5, `content must stay inside the canvas, got ${bottom}`);
+    assert.strictEqual(withGap.topInset, gap);
+    assert.ok(withGap.availH === 838 - gap, 'the band must be carved out of the usable height');
+
+    const noGap = LO.computeViewParams({
+      width: 1600, height: 838, contentW: LO.CONTENT_W, contentH: LO.CONTENT_H
+    });
+    assert.ok(withGap.zoom < noGap.zoom, 'reserving a band must shrink the office to keep it whole');
+  });
+
+  it('F15.17: topInset of zero reproduces the previous camera numbers exactly', () => {
+    const { LO } = loadConfig(1600, false);
+    const v = LO.computeViewParams({
+      width: 1600, height: 900, contentW: LO.CONTENT_W, contentH: LO.CONTENT_H, topInset: 0
+    });
+    const expectedZoom = Math.min(1600 / LO.CONTENT_W, 900 / LO.CONTENT_H);
+    const expectedY = Math.floor((900 - LO.CONTENT_H * expectedZoom) / 2);
+
+    assert.ok(Math.abs(v.zoom - expectedZoom) < 1e-12, 'zoom must be unchanged without a band');
+    assert.strictEqual(v.offsetY, expectedY, 'offset must be unchanged without a band');
+  });
+
+  it('F15.18: Screen<->world conversion stays exact with a top band', () => {
+    const { LO, env } = loadOffice();
+    const office = Object.create(LO.Office.prototype);
+    env.window.innerWidth = 1600;
+    env.window.matchMedia = () => ({ matches: false });
+    office.canvas = {
+      clientWidth: 1600,
+      clientHeight: 838,
+      // CSS pushed the canvas 34px below the shell edge, so the band is already
+      // applied by layout and must not be applied a second time by the camera.
+      clientTop: 34,
+      // The canvas is its own coordinate frame: CSS already moved it below the
+      // band, so client coordinates inside it start at 0 and the camera must
+      // not subtract the band a second time.
+      getBoundingClientRect: () => ({ left: 0, top: 0, width: 1600, height: 838, right: 1600, bottom: 838, x: 0, y: 0 })
+    };
+    office.camera = { x: 44, y: 25, targetX: 44, targetY: 25, zoom: null };
+    office.drawerInset = 0;
+    office._topGap = 34;
+
+    const view = office.computeView(1600, 838);
+    // The mock reports the canvas at the top of its own frame, so the camera
+    // supplies the band itself, and the office must start below it.
+    assert.strictEqual(office.topInsetFor(838), 34, 'the band is applied when CSS has not moved the canvas');
+    assert.ok(view.offsetY >= 34, `the office must start below the band, got ${view.offsetY}`);
+    assert.ok(view.offsetY + LO.CONTENT_H * view.zoom <= 838 + 0.5,
+      'the office must still fit inside the canvas below the band');
+    // Pick a point that is actually inside the visible content box; a fit view
+    // legitimately clamps taps that fall in the letterbox area.
+    const worldX = LO.CONTENT_W / 2;
+    const worldY = LO.CONTENT_H / 2;
+    const screen = office.worldToScreen(worldX, worldY);
+    const world = office.screenToWorld(screen.x, screen.y);
+    assert.ok(Math.abs(world.x - worldX) < 1e-6 && Math.abs(world.y - worldY) < 1e-6,
+      `round trip must stay exact, got ${world.x},${world.y}`);
+    assert.ok(view.zoom > 0);
+  });
+
+  it('F15.19: Speech balloons use a named ceiling rim, not a magic number', () => {
+    const src = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/js/agents.js'), 'utf8');
+    assert.ok(/const BUBBLE_TOP_RIM = 34;/.test(src), 'the canopy rim must be a named constant');
+    assert.ok(/by < BUBBLE_TOP_RIM/.test(src), 'the flip test must use the constant');
+    assert.ok(!/by < 34\b/.test(src), 'no bare 34 may remain in the bubble logic');
+  });
 });
 
 describe('Tier 1 — Feature 16: Floorplan Decoration', () => {

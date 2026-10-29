@@ -24,6 +24,11 @@
   /* Layout Dimensions */
   --header-height: 54px;
   --drawer-width: 340px;
+  /* Empty band between the HUD and the office canvas. The rooftop signboard is
+     painted in the canopy above the building, so without this gap the HUD sat
+     right on top of it and the top rooms had no room for speech bubbles.
+     office.js reads this value once and feeds it to the camera as topInset. */
+  --stage-top-gap: 34px;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -66,11 +71,17 @@ html, body {
 }
 
 /* ===== Office Isometric Canvas ===== */
+/* The canvas starts below --stage-top-gap instead of touching the shell edge.
+   Only the canvas is pushed down (not #stage), so the HUD, ticker, card and
+   drawer keep their existing anchors and the rooftop sign stays visible. */
 #office {
   position: absolute;
-  inset: 0;
+  top: var(--stage-top-gap, 0px);
+  right: 0;
+  bottom: 0;
+  left: 0;
   width: 100%;
-  height: 100%;
+  height: auto;
   z-index: 1;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
@@ -611,7 +622,7 @@ html, body {
 
 /* ===== Responsive Breakpoints ===== */
 @media (max-width: 900px) {
-  :root { --header-height: 50px; --drawer-width: 100%; }
+  :root { --header-height: 50px; --drawer-width: 100%; --stage-top-gap: 22px; }
   #hud { padding: 6px 10px; gap: 6px; }
   .hud-brand { padding: 4px 9px; border-width: 2px; }
   .hud-logo { font-size: 14px; }
@@ -660,7 +671,7 @@ html, body {
 }
 
 @media (max-width: 768px) {
-  :root { --header-height: 46px; }
+  :root { --header-height: 46px; --stage-top-gap: 16px; }
   #hud { padding: 5px 8px; }
   .hud-stats { flex: 1; justify-content: flex-end; }
   #hud-ctx-chip { display: none; }
