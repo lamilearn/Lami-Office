@@ -16,7 +16,9 @@
 | **Tier 2** | Boundary & Corner Cases | 9 Degenerate & Edge Categories | `tests/e2e/tier2_boundary_corner.test.js` | 45 | **PASSED** (45/45) |
 | **Tier 3** | Cross-Feature Combinations | Pairwise Interactions & Modals | `tests/e2e/tier3_cross_feature.test.js` | 9 | **PASSED** (9/9) |
 | **Tier 4** | Real-World Application Scenarios | End-to-End Office Workflows | `tests/e2e/tier4_real_world_scenarios.test.js` | 5 | **PASSED** (5/5) |
-| **Total** | **Comprehensive Suite** | **All Core Requirements** | — | **176** | **PASSED** (176/176) |
+| **Tier 4** | HTTP Integration | Real server, HTTP, SSE, A2A stubs, Hermes bridge, world stream | `tests/e2e/tier4_http_integration.test.js` | 42 | **PASSED** (42/42) |
+| **Tier 1** | World Authority | Server simulation parity + render-only client | `tests/e2e/tier1_world_authority.test.js` | 10 | **PASSED** (10/10) |
+| **Total** | **Comprehensive Suite** | **All Core Requirements** | — | **263** | **PASSED** (263/263) |
 
 ---
 

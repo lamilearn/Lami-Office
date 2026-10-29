@@ -18,7 +18,9 @@
         return;
       }
 
-      // 2. Connect to Server-Sent Events stream (/events) immediately
+      // 2. Connect to Server-Sent Events stream (/events) immediately. The server
+      //    simulates the office for everyone, so positions come from the stream.
+      this.office.simulatedExternally = true;
       this.startEventSource();
 
       // 3. Fetch runtime config from server in parallel
@@ -59,6 +61,20 @@
       }
     }
 
+    // Fetch the authoritative world once (page load / reconnect).
+    async loadWorld() {
+      try {
+        const res = await fetch('/api/world');
+        if (!res.ok) return;
+        const frame = await res.json();
+        if (frame && Array.isArray(frame.chars) && typeof this.office.applyWorld === 'function') {
+          this.office.applyWorld(frame);
+        }
+      } catch (e) {
+        /* the stream will supply frames shortly */
+      }
+    }
+
     startEventSource() {
       if (this.evtSource) {
         this.evtSource.close();
@@ -69,6 +85,8 @@
 
         this.evtSource.onopen = () => {
           this.retryDelay = 2000;
+          this.office.simulatedExternally = true;
+          this.loadWorld();
           LO.ui.setStatus('live');
           LO.ui.addTicker('🟢', 'Tersambung ke aktivitas <b>Hermes Live</b>.');
         };
@@ -89,7 +107,9 @@
           this.evtSource.close();
           this.evtSource = null;
 
-          // If offline and no agents exist, run demo so screen isn't empty
+          // The server is the world owner; without it this page has to simulate
+          // locally again, otherwise everyone would freeze in place.
+          this.office.simulatedExternally = false;
           if (this.office.subagents.size === 0 && !this.demoCtrl.active) {
             this.demoCtrl.start();
           }
@@ -119,11 +139,10 @@
           if (data.stats) {
             LO.ui.setStats(data.stats.doneToday || 0, data.stats.coins || 0);
           }
-          if (Array.isArray(data.agents)) {
-            // This snapshot is the authoritative "who is working right now".
-            // Rebuild those agents in place (no entrance animation) and drop any
-            // local sub-agent the server no longer reports, so a reloaded page
-            // shows the real current state instead of a fresh empty office.
+          // The roster is NOT rebuilt here. In live mode the server owns who is on
+          // the floor and sends it inside `world` frames; building agents from the
+          // event feed as well would create bodies the server never simulated.
+          if (Array.isArray(data.agents) && !this.office.simulatedExternally) {
             const live = new Set();
             data.agents.forEach((a) => {
               live.add(a.id);
@@ -138,13 +157,6 @@
               if (a.tool) sub.startWork(a.tool, a.summary || a.tool);
               sub.reported = false;
             });
-            for (const id of [...this.office.subagents.keys()]) {
-              if (!live.has(id)) {
-                const stale = this.office.subagents.get(id);
-                this.office.freeSlot(stale);
-                this.office.subagents.delete(id);
-              }
-            }
             LO.ui.updateStaffCount(this.office.residents.length + this.office.subagents.size);
           }
           // Show recent activity from the server so a fresh page is not empty.
@@ -153,37 +165,64 @@
             const msgs = data.history.filter((ev) => ev && ev.type === 'message').slice(-15);
             if (msgs.length && LO.ui.appendChatMessage) {
               for (const ev of msgs) {
-                const who = ev.agentId === 'lami' ? 'Boss Lami' : (ev.agentId || 'Agent');
-                LO.ui.appendChatMessage(who, 'Agent', ev.text || '', '💬', '#8b5cf6', false, false, (ev.ts || 0) * 1000);
+                const who = ev.who || (ev.agentId === 'lami' ? 'Boss Lami' : (ev.agentId || 'Agent'));
+                LO.ui.appendChatMessage(who, ev.role || 'Agent', ev.text || '', ev.icon || '💬',
+                  ev.color || '#8b5cf6', false, false, (ev.ts || 0) * 1000);
               }
             }
           }
+          // Ask for a world snapshot so the first paint already matches the
+          // server, then let the `world` frames keep it current.
+          this.loadWorld();
           break;
 
+        // While the server simulates, these events are already expressed inside
+        // the `world` frames (roster + character state). Animating them locally
+        // as well is what produced agents the server never knew about.
         case 'agent_spawn':
-          this.office.spawnSubAgent(data);
+          if (!this.office.simulatedExternally) this.office.spawnSubAgent(data);
           break;
 
         case 'tool_start':
-          this.office.onToolStart(data);
+          if (!this.office.simulatedExternally) this.office.onToolStart(data);
           break;
 
         case 'tool_end':
-          this.office.onToolEnd(data);
+          if (!this.office.simulatedExternally) this.office.onToolEnd(data);
           break;
 
         case 'agent_status':
-          this.office.onAgentStatus(data);
+          if (!this.office.simulatedExternally) this.office.onAgentStatus(data);
           break;
 
         case 'agent_done':
-          this.office.onAgentDone(data);
+          if (!this.office.simulatedExternally) this.office.onAgentDone(data);
           break;
 
         case 'message':
-          if (data.agentId === 'lami') {
-            this.office.lami.setBubble(data.text, 4.0);
+          // The server authors every character message, so print it verbatim
+          // instead of also reacting to it (that would double the bubbles).
+          if (LO.ui && LO.ui.appendChatMessage && data.text) {
+            LO.ui.appendChatMessage(
+              data.who || (data.agentId === 'lami' ? 'Boss Lami' : data.agentId || 'Agent'),
+              data.role || 'Agent', data.text, data.icon || '💬', data.color || '#8b5cf6',
+              false, false, (data.ts || 0) * 1000
+            );
           }
+          break;
+
+        case 'ticker':
+          if (LO.ui && LO.ui.addTicker) LO.ui.addTicker(data.icon || '•', data.text || '');
+          break;
+
+        case 'event_banner':
+          if (LO.ui && LO.ui.triggerEventBanner) {
+            LO.ui.triggerEventBanner(data.icon || '✨', data.title || '', data.desc || '');
+          }
+          break;
+
+        case 'world':
+          if (typeof this.office.applyWorld === 'function') this.office.applyWorld(data);
           break;
       }
     }

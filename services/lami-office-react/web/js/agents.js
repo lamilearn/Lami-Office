@@ -2,6 +2,10 @@
 (function () {
   const LO = window.LO;
 
+  // Content-space y under which a speech balloon would be clipped by the canopy
+  // edge (the sky header is 32px tall), so it flips below the character.
+  const BUBBLE_TOP_RIM = 34;
+
   const IDLE_CHATS = {
     boss: [
       'Target hari ini aman! 👑',
@@ -543,9 +547,11 @@
       let bx = Math.floor(x - bw / 2);
       bx = Math.max(8, Math.min(LO.CONTENT_W - bw - 8, bx));
 
-      // Jika karakter terlalu dekat ke atas (lantai Boss), posisikan balon di samping/bawah agar tidak menutupi HUD
+      // Keep the balloon clear of the canopy ceiling. The canvas now reserves a
+      // top band for it (--stage-top-gap), so the balloon only has to flip below
+      // the character when its own height would poke past the content edge.
       let by = Math.floor(py - bh - 5);
-      const isTop = by < 34;
+      const isTop = by < BUBBLE_TOP_RIM;
       if (isTop) {
         by = Math.floor(py + 20); // tampil di bawah karakter
       }

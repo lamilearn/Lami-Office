@@ -55,6 +55,16 @@ class TestContext {
     });
   }
 
+  beforeAll(fn) {
+    if (!this.currentSuite) throw new Error('beforeAll() must be called inside describe()');
+    this.currentSuite.beforeAll.push(fn);
+  }
+
+  afterAll(fn) {
+    if (!this.currentSuite) throw new Error('afterAll() must be called inside describe()');
+    this.currentSuite.afterAll.push(fn);
+  }
+
   test(name, fn, options = {}) {
     this.it(name, fn, options);
   }
@@ -69,7 +79,12 @@ class TestContext {
     for (const suite of this.suites) {
       // Run beforeAll hooks
       for (const hook of suite.beforeAll) {
-        await hook();
+        try {
+          await hook();
+        } catch (err) {
+          // A broken setup fails this suite's tests explicitly instead of killing the run.
+          suite.setupError = err;
+        }
       }
 
       for (const t of suite.tests) {
@@ -91,14 +106,20 @@ class TestContext {
 
         const t0 = Date.now();
         try {
-          // Execute test with timeout
+          if (suite.setupError) throw new Error(`suite setup failed: ${suite.setupError.message}`);
+          // Execute the test with a timeout. The test promise gets a catch handler so
+          // a late rejection after the timeout cannot crash the process.
           let timer;
           const timeoutPromise = new Promise((_, reject) => {
             timer = setTimeout(() => reject(new Error(`Test timed out after ${t.timeout}ms`)), t.timeout);
           });
-          const testPromise = Promise.resolve(t.fn());
-          await Promise.race([testPromise, timeoutPromise]);
-          clearTimeout(timer);
+          const testPromise = Promise.resolve().then(() => t.fn());
+          testPromise.catch(() => {});
+          try {
+            await Promise.race([testPromise, timeoutPromise]);
+          } finally {
+            clearTimeout(timer);
+          }
 
           t.status = 'passed';
           t.duration = Date.now() - t0;
@@ -191,6 +212,8 @@ module.exports = {
   describe: (name, fn) => globalContext.describe(name, fn),
   it: (name, fn, opts) => globalContext.it(name, fn, opts),
   test: (name, fn, opts) => globalContext.test(name, fn, opts),
+  beforeAll: (fn) => globalContext.beforeAll(fn),
+  afterAll: (fn) => globalContext.afterAll(fn),
   run: (filter) => globalContext.run(filter),
   getReport: () => globalContext.getReport(),
   printReport: (verbose) => globalContext.printReport(verbose),

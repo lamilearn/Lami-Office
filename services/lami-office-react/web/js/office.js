@@ -67,6 +67,15 @@
       this.initResidents();
       if (LO.ui && LO.ui.updateStaffCount) LO.ui.updateStaffCount(this.residents.length);
 
+      // Server-authoritative world. When true the server simulates every
+      // character and this page only renders `applyWorld()` frames, so all
+      // visitors see the same office. It flips to false only when the stream is
+      // unavailable and the local demo controller takes over.
+      this.simulatedExternally = false;
+      this.lastWorldAt = 0;
+      this.worldTargets = new Map();
+      this.pendingWorld = null;
+
       this.lastTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
       this.scale = 1;
       this.offsetX = 0;
@@ -713,20 +722,55 @@
       }
 
       // Keep the view correct across resizes, rotations and drawer changes.
-      const onResize = () => {
-        this.refreshMode();
-        this.reclampCamera();
-      };
+      const onResize = () => this.recompute();
       if (typeof window !== 'undefined' && window.addEventListener) {
         window.addEventListener('resize', onResize);
         window.addEventListener('orientationchange', onResize);
       }
+
+      // Android soft keyboard shrinks the *visual* viewport without firing a
+      // window resize. Mirror its height into --vvh (consumed by #stage) so the
+      // chat input stays visible and the canvas re-fits.
+      this.setupVisualViewport();
       this.refreshMode();
     }
 
+    setupVisualViewport() {
+      const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+      if (!vv || typeof document === 'undefined') return;
+
+      let timer = null;
+      const apply = () => {
+        const root = document.documentElement;
+        if (!root || !root.style) return;
+        // Only shrink: a browser toolbar retracting (vv taller than layout)
+        // must not blow the shell past the layout viewport.
+        root.style.setProperty('--vvh', `${Math.round(vv.height)}px`);
+        root.style.setProperty('--vv-offset', `${Math.round(vv.offsetTop)}px`);
+      };
+      const onVV = () => {
+        apply();
+        clearTimeout(timer);
+        timer = setTimeout(() => this.recompute(), 150); // debounce camera jitter
+      };
+
+      apply();
+      vv.addEventListener('resize', onVV);
+      vv.addEventListener('scroll', onVV);
+    }
+
+    // Re-evaluate mode, view transform and camera bounds after a viewport change.
+    recompute() {
+      // Breakpoints may change --stage-top-gap (e.g. resizing into phone width).
+      this._topGap = null;
+      this.refreshMode();
+      this.reclampCamera();
+    }
+
     // ---- Camera Mode (phones / touch-first devices) ----
+    // Driven purely by device capability + viewport width; the old ?vertical=1
+    // override letterboxed the whole app, so it was removed.
     isPhoneMode() {
-      if (LO.params && LO.params.get('vertical') === '1') return true;
       return LO.isPhoneMode();
     }
 
@@ -773,6 +817,47 @@
       this.drawerInset = this.isPhoneMode() ? 0 : width;
     }
 
+    // Empty band reserved at the top of the canvas (below the HUD). Read from
+    // --stage-top-gap so CSS stays the single source of truth; cached because
+    // getComputedStyle is expensive and only changes on a resize.
+    stageTopGap() {
+      if (this._topGap !== undefined && this._topGap !== null) return this._topGap;
+      let gap = 0;
+      if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+        try {
+          const raw = getComputedStyle(document.documentElement).getPropertyValue('--stage-top-gap');
+          gap = parseFloat(raw) || 0;
+        } catch (e) { gap = 0; }
+      }
+      this._topGap = gap;
+      return gap;
+    }
+
+    // The band is expressed in CSS pixels against the shell. If the canvas still
+    // hugs the top of the viewport it needs the inset; if CSS already pushed it
+    // below the band (the normal case) no extra inset is applied.
+    topInsetFor(canvasHeight) {
+      const gap = this.stageTopGap();
+      if (gap <= 0) return 0;
+      const viewportTop = this.canvasViewportTop();
+      const remaining = Math.max(0, gap - viewportTop);
+      return Math.min(remaining, canvasHeight);
+    }
+
+    // Viewport-relative top of the canvas. The shell never scrolls (overflow is
+    // hidden), so rect.top and clientTop agree; rect is preferred because it is
+    // also what screenToWorld uses, keeping the two in the same frame.
+    canvasViewportTop() {
+      if (!this.canvas) return 0;
+      if (typeof this.canvas.getBoundingClientRect === 'function') {
+        try {
+          const rect = this.canvas.getBoundingClientRect();
+          if (rect && typeof rect.top === 'number') return rect.top;
+        } catch (e) { /* fall through */ }
+      }
+      return typeof this.canvas.clientTop === 'number' ? this.canvas.clientTop : 0;
+    }
+
     computeView(width, height) {
       const w = width || (this.canvas ? this.canvas.clientWidth : LO.CONTENT_W);
       const h = height || (this.canvas ? this.canvas.clientHeight : LO.CONTENT_H);
@@ -783,6 +868,7 @@
         contentW: LO.CONTENT_W,
         contentH: LO.CONTENT_H,
         drawerInset: this.drawerInset || 0,
+        topInset: this.topInsetFor(h),
         cameraMode,
         zoom: cameraMode ? (this.camera.zoom || null) : null,
         focusX: this.camera.x,
@@ -800,7 +886,11 @@
     screenToWorld(clientX, clientY) {
       if (!this.canvas || typeof this.canvas.getBoundingClientRect !== 'function') return null;
       const rect = this.canvas.getBoundingClientRect();
-      const view = this.view && this.view.zoom ? this.view : this.computeView();
+      // Strictly derive the transform from the current box: a cached view from an
+      // earlier layout (or another size) would map taps to the wrong tile.
+      const width = (rect && rect.width) || this.canvas.clientWidth || LO.CONTENT_W;
+      const height = (rect && rect.height) || this.canvas.clientHeight || LO.CONTENT_H;
+      const view = this.computeView(width, height);
       const zoom = view.zoom || 1;
       return {
         x: (clientX - rect.left - view.offsetX) / zoom,
@@ -809,7 +899,14 @@
     }
 
     worldToScreen(worldX, worldY) {
-      const view = this.view && this.view.zoom ? this.view : this.computeView();
+      let width = this.canvas && this.canvas.clientWidth;
+      let height = this.canvas && this.canvas.clientHeight;
+      if ((!width || !height) && this.canvas && typeof this.canvas.getBoundingClientRect === 'function') {
+        const rect = this.canvas.getBoundingClientRect();
+        width = width || (rect && rect.width);
+        height = height || (rect && rect.height);
+      }
+      const view = this.computeView(width || LO.CONTENT_W, height || LO.CONTENT_H);
       const zoom = view.zoom || 1;
       return {
         x: worldX * zoom + view.offsetX,
@@ -999,6 +1096,133 @@
       }
     }
 
+    // ---- Server-authoritative world (live mode) ------------------------------
+    // The server simulates every character; this page interpolates between the
+    // 5 Hz frames so motion stays smooth at 60 fps without a local simulation.
+    findChar(id) {
+      if (!id) return null;
+      if (id === 'lami') return this.lami;
+      if (id === 'mochi') return this.cat;
+      if (id === 'delivery-rider') return this.deliveryRider;
+      if (this.subagents.has(id)) return this.subagents.get(id);
+      return this.residents.find((r) => r.id === id) || null;
+    }
+
+    // Rebuild sub-agents from a world frame so a later visitor sees whoever is
+    // actually working, not an empty office.
+    syncWorldAgents(frame) {
+      if (!Array.isArray(frame.chars)) return;
+      const live = new Set();
+      for (const c of frame.chars) {
+        if (c.kind !== 'sub') continue;
+        live.add(c.id);
+        if (this.subagents.has(c.id)) continue;
+        const agent = this.spawnSubAgent({
+          agentId: c.id,
+          name: c.name,
+          task: c.task,
+          tool: c.tool,
+          summary: c.summary
+        }, { restore: true });
+        if (c.tool) agent.startWork(c.tool, c.summary || c.tool);
+        agent.reported = false;
+      }
+      for (const id of [...this.subagents.keys()]) {
+        if (live.has(id)) continue;
+        this.freeSlot(this.subagents.get(id));
+        this.subagents.delete(id);
+      }
+      if (LO.ui && LO.ui.updateStaffCount) {
+        LO.ui.updateStaffCount(this.residents.length + this.subagents.size);
+      }
+    }
+
+    applyWorld(frame) {
+      if (!frame || !Array.isArray(frame.chars)) return;
+      this.pendingWorld = frame;
+      // Honest status straight from the server (live / slow / idle).
+      if (frame.status && typeof frame.status === 'object') {
+        this.worldStatus = frame.status;
+        if (LO.ui && typeof LO.ui.setOfficeStatus === 'function') {
+          LO.ui.setOfficeStatus(frame.status);
+        }
+      }
+      if (frame.roster && LO.ui && typeof LO.ui.setRoster === 'function') {
+        LO.ui.setRoster(frame.roster);
+      }
+      this.lastWorldAt = Date.now();
+      this.syncWorldAgents(frame);
+
+      // Characters: remember the target, let applyWorldTargets() ease toward it.
+      for (const data of frame.chars) {
+        const char = this.findChar(data.id);
+        if (!char) continue;
+        this.worldTargets.set(data.id, data);
+        if (char.col === undefined || this.worldTargets.size === 1) {
+          char.col = data.col;
+          char.row = data.row;
+        }
+        char.facing = data.facing || char.facing;
+        char.state = data.state || char.state;
+        char.frame = data.frame || char.frame;
+        char.bubble = data.bubble || null;
+        char.bubbleTimer = data.bubble ? 1 : 0;
+        char.emote = data.emote || null;
+        char.emoteTimer = data.emote ? 1 : 0;
+        char.carriedItem = data.carry || null;
+        if (data.kind && char.kind === undefined) char.kind = data.kind;
+        if (data.routineState) char.routineState = data.routineState;
+        if (data.task) char.task = data.task;
+        if (data.name && char.name !== data.name) char.name = data.name;
+        if (data.slot) char.assignedSlot = data.slot;
+      }
+
+      // The delivery rider is created and destroyed by the server's random events.
+      if (frame.rider && !this.deliveryRider) {
+        this.deliveryRider = new LO.DeliveryRider();
+      } else if (!frame.rider && this.deliveryRider) {
+        this.deliveryRider = null;
+      }
+      if (frame.cat) {
+        const cat = this.cat;
+        cat.col = frame.cat.col;
+        cat.row = frame.cat.row;
+        cat.state = frame.cat.state || cat.state;
+        cat.facing = frame.cat.facing || cat.facing;
+        cat.bubble = frame.cat.bubble || null;
+      }
+      if (frame.flags) {
+        if (typeof frame.flags.pizzaTimer === 'number') this.pizzaEventTimer = frame.flags.pizzaTimer;
+        if (typeof frame.flags.flickerTimer === 'number') this.flickerTimer = frame.flags.flickerTimer;
+      }
+    }
+
+    // Ease every character toward its last server position (~120 ms catch-up).
+    applyWorldTargets(dt) {
+      if (!this.worldTargets.size) return;
+      const ease = Math.min(1, dt * 9);
+      for (const [id, target] of this.worldTargets) {
+        const char = this.findChar(id);
+        if (!char) continue;
+        const dc = target.col - char.col;
+        const dr = target.row - char.row;
+        if (Math.abs(dc) < 0.01 && Math.abs(dr) < 0.01) {
+          char.col = target.col;
+          char.row = target.row;
+        } else if (Math.hypot(dc, dr) > 8) {
+          char.col = target.col; // a fresh page or a jumped character: no slide
+          char.row = target.row;
+        } else {
+          char.col += dc * ease;
+          char.row += dr * ease;
+        }
+        // Timers count down locally so bubbles fade between 5 Hz frames.
+        if (char.bubbleTimer > 0) char.bubbleTimer -= dt;
+        if (char.emoteTimer > 0) char.emoteTimer -= dt;
+      }
+      if (this.cat && this.cat.bubbleTimer > 0) this.cat.bubbleTimer -= dt;
+    }
+
     // ---- Loop ----
     start() {
       const loop = (now) => {
@@ -1017,6 +1241,13 @@
       this.updateCamera(dt);
       this.world.update(dt);
       this.elevator.update(dt, this);
+
+      // Live mode: the server owns positions, routines and narration. Animating
+      // them here as well would double-bill every event and let the tabs drift.
+      if (this.simulatedExternally) {
+        this.applyWorldTargets(dt);
+        return;
+      }
 
       this.lami.update(dt, this);
       this.cat.update(dt, this);
@@ -1169,6 +1400,13 @@
       this.ctx.imageSmoothingEnabled = false;
       this.ctx.save();
       this.ctx.scale(dpr, dpr);
+
+      // Confine drawing to the canvas box. With a top band reserved, a centred
+      // fit can sit slightly above the canvas, so clip instead of leaking over
+      // the HUD band.
+      this.ctx.beginPath();
+      this.ctx.rect(0, 0, w, h);
+      this.ctx.clip();
 
       // Background fill across the whole canvas so the drawer inset area is
       // never a black gap.

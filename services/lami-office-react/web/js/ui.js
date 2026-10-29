@@ -164,6 +164,8 @@
 
         // Greeting message in Slack chat
         this.appendChatMessage('Boss Lami', 'CEO', 'Selamat datang di Lami Corp! Ketik <code>/help</code> untuk melihat daftar perintah santai. 👑✨', '👑', '#ffd25e');
+
+        this.setupChatSheet();
       }
 
       // Whiteboard Modal bindings
@@ -219,6 +221,7 @@
         this.hideCard();
         this.chatDrawer.classList.remove('hidden');
         LO.audio.pop();
+        if (this.chatDrawer.classList.contains('is-sheet')) this.scrollChatToEnd();
         if (this.chatInput) setTimeout(() => this.chatInput.focus(), 80);
       } else {
         this.chatDrawer.classList.add('hidden');
@@ -234,6 +237,59 @@
       if (!office || typeof office.setDrawerOpen !== 'function') return;
       const width = this.chatDrawer ? this.chatDrawer.getBoundingClientRect().width : 0;
       office.setDrawerOpen(open, width);
+    }
+
+    // Phones: keep the bottom sheet above the soft keyboard by capping its
+    // height to the visual viewport that is actually visible above it.
+    setupChatSheet() {
+      const office = window.LO?.office;
+      const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+      const apply = () => {
+        if (!this.chatDrawer) return;
+        const isSheet = Boolean(office?.isPhoneMode?.());
+        this.chatDrawer.classList.toggle('is-sheet', isSheet);
+        let max = '72vh';
+        if (isSheet && vv && vv.height) {
+          const hidden = Math.max(0, window.innerHeight - vv.height - (vv.offsetTop || 0));
+          const usable = hidden > 80 ? Math.max(180, vv.height - 12) : Math.max(180, vv.height * 0.72);
+          max = `${Math.round(usable)}px`;
+        }
+        const style = this.chatDrawer.style;
+        if (style && typeof style.setProperty === 'function') style.setProperty('--sheet-height', max);
+        else if (style) style['--sheet-height'] = max;
+        if (isSheet) this.scrollChatToEnd();
+      };
+      if (typeof window !== 'undefined' && window.addEventListener) {
+        window.addEventListener('resize', apply);
+        window.addEventListener('orientationchange', apply);
+      }
+      if (vv && vv.addEventListener) {
+        vv.addEventListener('resize', apply);
+        vv.addEventListener('scroll', apply);
+      }
+      if (this.chatInput) {
+        this.chatInput.addEventListener('focus', () => {
+          apply();
+          if (typeof this.chatDrawer?.scrollIntoView === 'function') {
+            this.chatDrawer.scrollIntoView({ block: 'end', behavior: 'smooth' });
+          }
+        });
+      }
+      apply();
+    }
+
+    scrollChatToEnd() {
+      const el = this.chatMessages;
+      if (!el) return;
+      const atBottom = () => {
+        el.scrollTop = el.scrollHeight;
+        if (typeof el.scrollTo === 'function') el.scrollTo({ top: el.scrollHeight });
+      };
+      if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+        window.requestAnimationFrame(atBottom);
+      } else {
+        atBottom();
+      }
     }
 
     appendChatMessage(sender, role, text, icon = '💬', color = '#555', isUser = false, isSystem = false, tsMs = null) {
@@ -259,7 +315,7 @@
       `;
 
       this.chatMessages.appendChild(msg);
-      this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
+      this.scrollChatToEnd();
     }
 
     handleChatSubmit() {
@@ -445,6 +501,35 @@
         this.statusEl.classList.add('status-offline');
         this.statusEl.innerHTML = '<i></i><b>OFFLINE</b>';
       }
+    }
+
+    // Truthful office status straight from the server: when Hermes is not
+    // sending anything the HUD says so instead of claiming to be LIVE.
+    setOfficeStatus(status) {
+      if (!status || !this.statusEl) return;
+      const mode = String(status.mode || 'idle');
+      const active = Number(status.agents_active || 0);
+      const age = status.last_event_age_s;
+      this.statusEl.className = 'hud-pill';
+      if (mode === 'live') {
+        this.statusEl.classList.add('status-live');
+        this.statusEl.innerHTML = `<i></i><b>LIVE</b> <span class="status-extra">${active} active</span>`;
+      } else if (mode === 'slow') {
+        this.statusEl.classList.add('status-slow');
+        const mins = age == null ? '' : ` · last ${Math.round(age)}s ago`;
+        this.statusEl.innerHTML = `<i></i><b>IDLE</b><span class="status-extra">${mins}</span>`;
+      } else {
+        this.statusEl.classList.add('status-idle');
+        this.statusEl.innerHTML = '<i></i><b>IDLE</b><span class="status-extra">waiting for Hermes</span>';
+      }
+      this.statusEl.title = `ingest: ${status.ingest_health || '?'} · events: ${status.events_total || 0}`;
+    }
+
+    // Real agent roster (HUB.agents + A2A) as published by the server.
+    setRoster(roster) {
+      this.roster = roster || { agents: [] };
+      const count = Array.isArray(this.roster.agents) ? this.roster.agents.length : 0;
+      if (this.staffEl) this.staffEl.textContent = String(count);
     }
 
     updateStaffCount(count) {

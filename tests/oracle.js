@@ -166,9 +166,12 @@ const ORACLE = {
   },
 
   // R3: Desktop 16:9 Viewport & Dynamic Chat Drawer Math
-  calculateViewport(winW, winH, drawerOpen = false, drawerWidth = 360) {
+  // `topInset` mirrors --stage-top-gap: the reserved band under the HUD. The
+  // content is fitted into the height that remains and pushed below the band.
+  calculateViewport(winW, winH, drawerOpen = false, drawerWidth = 360, topInset = 0) {
     const availW = drawerOpen ? Math.max(0, winW - drawerWidth) : winW;
-    const availH = winH;
+    const inset = Math.max(0, Math.min(topInset, winH));
+    const availH = Math.max(1, winH - inset);
 
     const baseW = 1408;
     const baseH = 800;
@@ -178,14 +181,15 @@ const ORACLE = {
     const scale = Math.min(scaleX, scaleY);
 
     const offsetX = Math.floor((availW - baseW * scale) / 2);
-    const offsetY = Math.floor((availH - baseH * scale) / 2);
+    const offsetY = Math.floor(inset + (availH - baseH * scale) / 2);
 
     const letterboxX = offsetX > 0;
-    const letterboxY = offsetY > 0;
+    const letterboxY = offsetY > inset;
 
     return {
       availW,
       availH,
+      topInset: inset,
       scale,
       offsetX,
       offsetY,

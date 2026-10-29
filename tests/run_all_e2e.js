@@ -51,6 +51,7 @@ async function main() {
   if (selectedTiers.includes(1)) {
     require('./e2e/tier1_feature_coverage.test.js');
     require('./e2e/tier1_responsive_a2a.test.js');
+    require('./e2e/tier1_world_authority.test.js');
   }
   if (selectedTiers.includes(2)) {
     require('./e2e/tier2_boundary_corner.test.js');
@@ -61,6 +62,7 @@ async function main() {
   }
   if (selectedTiers.includes(4)) {
     require('./e2e/tier4_real_world_scenarios.test.js');
+    require('./e2e/tier4_http_integration.test.js');
   }
 
   // Run the tests

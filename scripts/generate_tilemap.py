@@ -126,16 +126,19 @@ def build_map(cfg: dict) -> dict:
 
     walls = [[None] * cols for _ in range(rows)]
     decor = [[None] * cols for _ in range(rows)]
+    # Which room each wall tile belongs to. Every room has its own wall palette
+    # in config.js; without this tag the whole building rendered in one colour.
+    wall_room = [[None] * cols for _ in range(rows)]
 
     # ---- rooms: perimeter wall ring (one tile outside the walkable interior)
     for rid in ROOM_IDS:
         x1, y1, x2, y2 = rooms[rid]["bounds"]
         for x in range(x1 - 1, x2 + 2):
-            _wall(walls, x, y1 - 1)
-            _wall(walls, x, y2 + 1)
+            _wall(walls, x, y1 - 1, rid, wall_room)
+            _wall(walls, x, y2 + 1, rid, wall_room)
         for y in range(y1 - 1, y2 + 2):
-            _wall(walls, x1 - 1, y)
-            _wall(walls, x2 + 1, y)
+            _wall(walls, x1 - 1, y, rid, wall_room)
+            _wall(walls, x2 + 1, y, rid, wall_room)
 
     # ---- hallways: walkable tiles have no wall
     walkable = set()
@@ -183,7 +186,11 @@ def build_map(cfg: dict) -> dict:
         for x in range(cols):
             if walls[y][x] is None or walls[y][x] == "door_mid":
                 continue
-            walls[y][x] = _wall_variant(walls, x, y, cols, rows)
+            variant = _wall_variant(walls, x, y, cols, rows)
+            rid = wall_room[y][x]
+            # Room walls use the per-room palette; the shared perimeter keeps the
+            # neutral base variant.
+            walls[y][x] = f"{variant}_{rid}" if rid and variant != "wall_partition" else variant
 
     # ---- facade details: windows on every exterior wall the room faces
     for rid in ROOM_IDS:
@@ -194,19 +201,19 @@ def build_map(cfg: dict) -> dict:
         if y1 - 1 == building["y1"]:
             ny = y1 - 1
             for wx in (x1 + span // 4, x1 + (3 * span) // 4):
-                _decor_on_wall(decor, walls, wx, ny, "window", cols, rows)
+                _decor_on_wall(decor, walls, wx, ny, f"window_{rid}", cols, rows)
         # South wall (rooms on the bottom row face the garden)
         if y2 + 1 == building["y2"]:
             sy = y2 + 1
             for wx in (x1 + span // 4, x1 + (3 * span) // 4):
-                _decor_on_wall(decor, walls, wx, sy, "window", cols, rows)
+                _decor_on_wall(decor, walls, wx, sy, f"window_{rid}", cols, rows)
         # West / east exterior walls
         if x1 - 1 == building["x1"]:
             for wy in (y1 + side // 3, y1 + (2 * side) // 3):
-                _decor_on_wall(decor, walls, x1 - 1, wy, "window", cols, rows)
+                _decor_on_wall(decor, walls, x1 - 1, wy, f"window_{rid}", cols, rows)
         if x2 + 1 == building["x2"]:
             for wy in (y1 + side // 3, y1 + (2 * side) // 3):
-                _decor_on_wall(decor, walls, x2 + 1, wy, "window", cols, rows)
+                _decor_on_wall(decor, walls, x2 + 1, wy, f"window_{rid}", cols, rows)
 
     # ---- corner plants inside each room (never on furniture or a doorway)
     blocked = set()
@@ -313,10 +320,12 @@ def _decor_on_wall(decor, walls, x, y, name, cols, rows):
     return True
 
 
-def _wall(walls, x, y):
+def _wall(walls, x, y, room=None, wall_room=None):
     if 0 <= y < len(walls) and 0 <= x < len(walls[0]):
         if walls[y][x] is None:
             walls[y][x] = "wall_face"
+            if room is not None and wall_room is not None:
+                wall_room[y][x] = room
 
 
 def _wall_variant(walls, x, y, cols, rows):

@@ -620,19 +620,24 @@
 
   // Pure view-model math shared by the renderer, hit-testing and the tests.
   // Inputs are CSS pixels. Returns zoom plus the top-left content offset.
+  // `topInset` reserves an empty band at the top of the canvas (below the HUD)
+  // so the rooftop signboard and top-row speech bubbles are never covered.
   LO.computeViewParams = function (args) {
     const w = Math.max(0, args.width || 0);
     const h = Math.max(0, args.height || 0);
     const contentW = args.contentW || LO.CONTENT_W;
     const contentH = args.contentH || LO.CONTENT_H;
     const inset = args.drawerInset || 0;
+    const topInset = Math.max(0, Math.min(args.topInset || 0, h));
 
     if (w <= 0 || h <= 0) {
-      return { zoom: 1, offsetX: 0, offsetY: 0, availW: w, availH: h, cameraMode: false };
+      return { zoom: 1, offsetX: 0, offsetY: topInset, availW: w, availH: h, cameraMode: false };
     }
 
     const availW = Math.max(1, w - inset);
-    const availH = h;
+    // The usable height is what is left under the top band; the content is then
+    // pushed down by topInset so it never renders into that band.
+    const availH = Math.max(1, h - topInset);
 
     if (args.cameraMode) {
       // Phone camera: never render the floorplan as a thin strip. Fill the width,
@@ -656,14 +661,16 @@
         ? contentH / 2
         : Math.min(contentH - visibleH / 2, Math.max(visibleH / 2, focusY));
       const offsetX = Math.round((availW / 2) - camX * zoom);
-      const offsetY = Math.round((availH / 2) - camY * zoom);
-      return { zoom, offsetX, offsetY, availW, availH, cameraMode: true };
+      const offsetY = Math.round(topInset + (availH / 2) - camY * zoom);
+      return { zoom, offsetX, offsetY, availW, availH, topInset, cameraMode: true };
     }
 
     const zoom = Math.min(availW / contentW, availH / contentH);
     const offsetX = Math.floor((availW - contentW * zoom) / 2);
-    const offsetY = Math.floor((availH - contentH * zoom) / 2);
-    return { zoom, offsetX, offsetY, availW, availH, cameraMode: false };
+    // Flooring a centred fit of an odd remainder can dip to -1, which would
+    // shave the rooftop sign off the top edge. Never render above the band.
+    const offsetY = Math.max(topInset, Math.floor(topInset + (availH - contentH * zoom) / 2));
+    return { zoom, offsetX, offsetY, availW, availH, topInset, cameraMode: false };
   };
 
   // Classify a pointer sequence as a tap (select) or a drag (camera pan).

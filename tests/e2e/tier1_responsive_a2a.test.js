@@ -130,6 +130,174 @@ describe('Tier 1 — Feature 15: Responsive Layout & Phone Camera', () => {
     assert.ok(Math.abs(world.x - 400) < 1e-6 && Math.abs(world.y - 240) < 1e-6, 'Round trip must be exact');
     assert.ok(view.zoom > 0);
   });
+
+  it('F15.8: The shell is full-bleed — no 100vw sizing and no vertical letterbox', () => {
+    const css = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/css/style.css'), 'utf8');
+    const stage = css.slice(css.indexOf('#stage {'), css.indexOf('#office {'));
+
+    assert.ok(!/width:\s*100vw/.test(stage), '#stage must not size with 100vw (ignores scrollbar/visual viewport)');
+    assert.ok(/width:\s*100%/.test(stage), '#stage must fill its container width');
+    assert.ok(/height:\s*var\(--vvh,\s*100%\)/.test(stage), '#stage must honour the visual-viewport height');
+
+    assert.ok(!/body\.vertical/.test(css), 'the vertical letterbox mode must be removed');
+    assert.ok(!/calc\(100dvh \* 9 \/ 16\)/.test(css), 'the hard-coded 9:16 letterbox must be gone');
+  });
+
+  it('F15.9: The HUD grows for safe-area insets instead of clipping', () => {
+    const css = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/css/style.css'), 'utf8');
+    const hud = css.slice(css.indexOf('#hud {'), css.indexOf('.hud-brand, .hud-stats'));
+
+    assert.ok(/min-height:\s*var\(--header-height\)/.test(hud), 'HUD must use min-height');
+    assert.ok(!/^\s*height:\s*var\(--header-height\)/m.test(hud), 'HUD must not use a fixed height');
+    assert.ok(/env\(safe-area-inset-top\)/.test(hud), 'HUD must respect the top safe area');
+    assert.ok(/flex-wrap:\s*wrap/.test(hud), 'HUD must wrap on narrow screens');
+  });
+
+  it('F15.10: The ?vertical=1 override is gone from both CSS and camera mode', () => {
+    const main = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/js/main.js'), 'utf8');
+    const office = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/js/office.js'), 'utf8');
+
+    assert.ok(!/classList\.add\('vertical'\)/.test(main), 'main.js must not toggle the vertical class');
+    const isPhone = office.slice(office.indexOf('isPhoneMode() {'), office.indexOf('isPhoneMode() {') + 200);
+    assert.ok(!/vertical/.test(isPhone), 'isPhoneMode must not branch on the vertical param');
+    assert.ok(/return LO\.isPhoneMode\(\)/.test(isPhone), 'phone mode must come from device detection only');
+  });
+
+  it('F15.11: The Android soft keyboard resizes the shell via visualViewport', () => {
+    const office = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/js/office.js'), 'utf8');
+    assert.ok(/window\.visualViewport/.test(office), 'visualViewport must be used');
+    assert.ok(/setupVisualViewport\(\)/.test(office), 'a visualViewport setup hook must exist');
+    assert.ok(/setProperty\('--vvh'/.test(office), 'the visual viewport height must feed --vvh');
+    assert.ok(/vv\.addEventListener\('resize'/.test(office), 'resize listener required');
+    assert.ok(/recompute\(\)/.test(office), 'viewport changes must recompute the view');
+  });
+
+  it('F15.12: Phones render the chat drawer as a bottom sheet, not a full-height sidebar', () => {
+    const css = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/css/style.css'), 'utf8');
+    const sheetAt = css.indexOf('.chat-drawer.is-sheet {');
+    assert.ok(sheetAt > -1, 'a bottom-sheet variant must exist');
+    const sheet = css.slice(css.indexOf('.chat-drawer,', sheetAt - 400), sheetAt + 400);
+
+    assert.ok(/top:\s*auto/.test(sheet), 'the sheet must drop the full-height top anchor');
+    assert.ok(/bottom:\s*0/.test(sheet), 'the sheet must anchor to the bottom');
+    assert.ok(/max-height:\s*var\(--sheet-height/.test(sheet), 'the sheet height must be variable');
+    assert.ok(/border-radius:\s*16px 16px 0 0/.test(sheet), 'the sheet needs rounded top corners');
+    assert.ok(/slideUpSheet/.test(css), 'the sheet must animate from the bottom');
+  });
+
+  it('F15.13: The desk drawer stays an inset card with a pixel accent rail', () => {
+    const css = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/css/style.css'), 'utf8');
+    const drawer = css.slice(css.indexOf('.chat-drawer {'), css.indexOf('.chat-drawer.hidden'));
+    assert.ok(/top:\s*calc\(8px \+ env\(safe-area-inset-top\)\)/.test(drawer), 'desktop drawer must float below the HUD');
+    assert.ok(/border-radius:\s*14px/.test(drawer), 'desktop drawer must be rounded, not edge-to-edge');
+    assert.ok(/max-height:\s*calc\(100% - 16px/.test(drawer), 'desktop drawer must not hide the HUD');
+    assert.ok(/repeating-linear-gradient/.test(css), 'pixel accent rail must stay');
+  });
+
+  it('F15.14: The sheet follows the visual viewport so the keyboard never covers the input', () => {
+    const ui = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/js/ui.js'), 'utf8');
+    const html = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/index.html'), 'utf8');
+    const setup = ui.slice(ui.indexOf('setupChatSheet() {'), ui.indexOf('scrollChatToEnd() {'));
+
+    assert.ok(/setupChatSheet\(\)/.test(ui), 'the sheet setup hook must exist');
+    assert.ok(/visualViewport/.test(setup), 'the sheet must consult the visual viewport');
+    assert.ok(/--sheet-height/.test(setup), 'the sheet height must be driven by --sheet-height');
+    assert.ok(/vv\.addEventListener\('resize'/.test(setup), 'keyboard open/close must re-measure');
+    assert.ok(/is-sheet/.test(ui), 'phone mode must toggle the is-sheet class');
+    assert.ok(/chat-grabber/.test(html), 'the sheet needs a grab handle');
+    assert.ok(/classList\.contains\('is-sheet'\)/.test(ui), 'opening the sheet must scroll to the last message');
+  });
+
+  it('F15.15: The canvas is pushed below a reserved top band, never pinned to the shell edge', () => {
+    const css = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/css/style.css'), 'utf8');
+    const canvas = css.slice(css.indexOf('#office {'), css.indexOf('#office:active'));
+
+    assert.ok(/top:\s*var\(--stage-top-gap/.test(canvas), 'the canvas must start below --stage-top-gap');
+    assert.ok(!/inset:\s*0/.test(canvas), 'the canvas must not be pinned to the shell edge any more');
+    assert.ok(/bottom:\s*0/.test(canvas), 'the canvas must still reach the bottom edge');
+
+    const root = css.slice(css.indexOf(':root {'), css.indexOf('* { box-sizing'));
+    assert.ok(/--stage-top-gap:\s*\d+px/.test(root), 'the top band must be defined once on :root');
+    assert.ok(/--stage-top-gap:\s*22px/.test(css), 'the band must shrink on tablets');
+    assert.ok(/--stage-top-gap:\s*16px/.test(css), 'the band must shrink further on phones');
+  });
+
+  it('F15.16: The top band is fed into the camera so the office fits below it', () => {
+    const { LO } = loadConfig(1600, false);
+    const gap = 34;
+    const withGap = LO.computeViewParams({
+      width: 1600, height: 838, contentW: LO.CONTENT_W, contentH: LO.CONTENT_H, topInset: gap
+    });
+    const top = withGap.offsetY;
+    const bottom = withGap.offsetY + LO.CONTENT_H * withGap.zoom;
+
+    assert.ok(top >= gap - 0.5, `content must start below the band, got ${top}`);
+    assert.ok(bottom <= 838 + 0.5, `content must stay inside the canvas, got ${bottom}`);
+    assert.strictEqual(withGap.topInset, gap);
+    assert.ok(withGap.availH === 838 - gap, 'the band must be carved out of the usable height');
+
+    const noGap = LO.computeViewParams({
+      width: 1600, height: 838, contentW: LO.CONTENT_W, contentH: LO.CONTENT_H
+    });
+    assert.ok(withGap.zoom < noGap.zoom, 'reserving a band must shrink the office to keep it whole');
+  });
+
+  it('F15.17: topInset of zero reproduces the previous camera numbers exactly', () => {
+    const { LO } = loadConfig(1600, false);
+    const v = LO.computeViewParams({
+      width: 1600, height: 900, contentW: LO.CONTENT_W, contentH: LO.CONTENT_H, topInset: 0
+    });
+    const expectedZoom = Math.min(1600 / LO.CONTENT_W, 900 / LO.CONTENT_H);
+    const expectedY = Math.floor((900 - LO.CONTENT_H * expectedZoom) / 2);
+
+    assert.ok(Math.abs(v.zoom - expectedZoom) < 1e-12, 'zoom must be unchanged without a band');
+    assert.strictEqual(v.offsetY, expectedY, 'offset must be unchanged without a band');
+  });
+
+  it('F15.18: Screen<->world conversion stays exact with a top band', () => {
+    const { LO, env } = loadOffice();
+    const office = Object.create(LO.Office.prototype);
+    env.window.innerWidth = 1600;
+    env.window.matchMedia = () => ({ matches: false });
+    office.canvas = {
+      clientWidth: 1600,
+      clientHeight: 838,
+      // CSS pushed the canvas 34px below the shell edge, so the band is already
+      // applied by layout and must not be applied a second time by the camera.
+      clientTop: 34,
+      // The canvas is its own coordinate frame: CSS already moved it below the
+      // band, so client coordinates inside it start at 0 and the camera must
+      // not subtract the band a second time.
+      getBoundingClientRect: () => ({ left: 0, top: 0, width: 1600, height: 838, right: 1600, bottom: 838, x: 0, y: 0 })
+    };
+    office.camera = { x: 44, y: 25, targetX: 44, targetY: 25, zoom: null };
+    office.drawerInset = 0;
+    office._topGap = 34;
+
+    const view = office.computeView(1600, 838);
+    // The mock reports the canvas at the top of its own frame, so the camera
+    // supplies the band itself, and the office must start below it.
+    assert.strictEqual(office.topInsetFor(838), 34, 'the band is applied when CSS has not moved the canvas');
+    assert.ok(view.offsetY >= 34, `the office must start below the band, got ${view.offsetY}`);
+    assert.ok(view.offsetY + LO.CONTENT_H * view.zoom <= 838 + 0.5,
+      'the office must still fit inside the canvas below the band');
+    // Pick a point that is actually inside the visible content box; a fit view
+    // legitimately clamps taps that fall in the letterbox area.
+    const worldX = LO.CONTENT_W / 2;
+    const worldY = LO.CONTENT_H / 2;
+    const screen = office.worldToScreen(worldX, worldY);
+    const world = office.screenToWorld(screen.x, screen.y);
+    assert.ok(Math.abs(world.x - worldX) < 1e-6 && Math.abs(world.y - worldY) < 1e-6,
+      `round trip must stay exact, got ${world.x},${world.y}`);
+    assert.ok(view.zoom > 0);
+  });
+
+  it('F15.19: Speech balloons use a named ceiling rim, not a magic number', () => {
+    const src = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/js/agents.js'), 'utf8');
+    assert.ok(/const BUBBLE_TOP_RIM = 34;/.test(src), 'the canopy rim must be a named constant');
+    assert.ok(/by < BUBBLE_TOP_RIM/.test(src), 'the flip test must use the constant');
+    assert.ok(!/by < 34\b/.test(src), 'no bare 34 may remain in the bubble logic');
+  });
 });
 
 describe('Tier 1 — Feature 16: Floorplan Decoration', () => {
@@ -162,7 +330,9 @@ describe('Tier 1 — Feature 16: Floorplan Decoration', () => {
     let windows = 0;
     for (let y = 0; y < map.rows; y++) {
       for (let x = 0; x < map.cols; x++) {
-        if (flat[y * map.cols + x] !== 'window') continue;
+        const tile = flat[y * map.cols + x];
+        // Windows are tagged with the room they belong to (window_research, ...).
+        if (typeof tile !== 'string' || !tile.startsWith('window')) continue;
         windows++;
         const onEnvelope = y === meta.building.y1 || y === meta.building.y2 ||
           x === meta.building.x1 || x === meta.building.x2;
@@ -208,6 +378,26 @@ describe('Tier 1 — Feature 16: Floorplan Decoration', () => {
       assert.ok(floor[i] !== undefined, 'Floor layer must be fully populated');
     }
     assert.ok(walls.some((w) => w), 'Wall layer must still contain walls');
+  });
+
+  it('F16.6: Door thresholds render below characters so nobody is hidden in a doorway', () => {
+    const src = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/js/tilemap.js'), 'utf8');
+    const ground = src.slice(src.indexOf('function paintGround'), src.indexOf('function paintOverlay'));
+    const overlay = src.slice(src.indexOf('function paintOverlay'), src.indexOf('function drawLayer'));
+
+    assert.ok(/=== DOOR_TILE/.test(ground), 'paintGround must handle the door tile');
+    assert.ok(/drawTile\(ctx, map, DOOR_TILE/.test(ground), 'the threshold must be painted in the ground pass');
+    assert.ok(!/drawTile\(ctx, map, DOOR_TILE/.test(overlay), 'the threshold must NOT be painted over characters');
+    assert.ok(/name === DOOR_TILE\)\s*continue/.test(overlay), 'the overlay must skip the door tile entirely');
+  });
+
+  it('F16.7: The office render order keeps the wall overlay after the characters', () => {
+    const office = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/js/office.js'), 'utf8');
+    const render = office.slice(office.indexOf('render() {'), office.indexOf('LO.Office = Office'));
+    const charsAt = render.indexOf('c.render(this.ctx)');
+    const overlayAt = render.indexOf('renderOverlay');
+
+    assert.ok(charsAt > -1 && overlayAt > charsAt, 'the overlay must be drawn after the characters for dollhouse depth');
   });
 });
 
@@ -345,10 +535,17 @@ describe('Tier 1 — Feature 18: Live State Persistence Across Reloads', () => {
     assert.ok(/preferredSlot === 'auto'/.test(src), 'Restore uses deterministic auto placement');
   });
 
-  it('F18.4: A snapshot rebuilds agents in place and prunes stale ones', () => {
+  it('F18.4: In live mode the roster comes from the server, not the event feed', () => {
     const src = fsx.readFileSync(pathx.join(REPO, 'services/lami-office-react/web/js/net.js'), 'utf8');
-    assert.ok(/restore: true/.test(src), 'Snapshot restore must use restore mode');
-    assert.ok(/live\.has\(id\)/.test(src), 'Agents missing from the snapshot must be dropped');
+    // Offline/demo may still rebuild agents locally, so the restore path stays.
+    assert.ok(/restore: true/.test(src), 'offline restore must still use restore mode');
+    // Live mode: the server owns the floor, so the client must not build bodies
+    // from snapshot/event messages (that produced agents it never simulated).
+    assert.ok(/!this\.office\.simulatedExternally/.test(src),
+      'snapshot/event driven agent creation must be gated on live mode');
+    const spawn = src.slice(src.indexOf("case 'agent_spawn':"), src.indexOf("case 'tool_start':"));
+    assert.ok(/if \(!this\.office\.simulatedExternally\)/.test(spawn),
+      'agent_spawn must not create a body while the server simulates');
   });
 
   it('F18.5: Server persists and reloads office state', () => {
@@ -436,5 +633,76 @@ describe('Tier 1 — Feature 20: Mesh Sidecar Roles & Recipient Mapping', () => 
       const txt = fsx.readFileSync(pathx.join(REPO, f), 'utf8');
       assert.ok(!/a2a_secret_mesh_ebi_2026/.test(txt), `${f} must not contain the mesh secret`);
     }
+  });
+});
+
+describe('Tier 1 — Feature 25: Per-room wall palette', () => {
+  const ROOMS6 = ['boss', 'research', 'server', 'engineering', 'meeting', 'pantry'];
+  const TILESET = path.join(REPO, 'services/lami-office-react/web/assets/tiles/tileset.json');
+  const WALL_MAP = path.join(REPO, 'services/lami-office-react/web/assets/map/office.map.json');
+
+  it('F25.1: every room has a tileset entry for each wall variant and window', () => {
+    const index = JSON.parse(fs.readFileSync(TILESET, 'utf8'));
+    const names = new Set(index.map((t) => t.name));
+    for (const room of ROOMS6) {
+      for (const kind of ['wall_face', 'wall_top', 'wall_side_l', 'wall_side_r', 'window']) {
+        assert.ok(names.has(`${kind}_${room}`),
+          `${room} is missing ${kind}_${room}; the room would fall back to the generic wall`);
+      }
+    }
+  });
+
+  it('F25.2: tileset entries stay inside the spritesheet grid', () => {
+    const index = JSON.parse(fs.readFileSync(TILESET, 'utf8'));
+    const seen = new Set();
+    for (const t of index) {
+      const key = `${t.col},${t.row}`;
+      assert.ok(!seen.has(key), `two tiles share the cell ${key} (${t.name})`);
+      seen.add(key);
+      assert.ok(t.col >= 0 && t.col < 8, `${t.name} col out of range`);
+      assert.ok(t.row >= 0 && t.row < 16, `${t.name} row out of range`);
+    }
+  });
+
+  it('F25.3: every wall tile in the map carries its room tag', () => {
+    const map = JSON.parse(fs.readFileSync(WALL_MAP, 'utf8'));
+    const walls = map.layers.find((l) => l.name === 'walls');
+    const flat = [];
+    for (const [v, n] of walls.data) for (let k = 0; k < n; k++) flat.push(v);
+
+    const tagged = {};
+    for (let y = 0; y < map.rows; y++) {
+      for (let x = 0; x < map.cols; x++) {
+        const name = flat[y * map.cols + x];
+        if (typeof name !== 'string' || !name.startsWith('wall_')) continue;
+        if (name === 'wall_face' || name === 'wall_top' || name === 'wall_partition') continue;
+        const room = name.slice(name.lastIndexOf('_') + 1);
+        tagged[room] = (tagged[room] || 0) + 1;
+      }
+    }
+    for (const room of ROOMS6) {
+      assert.ok(tagged[room] > 10, `${room} has only ${tagged[room] || 0} room-tagged wall tiles`);
+    }
+  });
+
+  it('F25.4: tilemap.js resolves room tops and treats tagged walls as solid', () => {
+    const src = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/js/tilemap.js'), 'utf8');
+    assert.ok(/function wallRoomSuffix/.test(src), 'a room-suffix resolver must exist');
+    assert.ok(/function wallTopFor/.test(src), 'wall tops must match the body room');
+    assert.ok(/name\.indexOf\('wall_'\) === 0/.test(src),
+      'every wall_* variant must count as solid');
+    assert.ok(/wallTopFor\(name\)/.test(src), 'the renderer must use the room-matched top');
+  });
+
+  it('F25.5: the six room colours are actually distinct', () => {
+    const cfg = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/js/config.js'), 'utf8');
+    // Restrict to the LO.ROOMS block: LO.HALLWAY also has a `wall` colour.
+    const start = cfg.indexOf('LO.ROOMS = {');
+    const end = cfg.indexOf('LO.HALLWAY', start);
+    assert.ok(start > -1 && end > start, 'the LO.ROOMS block must be locatable');
+    const roomsBlock = cfg.slice(start, end);
+    const palette = [...roomsBlock.matchAll(/wall:\s*'(#[0-9a-fA-F]{6})'/g)].map((m) => m[1].toLowerCase());
+    assert.strictEqual(palette.length, ROOMS6.length, `expected ${ROOMS6.length} wall colours`);
+    assert.strictEqual(new Set(palette).size, ROOMS6.length, 'each room needs its own wall colour');
   });
 });

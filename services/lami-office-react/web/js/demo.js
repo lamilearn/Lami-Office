@@ -22,6 +22,8 @@
 
     start() {
       if (this.active) return;
+      // Demo mode drives the local engine, so the page must own the simulation.
+      if (this.office) this.office.simulatedExternally = false;
       this.active = true;
       LO.ui.setStatus('demo');
       LO.ui.addTicker('🎬', '<b>Demo Mode aktif</b>: Mensimulasikan aktivitas sub-agent.');

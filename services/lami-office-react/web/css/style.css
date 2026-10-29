@@ -24,13 +24,19 @@
   /* Layout Dimensions */
   --header-height: 54px;
   --drawer-width: 340px;
+  /* Empty band between the HUD and the office canvas. The rooftop signboard is
+     painted in the canopy above the building, so without this gap the HUD sat
+     right on top of it and the top rooms had no room for speech bubbles.
+     office.js reads this value once and feeds it to the camera as topInset. */
+  --stage-top-gap: 34px;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body {
   width: 100%;
-  height: 100%;
+  height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   overscroll-behavior: none;
   background: #181124;
@@ -47,30 +53,35 @@ html, body {
 }
 
 /* ===== Main Application Shell ===== */
+/* Full-bleed: the shell always fills the real (visual) viewport. Never use
+   100vw here — it includes the scrollbar and ignores the Android visual
+   viewport, which is what made the page look "not full screen". */
 #stage {
   position: relative;
-  width: 100vw;
-  height: 100vh;
-  height: 100dvh;
+  width: 100%;
+  height: 100%;
+  /* --vvh is set from window.visualViewport so the shell shrinks for the
+     Android soft keyboard instead of hiding the chat input. */
+  height: var(--vvh, 100%);
   margin: 0 auto;
   overflow: hidden;
+  isolation: isolate;
   display: flex;
   flex-direction: column;
 }
 
-body.vertical #stage {
-  width: min(100vw, calc(100dvh * 9 / 16));
-  height: min(100dvh, calc(100vw * 16 / 9));
-  margin: auto;
-  box-shadow: 0 0 0 4px var(--ink), 0 0 60px rgba(255, 184, 205, 0.3);
-}
-
 /* ===== Office Isometric Canvas ===== */
+/* The canvas starts below --stage-top-gap instead of touching the shell edge.
+   Only the canvas is pushed down (not #stage), so the HUD, ticker, card and
+   drawer keep their existing anchors and the rooftop sign stays visible. */
 #office {
   position: absolute;
-  inset: 0;
+  top: var(--stage-top-gap, 0px);
+  right: 0;
+  bottom: 0;
+  left: 0;
   width: 100%;
-  height: 100%;
+  height: auto;
   z-index: 1;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
@@ -84,8 +95,13 @@ body.vertical #stage {
 #hud {
   position: relative;
   z-index: 10;
-  height: var(--header-height);
+  /* min-height (not height) so the safe-area padding on notched phones grows
+     the bar instead of clipping its contents. */
+  min-height: var(--header-height);
+  height: auto;
   width: 100%;
+  flex-shrink: 0;
+  flex-wrap: wrap;
   padding: calc(8px + env(safe-area-inset-top)) calc(14px + env(safe-area-inset-right)) 8px calc(14px + env(safe-area-inset-left));
   display: flex;
   justify-content: space-between;
@@ -127,6 +143,12 @@ body.vertical #stage {
 .status-live i { animation: pulse 1.2s ease-in-out infinite; }
 .status-demo { color: var(--gold-deep); }
 .status-offline { color: var(--red); }
+/* Honest idle states: no pulsing dot, so nothing looks "live" when it isn't. */
+.status-idle { color: #64748b; }
+.status-idle i { background: #94a3b8; animation: none; }
+.status-slow { color: #b45309; }
+.status-slow i { background: #f59e0b; animation: none; }
+.status-extra { margin-left: 4px; font-size: 8px; opacity: 0.8; }
 .hud-pill b { color: var(--ink); font-weight: normal; }
 
 /* HUD Metrics & Chips */
@@ -292,14 +314,16 @@ body.vertical #stage {
 /* ===== Slack-style Office Chat Drawer (Collapsible Right Sidebar) ===== */
 .chat-drawer {
   position: absolute;
-  top: 0;
-  right: 0;
-  width: min(var(--drawer-width), calc(100vw - 20px));
-  height: 100%;
+  top: calc(8px + env(safe-area-inset-top));
+  right: calc(8px + env(safe-area-inset-right));
+  bottom: 8px;
+  width: min(var(--drawer-width), calc(100% - 16px));
+  max-height: calc(100% - 16px - env(safe-area-inset-top));
   background: rgba(255, 252, 247, 0.97);
   backdrop-filter: blur(12px);
-  border-left: 3px solid var(--ink);
-  box-shadow: -6px 0 24px rgba(24, 17, 36, 0.35);
+  border: 2px solid var(--ink);
+  border-radius: 14px;
+  box-shadow: -8px 8px 28px rgba(24, 17, 36, 0.3);
   display: flex;
   flex-direction: column;
   z-index: 50;
@@ -307,15 +331,29 @@ body.vertical #stage {
   animation: slideInRight .22s cubic-bezier(.2, 1.2, .4, 1);
 }
 .chat-drawer.hidden { display: none !important; }
+/* Pixel accent: a small notched tab in the drawer header. */
+.chat-drawer::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 4px; height: 100%;
+  background: repeating-linear-gradient(180deg, var(--pink) 0 6px, transparent 6px 12px);
+  opacity: 0.85;
+}
 
 .chat-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
+  gap: 8px;
+  padding: 12px 16px 12px 18px;
   background: linear-gradient(180deg, #ffeef4, var(--pink));
   border-bottom: 2px solid var(--ink);
+  flex-shrink: 0;
+  cursor: grab;
 }
+.chat-drawer.is-sheet .chat-head { cursor: grab; touch-action: none; }
+.chat-grabber { display: none; }
 .chat-head-title {
   display: flex;
   align-items: center;
@@ -385,6 +423,7 @@ body.vertical #stage {
   gap: 8px;
   background: #faebe0;
   border-top: 2px solid var(--ink);
+  flex-shrink: 0;
 }
 #chat-input {
   flex: 1;
@@ -420,7 +459,7 @@ body.vertical #stage {
   justify-content: center;
   background: rgba(24, 17, 36, 0.72);
   backdrop-filter: blur(8px);
-  padding: 16px;
+  padding: calc(16px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) calc(16px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
   animation: fadeInModal .18s ease;
 }
 .modal.hidden { display: none !important; }
@@ -546,6 +585,7 @@ body.vertical #stage {
 @keyframes bump { 0% { transform: scale(1); } 50% { transform: scale(1.15); } 100% { transform: scale(1); } }
 @keyframes load { 0% { background-position: 0 0; } 100% { background-position: 24px 0; } }
 @keyframes slideInRight { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@keyframes slideUpSheet { from { transform: translateY(100%); } to { transform: translateY(0); } }
 @keyframes slideDown { from { transform: translate(-50%, -24px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
 @keyframes slideUp { from { transform: translate(-50%, 20px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
 @keyframes fadeInModal { from { opacity: 0; } to { opacity: 1; } }
@@ -588,7 +628,7 @@ body.vertical #stage {
 
 /* ===== Responsive Breakpoints ===== */
 @media (max-width: 900px) {
-  :root { --header-height: 50px; --drawer-width: 100vw; }
+  :root { --header-height: 50px; --drawer-width: 100%; --stage-top-gap: 22px; }
   #hud { padding: 6px 10px; gap: 6px; }
   .hud-brand { padding: 4px 9px; border-width: 2px; }
   .hud-logo { font-size: 14px; }
@@ -598,11 +638,46 @@ body.vertical #stage {
   .hud-btn { min-width: 38px; min-height: 38px; padding: 4px 7px; border-width: 2px; }
   #ticker { left: 10px; bottom: calc(10px + env(safe-area-inset-bottom)); max-width: calc(100vw - 76px); }
   .card { width: calc(100vw - 20px); bottom: calc(10px + env(safe-area-inset-bottom)); }
-  .chat-drawer { width: 100vw; }
+  .chat-drawer { width: 100%; }
+}
+
+/* Phones: the drawer becomes a bottom sheet that spares the HUD and the keyboard. */
+@media (max-width: 900px) {
+  .chat-drawer,
+  .chat-drawer.is-sheet {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: auto;
+    max-width: 100%;
+    max-height: var(--sheet-height, 72vh);
+    border-width: 2px 0 0;
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -10px 30px rgba(24, 17, 36, 0.32);
+    animation: slideUpSheet .24s cubic-bezier(.2, 1.1, .4, 1);
+    padding-bottom: 0;
+  }
+  .chat-drawer::before { display: none; }
+  .chat-head { flex-direction: column; align-items: stretch; gap: 4px; padding: 0 12px 10px; }
+  .chat-grabber {
+    display: block;
+    width: 44px; height: 4px;
+    margin: 8px auto 6px;
+    border-radius: 99px;
+    background: rgba(24, 17, 36, 0.35);
+  }
+  .chat-head-title { justify-content: center; font-size: 10px; }
+  .chat-head-actions { position: absolute; top: 12px; right: 10px; }
+  .chat-messages { padding: 10px 12px; }
+  #chat-input { font-size: 16px; min-height: 44px; }
+  #chat-send { min-height: 44px; padding: 10px 14px; }
+  .chat-drawer.sheet-dragging .chat-messages { overflow: hidden; }
 }
 
 @media (max-width: 768px) {
-  :root { --header-height: 46px; }
+  :root { --header-height: 46px; --stage-top-gap: 16px; }
   #hud { padding: 5px 8px; }
   .hud-stats { flex: 1; justify-content: flex-end; }
   #hud-ctx-chip { display: none; }
