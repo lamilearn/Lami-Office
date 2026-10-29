@@ -74,7 +74,7 @@ Project/Lami/ai-office/
 | **Tier 3** | Cross-Feature Combinations | `tests/e2e/tier3_cross_feature.test.js` | 9 | Verifies pairwise interactions: Pathfinding across sealed doorways, viewport resize with drawer, tool event slotting, task completion reporting, modal conflicts, tribute mode skinning. |
 | **Tier 4** | Real-World Application Scenarios | `tests/e2e/tier4_real_world_scenarios.test.js` | 5 | Validates realistic end-to-end office workflows: Full day office cycle, 6-agent concurrency storm, user interactive session, tool fault recovery, and dual-service smoke probes. |
 | **Tier 4** | HTTP Integration | `tests/e2e/tier4_http_integration.test.js` + `tests/http_helpers.js` | 42 | Boots the real `server.py` subprocess and drives it over real HTTP: ingest auth matrix, 413/400 body limits, keep-alive poisoning, SSE fan-out, A2A custom + official protocol via stub peers, the real Hermes bridge, and the server-authoritative world (`/api/world`, identical positions across two clients, movement with no browser open, restart persistence). Fully offline on 127.0.0.1. |
-| **Total** | **Complete Suite** | — | **267** | Comprehensive automated acceptance gate. |
+| **Total** | **Complete Suite** | — | **269** | Comprehensive automated acceptance gate. |
 
 ---
 
@@ -121,4 +121,4 @@ node tests/run_all_e2e.js --json > test_results.json
 - **Milestone 1 Gate**: Passing Tier 1 (Features 1-4) and Tier 2 (Categories 1, 4, 8).
 - **Milestone 2 Gate**: Passing Tier 1 (Features 5-10), Tier 2 (Categories 5, 6, 7), and Tier 3 (Scenarios X1-X6).
 - **Milestone 3 Gate**: Passing Tier 1 (Features 11-12), Tier 2 (Categories 2, 3, 9), and Tier 4 (Scenario S5).
-- **Milestone 4 Gate (Final Acceptance)**: 100% pass rate across all 267 tests in Tiers 1–4.
+- **Milestone 4 Gate (Final Acceptance)**: 100% pass rate across all 269 tests in Tiers 1–4.

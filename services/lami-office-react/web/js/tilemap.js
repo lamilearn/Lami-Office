@@ -84,6 +84,25 @@
     return res.json();
   }
 
+  // Tiny stable hash so the spritesheet URL changes whenever the tileset index
+  // does. The image is loaded through <img>, which has no `cache: 'no-cache'`
+  // escape hatch, so a proxy/CDN could otherwise serve the previous sheet while
+  // the JSON is already new. Because the per-room wall tiles live in cells that
+  // were empty in the older sheet, that mismatch made every wall disappear.
+  function smallHash(text) {
+    let h = 2166136261;
+    for (let i = 0; i < text.length; i++) {
+      h ^= text.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return (h >>> 0).toString(36);
+  }
+
+  function withVersion(url, version) {
+    if (!version) return url;
+    return url + (url.indexOf('?') === -1 ? '?' : '&') + 'v=' + version;
+  }
+
   // Load the tileset index, the map and the spritesheet. Safe to call repeatedly.
   function load(options = {}) {
     if (STATE.ready) return Promise.resolve(STATE.map);
@@ -93,12 +112,15 @@
     const imageUrl = options.image || TILESET_PNG;
 
     STATE.loading = (async () => {
-      const [index, rawMap, image] = await Promise.all([
-        fetchJson(tilesetUrl),
-        fetchJson(mapUrl),
-        loadImage(imageUrl)
-      ]);
+      // The index is fetched first so the spritesheet can be requested with a
+      // version derived from it, guaranteeing image and coordinates match.
+      const index = await fetchJson(tilesetUrl);
       STATE.index = Array.isArray(index) ? index : (index.tiles || []);
+      const version = smallHash(JSON.stringify(STATE.index));
+      const [rawMap, image] = await Promise.all([
+        fetchJson(mapUrl),
+        loadImage(withVersion(imageUrl, version))
+      ]);
       STATE.image = image;
       STATE.map = decodeMap(rawMap);
       STATE.ready = true;
