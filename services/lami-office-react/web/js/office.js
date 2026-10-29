@@ -73,6 +73,9 @@
       // unavailable and the local demo controller takes over.
       this.simulatedExternally = false;
       this.lastWorldAt = 0;
+      // True once a world frame has positioned everybody (the first frame snaps,
+      // later frames ease). Reset only on a full page load, never on reconnect.
+      this.worldPlaced = false;
       this.worldTargets = new Map();
       this.pendingWorld = null;
 
@@ -1156,12 +1159,18 @@
       this.lastWorldAt = Date.now();
       this.syncWorldAgents(frame);
 
+      // The very first frame after a page load must place everyone at the real
+      // position. Easing from the spawn point (desk / doorway) made every
+      // refresh look like the office had been reset, then everything slid back
+      // into place over the next second.
+      const firstFrame = !this.worldPlaced;
+
       // Characters: remember the target, let applyWorldTargets() ease toward it.
       for (const data of frame.chars) {
         const char = this.findChar(data.id);
         if (!char) continue;
         this.worldTargets.set(data.id, data);
-        if (char.col === undefined || this.worldTargets.size === 1) {
+        if (firstFrame || char.col === undefined) {
           char.col = data.col;
           char.row = data.row;
         }
@@ -1198,6 +1207,7 @@
         if (typeof frame.flags.pizzaTimer === 'number') this.pizzaEventTimer = frame.flags.pizzaTimer;
         if (typeof frame.flags.flickerTimer === 'number') this.flickerTimer = frame.flags.flickerTimer;
       }
+      this.worldPlaced = true;
     }
 
     // Ease every character toward its last server position (~120 ms catch-up).

@@ -12,7 +12,8 @@
     "test:smoke": "node tests/run_all_e2e.js --smoke",
     "smoke": "bash scripts/smoke_test.sh",
     "assets": "python3 scripts/generate_tileset.py && python3 scripts/generate_tilemap.py",
-    "assets:check": "python3 scripts/generate_tileset.py --check && python3 scripts/generate_tilemap.py --check"
+    "assets:check": "python3 scripts/generate_tileset.py --check && python3 scripts/generate_tilemap.py --check && python3 scripts/stamp_assets.py --check",
+    "assets:stamp": "python3 scripts/stamp_assets.py"
   },
   "keywords": [
     "ai-office",
