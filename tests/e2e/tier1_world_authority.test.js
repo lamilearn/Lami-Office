@@ -315,12 +315,20 @@ print(json.dumps({
     const out = pyJson(`
 import json, world
 sim = world.Sim(seed=14)
-sim.sync_roster([], [{"id": "yuna", "name": "Yuna", "online": True, "room": "research", "skills": ["finance"]},
-                     {"id": "kira", "name": "Kira", "online": False, "room": "server"}])
-print(json.dumps({k: v.assigned_slot["roomId"] for k, v in sim.subagents.items()}))
+sim.sync_roster([{"id": "sa-real", "name": "Budi", "task": "cek", "tool": "web_search", "status": "working"}],
+                [{"id": "yuna", "name": "Yuna", "online": True, "room": "research", "skills": ["finance"]},
+                 {"id": "kira", "name": "Kira", "online": False, "room": "server"}])
+rooms = {k: v.assigned_slot["roomId"] for k, v in sim.subagents.items()}
+kinds = {c["id"]: c["kind"] for c in sim.world_frame()["chars"] if c["id"] in ("sa-real", "peer-yuna")}
+print(json.dumps({"rooms": rooms, "kinds": kinds}))
 `);
-    assert.strictEqual(out['peer-yuna'], 'research', 'an online peer must be on the floor');
-    assert.strictEqual(out['peer-kira'], undefined, 'an offline peer must not be shown as present');
+    out.rooms = out.rooms || out;
+    assert.strictEqual(out.rooms['peer-yuna'], 'research', 'an online peer must be on the floor');
+    assert.strictEqual(out.rooms['peer-kira'], undefined, 'an offline peer must not be shown as present');
+    // Regression: SubAgent.to_world() used to hardcode kind="sub", so A2A peers
+    // were rendered as delegated workers instead of peers.
+    assert.strictEqual(out.kinds['peer-yuna'], 'peer', 'an A2A peer must stay kind=peer in the frame');
+    assert.strictEqual(out.kinds['sa-real'], 'sub', 'a delegated agent must stay kind=sub');
   }, { timeout: 60000 });
 
   it('F23.5: the status reports idle when nothing arrived, live when it did', () => {

@@ -1184,6 +1184,9 @@ class SubAgent(Character):
         self.role = ROLE_BY_ROOM.get(room, "Specialist")
         self.reported = False
         self.report_office = True
+        # "sub" for Hermes-delegated agents, "peer" for A2A sidecars. The
+        # renderer draws them differently, so it must survive serialisation.
+        self.kind = "sub"
         self.set_emote("✨", 2.5)
         self.set_bubble("Siap tugas baru! 💼", 3.0)
 
@@ -1237,7 +1240,7 @@ class SubAgent(Character):
     def to_world(self):
         data = super().to_world()
         data.update({
-            "kind": "sub",
+            "kind": getattr(self, "kind", "sub"),
             "name": self.name,
             "role": self.role,
             "task": self.task,
