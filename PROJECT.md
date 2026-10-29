@@ -182,6 +182,21 @@ Staging follows the same pattern with `.env.development` + `.env.development.sec
 `bash scripts/deploy_staging.sh` (fast-forward of `dev`, refuses drift, then asserts
 `/api/a2a` reports `can_send: true`).
 
+### Agent VM resources (Server Room)
+The Server Room's wall monitor shows each agent's real CPU/RAM.
+
+| Piece | Where |
+|---|---|
+| Metrics endpoint | `deploy/metrics_agent.py` (stdlib only, reads `/proc` + `os.statvfs`) |
+| Installer | `deploy/install_metrics_agent.sh <agent-id> [port]` → systemd user unit `lami-metrics`, port **8010** |
+| Agents that run it | `lami` (`.31`), `yuna`/`aurora`/`kira`/`cyro` (`.91–.94`) |
+| Office polling | `A2APeer._check_metrics()` reads `http://<host>:8010/metrics` on every A2A probe |
+| API | `GET /api/resources` (per-agent CPU/RAM/disk/uptime) and `metrics` inside `GET /api/a2a` |
+| Rendering | `World.drawVmMonitor()` in the Server Room, fed by `office.vmResources` (polled by `net.js` every 15 s) |
+
+`metrics_port` can be overridden per peer in `A2A_PEERS`. A host without the endpoint shows `--`
+rather than an invented number, and an offline agent shows no gauges at all.
+
 ### A2A credentials
 | Peer | Auth | Where it lives |
 |---|---|---|

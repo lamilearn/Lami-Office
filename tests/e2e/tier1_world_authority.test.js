@@ -685,3 +685,124 @@ describe('Feature 33: A2A credentials are wired end to end', () => {
     }
   });
 });
+
+describe('Feature 34: Server Room shows real agent VM resources', () => {
+  const AGENT = path.join(REPO, 'services/lami-office-react/deploy/metrics_agent.py');
+  const WORLD = path.join(REPO, 'services/lami-office-react/web/js/world.js');
+  const NET = path.join(REPO, 'services/lami-office-react/web/js/net.js');
+
+  it('F34.1: the metrics agent reports real CPU/RAM/disk from this host', () => {
+    if (!HAVE_PY) return;
+    const out = pyJson(`
+import json, sys
+sys.path.insert(0, 'deploy')
+import metrics_agent as m
+d = m.metrics()
+print(json.dumps({
+  "agent": d["agent"], "has_cpu": isinstance(d["cpu"].get("percent"), float),
+  "cores": d["cpu"]["cores"], "has_mem": d["mem"]["total_mb"] > 0,
+  "mem_pct": d["mem"]["percent"], "has_disk": d["disk"]["total_gb"] > 0,
+  "uptime": d["uptime_s"] > 0,
+}))
+`);
+    assert.ok(out.has_cpu, 'CPU percent must be measured');
+    assert.ok(out.cores >= 1, 'core count must be real');
+    assert.ok(out.has_mem && out.mem_pct >= 0, 'memory must be read from /proc/meminfo');
+    assert.ok(out.has_disk && out.uptime, 'disk and uptime must be real');
+  }, { timeout: 60000 });
+
+  it('F34.2: the office parses peer metrics into /api/resources', async () => {
+    if (!HAVE_PY) return;
+    const H = require('../http_helpers');
+    const stub = await H.startMetricsStub({ agent: 'yuna', cpu: 42.5, mem: 32.3 });
+    const srv = await H.startServer({
+      env: {
+        A2A_PEERS: JSON.stringify([
+          { id: 'yuna', name: 'Yuna', host: '127.0.0.1', port: stub.port, metrics_port: stub.port, room: 'research' }
+        ]),
+        A2A_POLL_INTERVAL: '1'
+      }
+    });
+    try {
+      await H.sleep(1800);
+      const res = await srv.get('/api/resources');
+      assert.strictEqual(res.status, 200);
+      const yuna = res.json.agents.find((a) => a.id === 'yuna');
+      assert.ok(yuna, 'the agent must be listed');
+      assert.strictEqual(yuna.has_metrics, true);
+      assert.strictEqual(yuna.cpu_percent, 42.5);
+      assert.strictEqual(yuna.mem_percent, 32.3);
+      assert.strictEqual(yuna.mem_total_mb, 3819);
+      // And it is exposed on the peer too, for the A2A panel.
+      const a2a = await srv.get('/api/a2a');
+      assert.strictEqual(a2a.json.peers[0].metrics.cpu_percent, 42.5);
+    } finally {
+      await srv.stop();
+      await stub.stop();
+    }
+  }, { timeout: 60000 });
+
+  it('F34.3: an agent that does not report metrics is never given fake numbers', async () => {
+    if (!HAVE_PY) return;
+    const H = require('../http_helpers');
+    const stub = await H.startMetricsStub({ agent: 'kira', fail: true });
+    const srv = await H.startServer({
+      env: {
+        A2A_PEERS: JSON.stringify([
+          { id: 'kira', name: 'Kira', host: '127.0.0.1', port: stub.port, metrics_port: stub.port, room: 'server' }
+        ]),
+        A2A_POLL_INTERVAL: '1'
+      }
+    });
+    try {
+      await H.sleep(1800);
+      const res = await srv.get('/api/resources');
+      const kira = res.json.agents.find((a) => a.id === 'kira');
+      assert.strictEqual(kira.has_metrics, false, 'no endpoint means no metrics');
+      assert.strictEqual(kira.cpu_percent, null, 'CPU must be null, not invented');
+      assert.strictEqual(kira.mem_percent, null);
+    } finally {
+      await srv.stop();
+      await stub.stop();
+    }
+  }, { timeout: 60000 });
+
+  it('F34.4: the Server Room monitor draws each agent and dashes missing gauges', () => {
+    const src = fs.readFileSync(WORLD, 'utf8');
+    assert.ok(/drawVmMonitor\(ctx, ts\)/.test(src), 'the server room must draw the monitor');
+    assert.ok(/VM RESOURCES/.test(src), 'the panel must be labelled');
+    assert.ok(/office\.vmResources/.test(src), 'it must read the polled resources');
+    assert.ok(/'--'/.test(src), 'a missing gauge must show a dash, not a number');
+
+    const vm = require('node:vm');
+    const env = require('../harness').createBrowserEnvironment();
+    const LO = require('../harness').loadScriptIntoEnv(env, 'config.js');
+    require('../harness').loadScriptIntoEnv(env, 'sprites.js');
+    require('../harness').loadScriptIntoEnv(env, 'world.js');
+    env.window.LO = LO;
+    env.window.LO.office = { vmResources: { agents: [
+      { id: 'lami', name: 'Lami', icon: '👑', online: true, has_metrics: true, cpu_percent: 54.5, mem_percent: 64.4 },
+      { id: 'cyro', name: 'Cyro', icon: '🛠️', online: false, has_metrics: false }
+    ] } };
+    const world = new LO.World();
+    const ctx = env.document.createElement('canvas').getContext('2d');
+    world.drawVmMonitor(ctx, 16);
+    const texts = ctx.drawCalls.filter((c) => c.type === 'fillText').map((c) => c.text);
+    assert.ok(texts.includes('VM RESOURCES'));
+    assert.ok(texts.some((t) => /Lami/.test(t)), 'the reporting agent must be listed');
+    assert.ok(texts.includes('55%') && texts.includes('64%'), 'real percentages must be shown');
+    const dashes = texts.filter((t) => t === '--').length;
+    assert.strictEqual(dashes, 2, 'the silent agent gets two dashes (CPU + RAM)');
+    assert.ok(vm, 'sanity');
+  });
+
+  it('F34.5: the client polls /api/resources and the deploy ships the agent', () => {
+    const net = fs.readFileSync(NET, 'utf8');
+    assert.ok(/syncResources\(\)/.test(net), 'the client must poll resources');
+    assert.ok(/fetch\('\/api\/resources'\)/.test(net));
+    const installer = fs.readFileSync(path.join(REPO, 'services/lami-office-react/deploy/install_metrics_agent.sh'), 'utf8');
+    assert.ok(/lami-metrics/.test(installer) && /\/metrics/.test(installer), 'the installer must verify the endpoint');
+    const service = fs.readFileSync(path.join(REPO, 'services/lami-office-react/deploy/lami-metrics.service'), 'utf8');
+    assert.ok(/METRICS_PORT/.test(service) && /AGENT_ID/.test(service));
+  });
+});

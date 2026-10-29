@@ -73,6 +73,9 @@
       // unavailable and the local demo controller takes over.
       this.simulatedExternally = false;
       this.lastWorldAt = 0;
+      // Latest per-agent VM metrics (Server Room monitor), filled by net.js.
+      this.vmResources = null;
+      this.vmResourcesAt = 0;
       // True once a world frame has positioned everybody (the first frame snaps,
       // later frames ease). Reset only on a full page load, never on reconnect.
       this.worldPlaced = false;

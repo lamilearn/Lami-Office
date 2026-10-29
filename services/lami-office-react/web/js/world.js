@@ -631,6 +631,11 @@
         }
       });
 
+      // Wall monitor: live CPU/RAM per agent VM. Numbers come from each agent's
+      // own metrics endpoint (deploy/metrics_agent.py); when a host does not
+      // report, the row says so instead of drawing a fake gauge.
+      this.drawVmMonitor(ctx, ts);
+
       // Mainframe Ops Console Desk (X: 66..71, Y: 14)
       const cx = 66 * ts, cy = 14 * ts;
       this.draw2DBlock(ctx, cx, cy, 6 * ts, 1.2 * ts, 12, '#34495e', '#2c3e50');
@@ -726,6 +731,89 @@
       // Agenda Binder on Table
       ctx.fillStyle = '#3498db';
       ctx.fillRect(vsX + 22, vsY - 1, 8, 4);
+    }
+
+    // ---- VM resource monitor (Server Room) ----
+    staticGaugeColor(percent) {
+      if (percent == null) return '#475569';
+      if (percent >= 85) return '#e74c3c';
+      if (percent >= 65) return '#f59e0b';
+      return '#2ecc71';
+    }
+
+    drawVmMonitor(ctx, ts) {
+      const office = (typeof window !== 'undefined') ? window.LO?.office : null;
+      const data = office ? office.vmResources : null;
+      const agents = (data && Array.isArray(data.agents)) ? data.agents : [];
+
+      const x = 58 * ts + 4;
+      const y = 9.1 * ts;
+      const w = 25 * ts - 8;
+      const rowH = 13;
+      const h = 14 + Math.max(agents.length, 1) * rowH;
+
+      // Bezel + screen
+      ctx.fillStyle = '#0b1020';
+      ctx.fillRect(x, y, w, h);
+      ctx.strokeStyle = '#334155';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+
+      ctx.font = '5px "Press Start 2P", monospace';
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#7dd3fc';
+      ctx.fillText('VM RESOURCES', x + 4, y + 9);
+
+      if (!agents.length) {
+        ctx.fillStyle = '#64748b';
+        ctx.fillText('menunggu metrik agent...', x + 4, y + 22);
+        return;
+      }
+
+      const barW = 84;
+      const cpuX = x + 96;
+      const memX = x + 96 + barW + 46;
+
+      agents.slice(0, 6).forEach((a, i) => {
+        const ry = y + 14 + i * rowH;
+        const online = a.online !== false;
+        const has = Boolean(a.has_metrics);
+
+        // name
+        ctx.fillStyle = online ? '#e2e8f0' : '#64748b';
+        const label = `${a.icon || '•'} ${String(a.name || a.id || '?').slice(0, 8)}`;
+        ctx.fillText(label, x + 4, ry + 8);
+
+        // CPU
+        ctx.fillStyle = '#64748b';
+        ctx.fillText('CPU', cpuX - 22, ry + 8);
+        ctx.fillStyle = '#1e293b';
+        ctx.fillRect(cpuX, ry + 2, barW, 7);
+        if (has && a.cpu_percent != null) {
+          ctx.fillStyle = this.staticGaugeColor(a.cpu_percent);
+          ctx.fillRect(cpuX, ry + 2, Math.max(1, (barW * Math.min(100, a.cpu_percent)) / 100), 7);
+          ctx.fillStyle = '#cbd5e1';
+          ctx.fillText(`${Math.round(a.cpu_percent)}%`, cpuX + barW + 4, ry + 8);
+        } else {
+          ctx.fillStyle = '#64748b';
+          ctx.fillText('--', cpuX + barW + 4, ry + 8);
+        }
+
+        // RAM
+        ctx.fillStyle = '#64748b';
+        ctx.fillText('RAM', memX - 22, ry + 8);
+        ctx.fillStyle = '#1e293b';
+        ctx.fillRect(memX, ry + 2, barW, 7);
+        if (has && a.mem_percent != null) {
+          ctx.fillStyle = this.staticGaugeColor(a.mem_percent);
+          ctx.fillRect(memX, ry + 2, Math.max(1, (barW * Math.min(100, a.mem_percent)) / 100), 7);
+          ctx.fillStyle = '#cbd5e1';
+          ctx.fillText(`${Math.round(a.mem_percent)}%`, memX + barW + 4, ry + 8);
+        } else {
+          ctx.fillStyle = '#64748b';
+          ctx.fillText('--', memX + barW + 4, ry + 8);
+        }
+      });
     }
 
     // Interactive Prop: Multi-Mode Whiteboard

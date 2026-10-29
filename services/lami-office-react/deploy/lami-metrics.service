@@ -1,0 +1,20 @@
+[Unit]
+Description=Lami Office metrics endpoint (CPU/RAM for the Server Room)
+Documentation=https://github.com/lamilearn/Lami-Office
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# AGENT_ID and METRICS_PORT are filled in by install_metrics_agent.sh
+Environment=AGENT_ID=agent
+Environment=METRICS_PORT=8010
+Environment=METRICS_HOST=0.0.0.0
+ExecStart=/usr/bin/env python3 %h/.lami-metrics/metrics_agent.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target
