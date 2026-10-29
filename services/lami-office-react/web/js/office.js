@@ -1108,13 +1108,15 @@
       return this.residents.find((r) => r.id === id) || null;
     }
 
-    // Rebuild sub-agents from a world frame so a later visitor sees whoever is
-    // actually working, not an empty office.
+    // Rebuild the non-resident cast from a world frame so a later visitor sees
+    // whoever is actually working (Hermes sub-agents and A2A peers), not an
+    // empty office. Peers are simulated like sub-agents, so they must be
+    // created here too - otherwise their positions arrive but nobody draws them.
     syncWorldAgents(frame) {
       if (!Array.isArray(frame.chars)) return;
       const live = new Set();
       for (const c of frame.chars) {
-        if (c.kind !== 'sub') continue;
+        if (c.kind !== 'sub' && c.kind !== 'peer') continue;
         live.add(c.id);
         if (this.subagents.has(c.id)) continue;
         const agent = this.spawnSubAgent({
@@ -1124,6 +1126,7 @@
           tool: c.tool,
           summary: c.summary
         }, { restore: true });
+        agent.kind = c.kind;
         if (c.tool) agent.startWork(c.tool, c.summary || c.tool);
         agent.reported = false;
       }

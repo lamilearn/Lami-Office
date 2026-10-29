@@ -409,3 +409,87 @@ print(json.dumps({"moved": round(moved, 3), "path_left": len(c.path),
       'the old velocity-sign probe froze characters against walls');
   });
 });
+
+describe('Feature 26: The client renders every simulated character', () => {
+  const OFFICE = path.join(REPO, 'services/lami-office-react/web/js/office.js');
+
+  it('F26.1: A2A peers are created from a world frame, not only sub-agents', () => {
+    const src = fs.readFileSync(OFFICE, 'utf8');
+    const block = src.slice(src.indexOf('    syncWorldAgents(frame) {'),
+      src.indexOf('    applyWorld(frame) {'));
+    assert.ok(/c\.kind !== 'sub' && c\.kind !== 'peer'/.test(block),
+      'peers arrive in the frame and must be instantiated like sub-agents');
+    assert.ok(/agent\.kind = c\.kind/.test(block),
+      'the created agent must keep the peer kind for rendering');
+    // Regression: filtering on kind === "sub" alone silently dropped every peer,
+    // so their positions arrived but nothing was drawn on the floor.
+    assert.ok(!/if \(c\.kind !== 'sub'\) continue;/.test(block),
+      'peers must not be skipped');
+  });
+
+  it('F26.2: every char id in a frame resolves to a rendered character', () => {
+    const src = fs.readFileSync(OFFICE, 'utf8');
+    const findChar = src.slice(src.indexOf('    findChar(id) {'), src.indexOf('    syncWorldAgents(frame) {'));
+    for (const kind of ['lami', 'mochi', 'delivery-rider']) {
+      assert.ok(findChar.includes(`'${kind}'`), `findChar must resolve ${kind}`);
+    }
+    assert.ok(/this\.subagents\.has\(id\)/.test(findChar), 'sub-agents and peers live in subagents');
+    assert.ok(/this\.residents\.find/.test(findChar), 'residents must resolve by id');
+  });
+});
+
+describe('Feature 27: Agents never share a tile and keep their identity', () => {
+  it('F27.1: two agents walking one route stay separated', () => {
+    if (!HAVE_PY) return;
+    const out = pyJson(`
+import json, math, world
+sim = world.Sim(seed=1)
+sim.sync_roster([], [{"id": "yuna", "name": "Yuna", "online": True, "room": "research", "skills": ["f"]},
+                     {"id": "kira", "name": "Kira", "online": True, "room": "server", "skills": ["s"]}])
+worst = 99.0
+first = 0.0
+for step in range(250):
+    sim.tick(0.1)
+    p = list(sim.subagents.values())
+    d = math.hypot(p[0].col - p[1].col, p[0].row - p[1].row)
+    if step == 0:
+        first = d
+    worst = min(worst, d)
+print(json.dumps({"first": round(first, 2), "worst": round(worst, 2)}))
+`);
+    // Two bodies spawned in the same doorway must not stay stacked while they
+    // walk the same corridor (they were pixel-identical for the whole route).
+    assert.ok(out.first > 0.05, `agents started stacked (sep ${out.first})`);
+    assert.ok(out.worst > 0.4, `agents overlapped during the walk (min sep ${out.worst})`);
+  }, { timeout: 120000 });
+
+  it('F27.2: peers survive a restart as peers, in their own seats', () => {
+    if (!HAVE_PY) return;
+    const out = pyJson(`
+import json, math, world
+sim = world.Sim(seed=1)
+sim.sync_roster([{"id": "sa-a", "name": "Budi", "task": "cek", "tool": "terminal", "status": "working"}],
+                [{"id": "yuna", "name": "Yuna", "online": True, "room": "research", "skills": ["f"]}])
+for _ in range(150):
+    sim.tick(0.1)
+snap = json.loads(json.dumps(sim.state_snapshot()))
+before = {c.id: (c.col, c.row, getattr(c, "kind", "sub")) for c in sim.all_moving()
+          if c.id in ("sa-a", "peer-yuna")}
+sim2 = world.Sim(seed=2)
+sim2.restore(snap)
+after = {c.id: (c.col, c.row, getattr(c, "kind", "sub")) for c in sim2.all_moving()
+         if c.id in before}
+drift = {k: round(math.hypot(after[k][0] - before[k][0], after[k][1] - before[k][1]), 2)
+         for k in before if k in after}
+kinds = {k: after[k][2] for k in after}
+print(json.dumps({"drift": drift, "kinds": kinds, "restored": sorted(after)}))
+`);
+    assert.deepStrictEqual(out.restored, ['peer-yuna', 'sa-a'], 'both agents must be restored');
+    // Restoring used to rebuild peers as kind="sub" and park them on the entrance mat.
+    assert.strictEqual(out.kinds['peer-yuna'], 'peer', 'an A2A peer must stay a peer after restart');
+    assert.strictEqual(out.kinds['sa-a'], 'sub');
+    for (const [id, d] of Object.entries(out.drift)) {
+      assert.ok(d < 3, `${id} drifted ${d} tiles on restore`);
+    }
+  }, { timeout: 120000 });
+});

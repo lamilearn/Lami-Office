@@ -1291,7 +1291,10 @@ class SubAgent(Character):
     def state_snapshot(self):
         data = super().state_snapshot()
         data.update({"task": self.task, "room": self.room,
-                     "tool": self.current_tool, "summary": self.current_summary})
+                     "tool": self.current_tool, "summary": self.current_summary,
+                     # "sub" vs "peer" decides how the floor renders this body;
+                     # losing it turned every A2A sidecar into a sub-agent.
+                     "kind": getattr(self, "kind", "sub")})
         return data
 
     def restore(self, snap):
@@ -1300,6 +1303,7 @@ class SubAgent(Character):
         self.room = snap.get("room", self.room)
         self.current_tool = snap.get("tool")
         self.current_summary = snap.get("summary", "")
+        self.kind = snap.get("kind", getattr(self, "kind", "sub"))
 
 
 class DeliveryRider(Character):
@@ -1800,12 +1804,27 @@ class Sim:
             for c2 in living[i + 1:]:
                 dx, dy = c2.col - c1.col, c2.row - c1.row
                 dist = math.hypot(dx, dy)
-                if not (0.001 < dist < min_sep):
+                if dist >= min_sep:
                     continue
-                # Closing speed: if they are already walking apart, leave them be.
+                if dist < 0.001:
+                    # Perfectly stacked (e.g. two agents spawned in the same
+                    # doorway and walking the same route): nudge along a stable
+                    # per-id direction so they never share a tile.
+                    seed_a = hash_string(c1.id) % 360
+                    ang = math.radians(seed_a)
+                    dx, dy = math.cos(ang), math.sin(ang)
+                    # A stacked pair needs a real separation step, not the tiny
+                    # walking nudge cap: push each half a body radius apart.
+                    unstick = min(0.25, min_sep * 0.35)
+                    self._nudge(c1, -dx * unstick, -dy * unstick)
+                    self._nudge(c2, dx * unstick, dy * unstick)
+                    continue
+                # Only skip the push when they are clearly walking apart. Bodies
+                # moving at the same speed have approach == 0 and previously
+                # stacked pixel-perfectly for the whole corridor.
                 approach = ((c2.col - c1.col) * (c2.vx - c1.vx)
                             + (c2.row - c1.row) * (c2.vy - c1.vy))
-                if approach > 0:
+                if approach > 0.05:
                     continue
                 overlap = (min_sep - dist) * 0.5
                 push = min(max_push, overlap * dt * 4.5)
@@ -1993,14 +2012,24 @@ class Sim:
             agent = SubAgent(self, aid, aid, data.get("task"), room)
             agent.restore(data)
             self.subagents[aid] = agent
+            # Re-adopt the saved slot, replacing a stale occupant rather than
+            # falling back to the entrance (that piled every peer on the mat).
             slot = data.get("slot")
+            adopted = False
             if slot and slot.get("roomId") in self.slot_occupancy:
                 occ = self.slot_occupancy[slot["roomId"]]
-                if 0 <= slot["index"] < len(occ) and occ[slot["index"]] is None:
-                    occ[slot["index"]] = agent
+                idx = slot.get("index")
+                if isinstance(idx, int) and 0 <= idx < len(occ):
+                    previous = occ[idx]
+                    if previous is not None and previous is not agent:
+                        previous.assigned_slot = None
+                    occ[idx] = agent
                     agent.assigned_slot = dict(slot)
-            else:
+                    adopted = True
+            if not adopted:
                 self.assign_to_slot(agent, room)
+                # assign_to_slot retargets the body; put the saved walk back.
+                agent.restore(data)
 
     @staticmethod
     def _restore_char(char, data):
