@@ -59,6 +59,10 @@ DEFAULT_CONFIG = {
     "extra_redact": [],             # extra regex patterns to mask
     "tool_rooms": {},               # optional overrides, e.g. {"my_tool": "research"}
     "show_messages": True,          # stream assistant chat lines as "message" events
+    # Invented office events (martabak delivery, power flicker, coffee, printer
+    # jam). OFF by default: this office is a Hermes dashboard, so nothing on
+    # screen should be fiction unless explicitly enabled.
+    "random_events": False,
     "trusted_networks": ["192.168.0.0/16", "10.0.0.0/8", "172.16.0.0/12"],  # LAN hosts may ingest (e.g. the Hermes bridge)
     # A2A peer agents (Hermes A2A sidecars on the LAN). Presence comes from
     # GET /health; sending messages needs the shared A2A_SECRET.
@@ -94,11 +98,14 @@ def load_config() -> dict:
         "OFFICE_STATE_FILE": "state_file",
         "A2A_POLL_INTERVAL": "a2a_poll_interval", "A2A_PEER_TOKENS": "a2a_peer_tokens",
         "A2A_REPLY_TIMEOUT": "a2a_reply_timeout",
+        "OFFICE_RANDOM_EVENTS": "random_events",
     }
     for env, key in env_map.items():
         if os.environ.get(env):
             cfg[key] = os.environ[env]
     cfg["port"] = int(cfg["port"])
+    if isinstance(cfg.get("random_events"), str):
+        cfg["random_events"] = str(cfg["random_events"]).strip().lower() in ("1", "true", "yes", "on")
     if isinstance(cfg.get("a2a_peers"), str):
         try:
             cfg["a2a_peers"] = json.loads(cfg["a2a_peers"])
@@ -351,6 +358,13 @@ class Hub:
             self.last_event_ts = time.time()
             self.events_total += 1
             self._apply(ev)
+            # Every ingest path (bridge, watcher, A2A, replay) funnels through
+            # publish(), so this single hook is what makes the characters actually
+            # react to Hermes. It must never break ingest.
+            try:
+                SIM.handle_event(ev)
+            except Exception as exc:  # noqa: BLE001
+                print(f"[world] handle_event: {exc}", file=sys.stderr)
             if ev["type"] != "snapshot":
                 self.history.append(ev)
                 if len(self.history) > self.HISTORY_LIMIT:
@@ -1177,7 +1191,7 @@ def watcher_loop():
 # --------------------------------------------------------------------------------------
 # World simulation - ONE shared office for every visitor
 # --------------------------------------------------------------------------------------
-SIM = office_world.Sim()
+SIM = office_world.Sim(random_events=bool(CFG.get("random_events")))
 try:
     if getattr(HUB, "pending_world", None):
         SIM.restore(HUB.pending_world)
@@ -1185,7 +1199,50 @@ try:
     HUB.pending_world = None
 except Exception as exc:  # noqa: BLE001 - a bad world block must not block startup
     print(f"[world] gagal memulihkan posisi: {exc}", file=sys.stderr)
-SIM_STATS = {"ticks": 0, "last_tick_ms": 0.0, "clients_broadcast": 0, "narrated": 0}
+SIM_STATS = {"ticks": 0, "last_tick_ms": 0.0, "clients_broadcast": 0, "narrated": 0, "events_handled": 0}
+
+
+def reconcile_roster():
+    """Make the floor match the real roster: HUB.agents + online A2A peers."""
+    try:
+        agents = HUB.snapshot().get("agents", [])
+    except Exception:  # noqa: BLE001
+        agents = []
+    try:
+        peers = A2A.snapshot()
+    except Exception:  # noqa: BLE001
+        peers = []
+    try:
+        SIM.sync_roster(agents, peers)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[world] sync_roster: {exc}", file=sys.stderr)
+
+
+def world_status() -> dict:
+    """Honest office status: says `idle` instead of pretending to be busy."""
+    now = time.time()
+    last = HUB.last_event_ts or 0
+    age = round(now - last, 1) if last else None
+    active = len(HUB.agents) + sum(1 for p in A2A.snapshot() if p.get("online"))
+    if age is None or age > 300:
+        mode = "idle"
+    elif age > 120:
+        mode = "slow"
+    else:
+        mode = "live"
+    try:
+        health = ("ok" if WATCHER["active"] and not WATCHER["errors"]
+                  else ("degraded" if WATCHER["active"] else "idle_ingest"))
+    except Exception:  # noqa: BLE001
+        health = "unknown"
+    return {
+        "mode": mode,
+        "agents_active": active,
+        "events_total": HUB.events_total,
+        "events_handled": SIM_STATS.get("events_handled", 0),
+        "last_event_age_s": age,
+        "ingest_health": health,
+    }
 
 
 def sim_loop():
@@ -1208,6 +1265,7 @@ def sim_loop():
             for ev in SIM.drain_outbox():
                 HUB.publish(ev)
                 SIM_STATS["narrated"] += 1
+            SIM_STATS["events_handled"] = SIM.events_handled
             SIM_STATS["ticks"] += 1
 
             now = time.time()
@@ -1216,7 +1274,8 @@ def sim_loop():
                 # it did. (Resetting the clock only on send would freeze the
                 # office whenever it went idle for one sample.)
                 last_sample = now
-                frame = SIM.world_frame()
+                reconcile_roster()
+                frame = SIM.world_frame(world_status())
                 comparable = [(c["id"], c["col"], c["row"], c["facing"], c["state"], c["frame"],
                                c.get("bubble"), c.get("emote"), c.get("routineState")) for c in frame["chars"]]
                 rider = frame.get("rider") or {}
@@ -1364,9 +1423,18 @@ class Handler(BaseHTTPRequestHandler):
                 "can_send": bool(str(CFG.get("a2a_secret") or "") or CFG.get("a2a_peer_tokens")),
             })
         if path == "/api/world":
-            frame = SIM.world_frame()
+            reconcile_roster()
+            frame = SIM.world_frame(world_status())
             frame["flags"] = SIM.flags()
             return self.send_json(200, frame)
+        if path == "/api/roster":
+            reconcile_roster()
+            frame = SIM.world_frame(world_status())
+            return self.send_json(200, {
+                "roster": frame["roster"],
+                "status": frame["status"],
+                "generated_at": time.time(),
+            })
         if path == "/api/agents":
             snap = HUB.snapshot()
             return self.send_json(200, {

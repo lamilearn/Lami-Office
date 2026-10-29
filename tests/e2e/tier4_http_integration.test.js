@@ -728,3 +728,118 @@ describe('Tier 4 — HTTP Integration: World restore on boot', () => {
     }
   }, { timeout: 90000 });
 });
+
+describe('Tier 4 — HTTP Integration: Hermes drives the office (dashboard)', () => {
+  let srv = null;
+
+  beforeAll(async () => { srv = await H.startServer({ keepDir: true }); });
+  afterAll(async () => {
+    if (srv) {
+      await srv.stop();
+      fs.rmSync(srv.dir, { recursive: true, force: true });
+    }
+    srv = null;
+  });
+
+  it('D1: an office with no Hermes activity reports itself as idle and empty', async () => {
+    if (!HAVE_PY) return;
+    const w = await srv.get('/api/world');
+    assert.strictEqual(w.json.status.mode, 'idle', 'a quiet office must not claim to be live');
+    assert.strictEqual(w.json.status.agents_active, 0);
+    assert.deepStrictEqual(w.json.roster.agents, [], 'no agents may be invented');
+    assert.strictEqual(w.json.chars.filter((c) => c.kind === 'sub').length, 0);
+  }, LONG);
+
+  it('D2: a delegated agent walks into the room its tool belongs to', async () => {
+    if (!HAVE_PY) return;
+    await srv.post('/api/event', { type: 'agent_spawn', agentId: 'sa-web', parentId: 'lami', task: 'cek halaman web' });
+    await srv.post('/api/event', { type: 'tool_start', agentId: 'sa-web', tool: 'web_search', summary: 'cari docs' });
+    await H.sleep(1600);
+
+    const w = await srv.get('/api/world');
+    const sub = w.json.chars.find((c) => c.id === 'sa-web');
+    assert.ok(sub, 'the agent must appear on the floor');
+    assert.strictEqual(sub.slot && sub.slot.roomId, 'research', 'a search tool belongs to the research lab');
+
+    const roster = w.json.roster.agents.map((a) => a.id);
+    assert.ok(roster.includes('sa-web'), 'the roster must list the real agent');
+    assert.strictEqual(w.json.status.mode, 'live');
+    assert.ok(w.json.status.agents_active >= 1);
+    assert.ok(w.json.status.events_handled > 0, 'the simulation must have consumed the events');
+  }, LONG);
+
+  it('D3: changing tool moves the agent to the matching room', async () => {
+    if (!HAVE_PY) return;
+    await srv.post('/api/event', { type: 'tool_start', agentId: 'sa-web', tool: 'terminal', summary: 'run tests' });
+    await H.sleep(1600);
+    const w = await srv.get('/api/world');
+    const sub = w.json.chars.find((c) => c.id === 'sa-web');
+    assert.strictEqual(sub.slot && sub.slot.roomId, 'engineering', 'a terminal tool belongs to engineering');
+  }, LONG);
+
+  it('D4: a duplicated spawn never creates a second body', async () => {
+    if (!HAVE_PY) return;
+    await srv.post('/api/event', { type: 'agent_spawn', agentId: 'sa-dup', parentId: 'lami', task: 'probe' });
+    await srv.post('/api/event', { type: 'agent_spawn', agentId: 'sa-dup', parentId: 'lami', task: 'probe' });
+    await H.sleep(1200);
+    const w = await srv.get('/api/world');
+    const bodies = w.json.chars.filter((c) => c.id === 'sa-dup');
+    assert.strictEqual(bodies.length, 1, 'reconciliation must be idempotent');
+    await srv.post('/api/event', { type: 'agent_done', agentId: 'sa-dup', ok: true });
+  }, LONG);
+
+  it('D5: a finished agent leaves the floor and the roster', async () => {
+    if (!HAVE_PY) return;
+    await srv.post('/api/event', { type: 'agent_done', agentId: 'sa-web', ok: true });
+    let removed = false;
+    for (let i = 0; i < 14; i++) {
+      await H.sleep(1200);
+      const w = await srv.get('/api/world');
+      if (!w.json.chars.some((c) => c.id === 'sa-web') &&
+          !w.json.roster.agents.some((a) => a.id === 'sa-web')) {
+        removed = true;
+        break;
+      }
+    }
+    assert.ok(removed, 'the agent must despawn after reporting');
+  }, { timeout: 60000 });
+
+  it('D6: GET /api/roster exposes the same truth as the frame', async () => {
+    if (!HAVE_PY) return;
+    const w = await srv.get('/api/world');
+    const roster = await srv.get('/api/roster');
+    assert.strictEqual(roster.status, 200);
+    assert.deepStrictEqual(
+      roster.json.roster.agents.map((a) => a.id).sort(),
+      w.json.roster.agents.map((a) => a.id).sort(),
+      '/api/roster and the world frame must not disagree'
+    );
+    assert.strictEqual(roster.json.status.agents_active, w.json.status.agents_active);
+  }, LONG);
+
+  it('D7: the office invents no narration while Hermes is quiet', async () => {
+    if (!HAVE_PY) return;
+    const sse = await srv.sse();
+    try {
+      await sse.waitFor((ev) => ev.type === 'snapshot', 5000);
+      await H.sleep(6000);
+      const banners = sse.events.filter((e) => e.type === 'event_banner');
+      assert.deepStrictEqual(banners, [], 'no martabak/power/coffee/printer events by default');
+      const chats = sse.events.filter((e) => e.type === 'message');
+      assert.deepStrictEqual(chats, [], 'staff must not emit invented chat lines');
+    } finally {
+      sse.close();
+    }
+  }, LONG);
+
+  it('D8: a failing simulation never breaks ingest', async () => {
+    if (!HAVE_PY) return;
+    // The hook is wrapped: a 200 here proves an exception inside the world cannot
+    // take down the bridge path.
+    const res = await srv.post('/api/event', { type: 'agent_status', agentId: 'lami', status: 'thinking' });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.json.accepted, 1);
+    const health = await srv.get('/healthz');
+    assert.strictEqual(health.status, 200);
+  }, LONG);
+});

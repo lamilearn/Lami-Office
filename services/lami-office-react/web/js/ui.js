@@ -503,6 +503,35 @@
       }
     }
 
+    // Truthful office status straight from the server: when Hermes is not
+    // sending anything the HUD says so instead of claiming to be LIVE.
+    setOfficeStatus(status) {
+      if (!status || !this.statusEl) return;
+      const mode = String(status.mode || 'idle');
+      const active = Number(status.agents_active || 0);
+      const age = status.last_event_age_s;
+      this.statusEl.className = 'hud-pill';
+      if (mode === 'live') {
+        this.statusEl.classList.add('status-live');
+        this.statusEl.innerHTML = `<i></i><b>LIVE</b> <span class="status-extra">${active} active</span>`;
+      } else if (mode === 'slow') {
+        this.statusEl.classList.add('status-slow');
+        const mins = age == null ? '' : ` · last ${Math.round(age)}s ago`;
+        this.statusEl.innerHTML = `<i></i><b>IDLE</b><span class="status-extra">${mins}</span>`;
+      } else {
+        this.statusEl.classList.add('status-idle');
+        this.statusEl.innerHTML = '<i></i><b>IDLE</b><span class="status-extra">waiting for Hermes</span>';
+      }
+      this.statusEl.title = `ingest: ${status.ingest_health || '?'} · events: ${status.events_total || 0}`;
+    }
+
+    // Real agent roster (HUB.agents + A2A) as published by the server.
+    setRoster(roster) {
+      this.roster = roster || { agents: [] };
+      const count = Array.isArray(this.roster.agents) ? this.roster.agents.length : 0;
+      if (this.staffEl) this.staffEl.textContent = String(count);
+    }
+
     updateStaffCount(count) {
       this.staffEl.textContent = count;
     }

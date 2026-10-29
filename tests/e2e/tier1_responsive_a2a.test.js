@@ -533,10 +533,17 @@ describe('Tier 1 — Feature 18: Live State Persistence Across Reloads', () => {
     assert.ok(/preferredSlot === 'auto'/.test(src), 'Restore uses deterministic auto placement');
   });
 
-  it('F18.4: A snapshot rebuilds agents in place and prunes stale ones', () => {
+  it('F18.4: In live mode the roster comes from the server, not the event feed', () => {
     const src = fsx.readFileSync(pathx.join(REPO, 'services/lami-office-react/web/js/net.js'), 'utf8');
-    assert.ok(/restore: true/.test(src), 'Snapshot restore must use restore mode');
-    assert.ok(/live\.has\(id\)/.test(src), 'Agents missing from the snapshot must be dropped');
+    // Offline/demo may still rebuild agents locally, so the restore path stays.
+    assert.ok(/restore: true/.test(src), 'offline restore must still use restore mode');
+    // Live mode: the server owns the floor, so the client must not build bodies
+    // from snapshot/event messages (that produced agents it never simulated).
+    assert.ok(/!this\.office\.simulatedExternally/.test(src),
+      'snapshot/event driven agent creation must be gated on live mode');
+    const spawn = src.slice(src.indexOf("case 'agent_spawn':"), src.indexOf("case 'tool_start':"));
+    assert.ok(/if \(!this\.office\.simulatedExternally\)/.test(spawn),
+      'agent_spawn must not create a body while the server simulates');
   });
 
   it('F18.5: Server persists and reloads office state', () => {

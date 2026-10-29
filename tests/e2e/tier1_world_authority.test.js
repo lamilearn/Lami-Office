@@ -252,3 +252,84 @@ describe('Feature 22: The browser renders the server world instead of simulating
     assert.ok(/threading\.Thread\(target=sim_loop/.test(src), 'the simulation thread must be started');
   });
 });
+
+describe('Feature 23: The office narrates only what Hermes did', () => {
+  it('F23.1: staff ambience produces no chat or banners on a quiet floor', () => {
+    if (!HAVE_PY) return;
+    const out = pyJson(`
+import json, world
+sim = world.Sim(seed=11)
+for _ in range(600):          # 60 s of simulated time
+    sim.tick(0.1)
+events = sim.drain_outbox()
+print(json.dumps({
+    "banners": sum(1 for e in events if e["type"] == "event_banner"),
+    "messages": sum(1 for e in events if e["type"] == "message"),
+}))
+`);
+    assert.strictEqual(out.banners, 0, 'invented office events must be off by default');
+    assert.strictEqual(out.messages, 0, 'staff must not emit invented chat lines');
+  }, { timeout: 90000 });
+
+  it('F23.2: real Hermes events still narrate', () => {
+    if (!HAVE_PY) return;
+    const out = pyJson(`
+import json, world
+sim = world.Sim(seed=12)
+sim.handle_event({"type": "agent_spawn", "agentId": "sa-x", "task": "cek web"})
+sim.handle_event({"type": "tool_start", "agentId": "sa-x", "tool": "web_search", "summary": "cari docs"})
+events = sim.drain_outbox()
+print(json.dumps({"messages": sum(1 for e in events if e["type"] == "message"),
+                  "tickers": sum(1 for e in events if e["type"] == "ticker")}))
+`);
+    assert.ok(out.messages > 0, 'Hermes activity must be narrated');
+    assert.ok(out.tickers > 0, 'Hermes activity must reach the ticker');
+  }, { timeout: 60000 });
+
+  it('F23.3: roster reconciliation is idempotent and follows tool changes', () => {
+    if (!HAVE_PY) return;
+    const out = pyJson(`
+import json, world
+sim = world.Sim(seed=13)
+roster = [{"id": "sa-a", "name": "Budi", "task": "cek", "tool": "web_search", "status": "working"}]
+sim.sync_roster(roster, [])
+sim.sync_roster(roster, [])
+rooms_1 = {k: v.assigned_slot["roomId"] for k, v in sim.subagents.items()}
+sim.sync_roster([{"id": "sa-a", "name": "Budi", "task": "cek", "tool": "terminal", "status": "working"}], [])
+rooms_2 = {k: v.assigned_slot["roomId"] for k, v in sim.subagents.items()}
+sim.sync_roster([], [])
+reported = {k: bool(getattr(v, "reported", False)) for k, v in sim.subagents.items()}
+print(json.dumps({
+  "count_after_duplicate": len(rooms_1), "rooms_1": rooms_1, "rooms_2": rooms_2,
+  "reported_when_gone": reported,
+}))
+`);
+    assert.strictEqual(out.count_after_duplicate, 1, 'a duplicated roster entry must not clone the agent');
+    assert.strictEqual(out.rooms_1['sa-a'], 'research');
+    assert.strictEqual(out.rooms_2['sa-a'], 'engineering', 'a tool change must move the agent');
+    assert.strictEqual(out.reported_when_gone['sa-a'], true, 'a vanished agent must be sent home');
+  }, { timeout: 60000 });
+
+  it('F23.4: online A2A peers join the roster in their real room', () => {
+    if (!HAVE_PY) return;
+    const out = pyJson(`
+import json, world
+sim = world.Sim(seed=14)
+sim.sync_roster([], [{"id": "yuna", "name": "Yuna", "online": True, "room": "research", "skills": ["finance"]},
+                     {"id": "kira", "name": "Kira", "online": False, "room": "server"}])
+print(json.dumps({k: v.assigned_slot["roomId"] for k, v in sim.subagents.items()}))
+`);
+    assert.strictEqual(out['peer-yuna'], 'research', 'an online peer must be on the floor');
+    assert.strictEqual(out['peer-kira'], undefined, 'an offline peer must not be shown as present');
+  }, { timeout: 60000 });
+
+  it('F23.5: the status reports idle when nothing arrived, live when it did', () => {
+    if (!HAVE_PY) return;
+    const src = fs.readFileSync(path.join(REPO, 'services/lami-office-react/server.py'), 'utf8');
+    const fn = src.slice(src.indexOf('def world_status()'), src.indexOf('def sim_loop()'));
+    assert.ok(/age > 300/.test(fn) && /"idle"/.test(fn), 'stale inactivity must read as idle');
+    assert.ok(/age > 120/.test(fn), 'a slow feed must be distinguished from a live one');
+    assert.ok(/events_handled/.test(fn), 'the status must prove events reached the simulation');
+    assert.ok(/HUB\.agents/.test(fn), 'agents_active must come from the real roster');
+  });
+});

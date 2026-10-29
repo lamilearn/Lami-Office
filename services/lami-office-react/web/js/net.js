@@ -139,11 +139,10 @@
           if (data.stats) {
             LO.ui.setStats(data.stats.doneToday || 0, data.stats.coins || 0);
           }
-          if (Array.isArray(data.agents)) {
-            // This snapshot is the authoritative "who is working right now".
-            // Rebuild those agents in place (no entrance animation) and drop any
-            // local sub-agent the server no longer reports, so a reloaded page
-            // shows the real current state instead of a fresh empty office.
+          // The roster is NOT rebuilt here. In live mode the server owns who is on
+          // the floor and sends it inside `world` frames; building agents from the
+          // event feed as well would create bodies the server never simulated.
+          if (Array.isArray(data.agents) && !this.office.simulatedExternally) {
             const live = new Set();
             data.agents.forEach((a) => {
               live.add(a.id);
@@ -158,13 +157,6 @@
               if (a.tool) sub.startWork(a.tool, a.summary || a.tool);
               sub.reported = false;
             });
-            for (const id of [...this.office.subagents.keys()]) {
-              if (!live.has(id)) {
-                const stale = this.office.subagents.get(id);
-                this.office.freeSlot(stale);
-                this.office.subagents.delete(id);
-              }
-            }
             LO.ui.updateStaffCount(this.office.residents.length + this.office.subagents.size);
           }
           // Show recent activity from the server so a fresh page is not empty.
@@ -184,24 +176,27 @@
           this.loadWorld();
           break;
 
+        // While the server simulates, these events are already expressed inside
+        // the `world` frames (roster + character state). Animating them locally
+        // as well is what produced agents the server never knew about.
         case 'agent_spawn':
-          this.office.spawnSubAgent(data);
+          if (!this.office.simulatedExternally) this.office.spawnSubAgent(data);
           break;
 
         case 'tool_start':
-          this.office.onToolStart(data);
+          if (!this.office.simulatedExternally) this.office.onToolStart(data);
           break;
 
         case 'tool_end':
-          this.office.onToolEnd(data);
+          if (!this.office.simulatedExternally) this.office.onToolEnd(data);
           break;
 
         case 'agent_status':
-          this.office.onAgentStatus(data);
+          if (!this.office.simulatedExternally) this.office.onAgentStatus(data);
           break;
 
         case 'agent_done':
-          this.office.onAgentDone(data);
+          if (!this.office.simulatedExternally) this.office.onAgentDone(data);
           break;
 
         case 'message':

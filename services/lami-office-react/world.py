@@ -932,10 +932,9 @@ class ResidentAgent(Character):
         self.target_col = routine["col"]
         self.target_row = routine["row"]
         self.task = routine["name"]
+        # Routine chatter is ambience, not Hermes activity: bubble only, never chat.
         if routine.get("startBubble"):
             self.set_bubble(routine["startBubble"], 3.5)
-            if self.sim.rng.random() < 0.55:
-                self._chat(self.name, self.role, routine["startBubble"], self.sim.icon_for_tool(self.current_tool), "#8e44ad")
 
     def return_to_desk(self):
         if self.current_routine and self.current_routine.get("leaveBubble"):
@@ -1080,8 +1079,6 @@ class Lami(Character):
         self.task = routine["name"]
         if routine.get("startBubble"):
             self.set_bubble(routine["startBubble"], 3.5)
-            if self.sim.rng.random() < 0.6:
-                self._chat("Boss Lami", "CEO", routine["startBubble"], "👑", "#ffd25e")
 
     def return_to_desk(self):
         if self.current_routine and self.current_routine.get("leaveBubble"):
@@ -1411,8 +1408,14 @@ class Sim:
     MAX_AGENTS = 64
     STALE_AFTER_S = 8 * 3600
 
-    def __init__(self, seed=None):
+    def __init__(self, seed=None, random_events=False):
         self.rng = random.Random(time.time() if seed is None else seed)
+        # The office is a Hermes dashboard: invented events (martabak delivery,
+        # power flicker, coffee restock, printer jam) are OFF unless explicitly
+        # requested, so nothing on screen is fiction by default.
+        self.random_events = bool(random_events)
+        self.events_handled = 0
+        self.roster_seen = {}
         self.grid = GRID
         self.lami = Lami(self)
         self.cat = MochiCat(self)
@@ -1433,16 +1436,23 @@ class Sim:
         self.t0 = time.time()
 
     # ---- narrative helpers -------------------------------------------------------
-    def chat(self, who, role, text, icon="💬", color="#555"):
-        if not text:
+    # `from_hermes=True` marks text that traces back to a real Hermes event. Staff
+    # ambience (routine chatter, social dialogues, random events) is not narrated
+    # at all, because a dashboard must not invent activity.
+    def chat(self, who, role, text, icon="💬", color="#555", from_hermes=False):
+        if not text or not (from_hermes or self.random_events):
             return
         self.outbox.append({"type": "message", "agentId": who, "text": text,
                             "who": who, "role": role, "icon": icon, "color": color})
 
     def ticker(self, icon, text):
+        if not text:
+            return
         self.outbox.append({"type": "ticker", "icon": icon, "text": text})
 
     def banner(self, icon, title, desc):
+        if not self.random_events:
+            return
         self.outbox.append({"type": "event_banner", "icon": icon, "title": title, "desc": desc})
 
     def apply_on_arrive(self, hook):
@@ -1539,7 +1549,7 @@ class Sim:
         self.ticker("✨", f"Karyawan baru: <b>{agent.name}</b> join ke <i>{floor_label}</i>")
         self.chat("Sistem", "Kantor",
                   f"✨ Karyawan baru <b>{agent.name}</b> bergabung ke divisi <i>{floor_label}</i>",
-                  "✨", "#1f9d5c")
+                  "✨", "#1f9d5c", from_hermes=True)
         if self.lami:
             self.lami.set_emote("📢", 2.0)
             self.lami.set_bubble(f"Tolong bantu: {task or 'tugas baru'} ya! 📋", 3.5)
@@ -1566,7 +1576,7 @@ class Sim:
         self.ticker("⚡", f"<b>{agent.name}</b>: {self.icon_for_tool(tool)} {summary or tool}")
         self.chat(agent.name, agent.role or "Staff",
                   f"{self.icon_for_tool(tool)} Menjalankan: <code>{summary or tool}</code>",
-                  self.icon_for_tool(tool), "#3498db")
+                  self.icon_for_tool(tool), "#3498db", from_hermes=True)
 
     def on_tool_end(self, agent_id, tool, ok):
         if agent_id == "lami":
@@ -1597,12 +1607,77 @@ class Sim:
             agent.report_to_lami()
             self.ticker("🎉", f"<b>{agent.name}</b> selesai tugas! Lapor ke Boss Lami.")
             self.chat(agent.name, agent.role or "Staff",
-                      "Lapor Boss Lami, tugas telah selesai dengan baik! 🎉", "✅", "#2ecc71")
+                      "Lapor Boss Lami, tugas telah selesai dengan baik! 🎉", "✅", "#2ecc71",
+                      from_hermes=True)
         else:
             agent.set_emote("💦", 3.0)
             if self.lami:
                 self.lami.panic()
             self.ticker("⚠️", f"<b>{agent.name}</b> ada kendala tugas.")
+
+    # ---- roster reconciliation (server owns who is on the floor) ----------------
+    def sync_roster(self, agents, peers=None):
+        """Make the floor match the real roster: HUB.agents + online A2A peers.
+
+        Idempotent by construction: the roster is compared against the characters
+        that exist, so a duplicated or replayed event cannot spawn a second body,
+        and an event that never arrived is still corrected on the next tick.
+        """
+        live = {}
+        for a in (agents or []):
+            if not isinstance(a, dict):
+                continue
+            aid = str(a.get("id") or a.get("agentId") or "").strip()
+            if not aid or aid == "lami":
+                continue
+            live[aid] = a
+        for p in (peers or []):
+            if not isinstance(p, dict) or not p.get("online"):
+                continue
+            pid = str(p.get("id") or "").strip()
+            if not pid:
+                continue
+            live.setdefault(f"peer-{pid}", {
+                "id": f"peer-{pid}",
+                "name": p.get("name") or pid,
+                "task": (p.get("skills") or ["A2A peer"])[0] if isinstance(p.get("skills"), list) and p.get("skills") else "A2A peer",
+                "tool": None,
+                "status": "idle",
+                "peer_room": p.get("room"),
+                "kind": "peer",
+            })
+
+        # 1. Remove sub-agents that are no longer in the real roster.
+        for aid, agent in list(self.subagents.items()):
+            if aid in live:
+                continue
+            # A finished agent walks out on its own; only force-remove when its
+            # report has already been staged, otherwise let despawn_finished().
+            if not getattr(agent, "reported", False):
+                agent.report_to_lami()
+                agent.reported = True
+                agent.done_at = time.time()
+
+        # 2. Add or update the ones that are.
+        for aid, info in live.items():
+            tool = info.get("tool")
+            room = info.get("peer_room") or room_for_tool(tool)
+            agent = self.subagents.get(aid)
+            if agent is None:
+                agent = self.spawn_subagent(aid, info.get("name"), info.get("task"), tool)
+                agent.kind = info.get("kind") or "sub"
+            if info.get("name"):
+                agent.name = str(info["name"])[:40]
+            if info.get("task"):
+                agent.task = str(info["task"])[:80]
+            if info.get("tool"):
+                agent.start_work(info["tool"], info.get("summary") or info["tool"])
+            current_room = (agent.assigned_slot or {}).get("roomId")
+            if current_room != room and not getattr(agent, "reported", False):
+                self.assign_to_slot(agent, room)
+                agent.navigate_to(agent.target_col, agent.target_row)
+
+        self.roster_seen = live
 
     def handle_event(self, ev):
         """Feed one ingested Hermes event into the world."""
@@ -1610,6 +1685,7 @@ class Sim:
             return
         t = ev.get("type")
         aid = ev.get("agentId") or "lami"
+        self.events_handled += 1
         if t == "agent_spawn":
             if aid != "lami":
                 self.spawn_subagent(aid, ev.get("name"), ev.get("task"), ev.get("tool"))
@@ -1708,34 +1784,17 @@ class Sim:
                     a.facing = "S" if dy > 0 else "N"
                     b.facing = "N" if dy > 0 else "S"
 
-                in_meeting = room_at(a.col, a.row) == "meeting" or room_at(b.col, b.row) == "meeting"
-                in_pantry = room_at(a.col, a.row) == "pantry" or room_at(b.col, b.row) == "pantry"
+                # Encounters still make people stop and turn to each other (that is
+                # readable body language), but the office never invents dialogue:
+                # only a neutral acknowledgement emote is shown.
                 is_boss = a.id == "lami" or b.id == "lami"
-
                 if is_boss:
                     boss, worker = (a, b) if a.id == "lami" else (b, a)
-                    worker.set_emote("👑", 2.5)
-                    worker.set_bubble("Pagi Boss Lami! ✨", 3.0)
-                    boss.set_emote("🌟", 2.5)
-                    boss.set_bubble("Semangat kerjanya ya! 👍", 3.0)
-                elif in_meeting:
-                    line = rng.choice(DIALOGUES["meeting"])
-                    a.set_emote("📊", 2.5)
-                    a.set_bubble(line[0], 3.0)
-                    b.set_emote("💡", 2.5)
-                    b.set_bubble(line[1], 3.0)
-                elif in_pantry:
-                    line = rng.choice(DIALOGUES["pantry"])
-                    a.set_emote("☕", 2.5)
-                    a.set_bubble(line[0], 3.0)
-                    b.set_emote("😊", 2.5)
-                    b.set_bubble(line[1], 3.0)
+                    worker.set_emote("👑", 2.0)
+                    boss.set_emote("🌟", 2.0)
                 else:
-                    line = rng.choice(DIALOGUES["hall"])
-                    a.set_emote("👋", 2.5)
-                    a.set_bubble(line[0], 3.0)
-                    b.set_emote("😊", 2.5)
-                    b.set_bubble(line[1], 3.0)
+                    a.set_emote(rng.choice(["👋", "🙂", "💬"]), 2.0)
+                    b.set_emote(rng.choice(["🙂", "👋", "💬"]), 2.0)
                 break
 
     # ---- lifecycle ---------------------------------------------------------------
@@ -1766,10 +1825,11 @@ class Sim:
         if self.flicker_timer > 0:
             self.flicker_timer -= dt
 
-        self.random_event_timer -= dt
-        if self.random_event_timer <= 0:
-            self.random_event_timer = 50.0 + self.rng.random() * 30
-            self.trigger_random_event()
+        if self.random_events:
+            self.random_event_timer -= dt
+            if self.random_event_timer <= 0:
+                self.random_event_timer = 50.0 + self.rng.random() * 30
+                self.trigger_random_event()
 
         if self.delivery_rider:
             self.delivery_rider.update(dt)
@@ -1786,7 +1846,7 @@ class Sim:
         self.despawn_finished()
 
     # ---- output ------------------------------------------------------------------
-    def world_frame(self):
+    def world_frame(self, status=None):
         chars = [self.lami.to_world()]
         chars.extend(res.to_world() for res in self.residents)
         chars.extend(agent.to_world() for agent in self.subagents.values())
@@ -1796,7 +1856,26 @@ class Sim:
             "seq": round(self.time_sec, 3),
             "chars": chars,
             "cat": self.cat.to_world(),
+            "roster": {
+                "source": "hub",
+                "agents": [
+                    {
+                        "id": aid,
+                        "name": info.get("name") or aid,
+                        "task": info.get("task") or "",
+                        "tool": info.get("tool"),
+                        "summary": info.get("summary") or "",
+                        "status": info.get("status") or "working",
+                        "kind": info.get("kind") or "sub",
+                        "room": (self.subagents[aid].assigned_slot or {}).get("roomId")
+                        if aid in self.subagents else None,
+                    }
+                    for aid, info in self.roster_seen.items()
+                ],
+            },
         }
+        if status:
+            frame["status"] = status
         if self.delivery_rider:
             frame["rider"] = self.delivery_rider.to_world()
         return frame

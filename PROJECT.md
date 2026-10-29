@@ -124,10 +124,26 @@ A complete 2D Top-Down / RPG pixel art office (Pokemon / Zelda GBA / RPG Maker a
 
 ## Interface Contracts
 
+### Dashboard Hermes (aturan kejujuran)
+Kantor adalah representasi visual aktivitas Hermes, bukan simulasi fiksi.
+
+- **Roster milik server.** Agen yang tampil = `HUB.agents` (dari ingest Hermes) + peer A2A yang
+  `online`. Klien **tidak** lagi membuat agen dari event/snapshot di mode live; server
+  merekonsiliasi roster tiap tick (`Sim.sync_roster`), sehingga idempoten (event ganda tidak
+  membuat dua tubuh, event yang hilang tetap dikoreksi).
+- **Tidak ada narasi karangan.** Staf latar boleh bergerak, tapi tidak memancarkan chat/bubble
+  karangan; event acak (martabak, listrik kedip, kopi, printer) **mati secara default**
+  (`OFFICE_RANDOM_EVENTS` untuk menyalakan). Hanya aktivitas yang berasal dari Hermes yang
+  menjadi `message`/`ticker`.
+- **Status jujur.** `world.status` = `live` (event < 120 s), `slow` (< 300 s), atau `idle`.
+  HUD menampilkan ini, jadi kantor tidak pernah mengaku LIVE saat Hermes diam.
+- `GET /api/roster` memaparkan roster + status yang sama dengan frame (untuk monitoring).
+
 ### Simulasi terpusat (server-authoritative world)
 | Endpoint / frame | Shape | Notes |
 |---|---|---|
-| `GET /api/world` | `{t, seq, chars[], cat, rider?, flags}` | Full snapshot for a fresh page or a reconnect. Public, read-only, like `/api/agents`. |
+| `GET /api/world` | `{t, seq, chars[], cat, rider?, flags, roster, status}` | Full snapshot for a fresh page or a reconnect. Public, read-only, like `/api/agents`. |
+| `GET /api/roster` | `{roster, status, generated_at}` | Real agent roster (HUB + A2A) and honest status. |
 | SSE `world` | `{type:"world", t, seq, chars[], cat, rider?}` | Broadcast ~5 Hz to every `/events` subscriber. Stream-only: never stored in `history`, never counted in `events_total`. |
 | `char` | `{id, col, row, facing, state, frame, bubble, emote, carry, slot?, path?, goal?, kind?, name?, role?, task?, routineState?, tool?, summary?}` | `col`/`row` are sub-tile floats rounded to 2 decimals. `kind` is `lami`, `resident`, `sub`, or `rider`. |
 | SSE `ticker` | `{type:"ticker", icon, text}` | Narrated by the server (spawn, tool start, completion). |

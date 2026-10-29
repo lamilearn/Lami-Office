@@ -1140,6 +1140,16 @@
     applyWorld(frame) {
       if (!frame || !Array.isArray(frame.chars)) return;
       this.pendingWorld = frame;
+      // Honest status straight from the server (live / slow / idle).
+      if (frame.status && typeof frame.status === 'object') {
+        this.worldStatus = frame.status;
+        if (LO.ui && typeof LO.ui.setOfficeStatus === 'function') {
+          LO.ui.setOfficeStatus(frame.status);
+        }
+      }
+      if (frame.roster && LO.ui && typeof LO.ui.setRoster === 'function') {
+        LO.ui.setRoster(frame.roster);
+      }
       this.lastWorldAt = Date.now();
       this.syncWorldAgents(frame);
 

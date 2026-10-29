@@ -143,6 +143,12 @@ html, body {
 .status-live i { animation: pulse 1.2s ease-in-out infinite; }
 .status-demo { color: var(--gold-deep); }
 .status-offline { color: var(--red); }
+/* Honest idle states: no pulsing dot, so nothing looks "live" when it isn't. */
+.status-idle { color: #64748b; }
+.status-idle i { background: #94a3b8; animation: none; }
+.status-slow { color: #b45309; }
+.status-slow i { background: #f59e0b; animation: none; }
+.status-extra { margin-left: 4px; font-size: 8px; opacity: 0.8; }
 .hud-pill b { color: var(--ink); font-weight: normal; }
 
 /* HUD Metrics & Chips */
