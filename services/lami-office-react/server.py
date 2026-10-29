@@ -1371,20 +1371,54 @@ class Handler(BaseHTTPRequestHandler):
     def mode_for_client(self) -> str:
         return "demo" if (self.is_public() and CFG["public_mode"] == "demo") else "live"
 
-    def _has_unread_body(self) -> bool:
-        """True when the request declared a body this handler never consumed."""
+    def _declared_body(self) -> int:
         try:
             declared = int(self.headers.get("Content-Length", 0) or 0)
         except (TypeError, ValueError):
+            return 0
+        return max(0, declared)
+
+    def _has_unread_body(self) -> bool:
+        """True when the request declared a body this handler never consumed."""
+        return self._declared_body() > 0 and not getattr(self, "_body_read", False)
+
+    # A body up to this size is read and discarded before answering; larger ones
+    # are answered and the socket is shut down immediately.
+    DRAIN_LIMIT = 64_000
+
+    def _drain_body(self) -> bool:
+        """Read and discard a small unread body. False when it is too large.
+
+        Why not always drain: `rfile.read(n)` blocks until n bytes arrive or the
+        peer closes. A client sending a 300 KB ingest keeps the socket open while
+        waiting for our reply, so draining a body bigger than what is already in
+        the socket buffer deadlocks - the request then looks like an empty reply.
+        """
+        declared = self._declared_body()
+        if declared <= 0 or getattr(self, "_body_read", False):
+            return True
+        if declared > self.DRAIN_LIMIT:
             return False
-        return declared > 0 and not getattr(self, "_body_read", False)
+        try:
+            remaining = declared
+            while remaining > 0:
+                chunk = self.rfile.read(min(remaining, 16_384))
+                if not chunk:
+                    break
+                remaining -= len(chunk)
+        except Exception:  # noqa: BLE001 - a broken client must not break the reply
+            return False
+        self._body_read = True
+        return True
 
     def send_json(self, code: int, obj):
         body = json.dumps(obj).encode()
         # An early rejection (403/413/400) can leave the request body unread. On a
         # keep-alive connection the leftover bytes would be parsed as the next
-        # request (HTTP 501), so close the connection instead of reusing it.
-        if self._has_unread_body():
+        # request (HTTP 501), so never reuse the socket - but do not block on a
+        # large body either: reply first, then shut the connection down.
+        unread = self._has_unread_body()
+        if unread:
             self.close_connection = True
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
@@ -1394,6 +1428,19 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Connection", "close")
         self.end_headers()
         self.wfile.write(body)
+        try:
+            self.wfile.flush()
+        except Exception:  # noqa: BLE001
+            pass
+        if unread:
+            # Small leftovers are harmless to consume; a big body is not worth
+            # blocking on - shutting the write side after the reply is enough for
+            # the client to see the status and stop sending.
+            if not self._drain_body():
+                try:
+                    self.wfile.close()
+                except Exception:  # noqa: BLE001
+                    pass
 
     def do_GET(self):
         path = urlparse(self.path).path
