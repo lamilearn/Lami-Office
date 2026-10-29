@@ -636,3 +636,52 @@ describe('Feature 32: Doorways read as openings', () => {
     assert.ok(!/'door_threshold'/.test(tm), 'the renderer no longer needs to special-case it');
   });
 });
+
+describe('Feature 33: A2A credentials are wired end to end', () => {
+  const STAGING_DEPLOY = path.join(REPO, 'scripts/deploy_staging.sh');
+  const PROD_DEPLOY = path.join(REPO, 'scripts/deploy_prod.sh');
+  const SERVER = path.join(REPO, 'services/lami-office-react/server.py');
+
+  it('F33.1: staging is deployed with the untracked secrets file', () => {
+    const src = fs.readFileSync(STAGING_DEPLOY, 'utf8');
+    // Credentials are never committed, so a deploy that forgets the second env
+    // file silently ships an office that cannot message any peer (can_send:false).
+    assert.ok(/--env-file \.env\.development/.test(src), 'the profile env must be passed');
+    assert.ok(/--env-file \.env\.development\.secrets/.test(src),
+      'the secrets env must also be passed');
+    assert.ok(/can_send/.test(src), 'the deploy must verify that sending is enabled');
+    assert.ok(/git pull --ff-only/.test(src), 'staging must fast-forward, never merge');
+  });
+
+  it('F33.2: production is deployed with its own secrets file', () => {
+    const src = fs.readFileSync(PROD_DEPLOY, 'utf8');
+    assert.ok(/--env-file \.env\.production --env-file \.env\.production\.secrets/.test(src));
+    assert.ok(!/git merge/.test(src) && !/git commit/.test(src));
+  });
+
+  it('F33.3: can_send reflects real credentials, and per-peer tokens win', () => {
+    const src = fs.readFileSync(SERVER, 'utf8');
+    assert.ok(/"can_send": bool\(str\(CFG\.get\("a2a_secret"\) or ""\) or CFG\.get\("a2a_peer_tokens"\)\)/.test(src),
+      'can_send must require a secret or per-peer tokens');
+    const tokenFor = src.slice(src.indexOf('def token_for(self, peer'), src.indexOf('def send(self, peer_id'));
+    assert.ok(/tokens\.get\(peer\.id\)/.test(tokenFor), 'a per-peer token must take precedence');
+    assert.ok(/return str\(CFG\.get\("a2a_secret"\)/.test(tokenFor),
+      'the shared mesh secret is the fallback');
+    // The official A2A peer authenticates with a Bearer token, the sidecars with
+    // the x-a2a-token header; both must be sent.
+    assert.ok(/add_header\("Authorization", f"Bearer \{token\}"\)/.test(src));
+    assert.ok(/add_header\("x-a2a-token", token\)/.test(src));
+  });
+
+  it('F33.4: no credential is committed to the repo', () => {
+    const tracked = [
+      '.env.development', '.env.production', 'services/lami-office-react/server.py',
+      'scripts/deploy_staging.sh', 'scripts/deploy_prod.sh'
+    ];
+    for (const rel of tracked) {
+      const text = fs.readFileSync(path.join(REPO, rel), 'utf8');
+      assert.ok(!/a2a_secret_mesh_ebi/.test(text), `${rel} must not contain the mesh secret`);
+      assert.ok(!/A2A_BEARER_TOKEN\s*=\s*\S/.test(text), `${rel} must not contain a bearer token`);
+    }
+  });
+});
