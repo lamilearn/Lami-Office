@@ -274,6 +274,22 @@ def build_map(cfg: dict) -> dict:
         for wx in (d["x"] - 3, d["x"] + 5):
             _decor_on_wall(decor, walls, wx, wy, "sconce", cols, rows)
 
+    # ---- floor beneath a wall
+    # A raised wall only covers the top ~10px of its own row; the rest of that row
+    # shows whatever the floor layer holds there. Every wall cell sat on
+    # floor_outside, so a strip of lawn showed under each wall and the building
+    # looked transparent, as if the walls had holes in them. Point the floor at
+    # the neighbour the strip is visible from (the tile below), so the wall reads
+    # as sitting on real floor.
+    for y in range(rows):
+        for x in range(cols):
+            if not walls[y][x] or walls[y][x] == "door_mid":
+                continue
+            below = walls[y + 1][x] if y + 1 < rows else None
+            below_solid = bool(below) and below != "door_mid" and below != "floor_outside"
+            if not below_solid and y + 1 < rows:
+                floor[y][x] = floor[y + 1][x]
+
     return {
         "tileSize": cfg["tileSize"],
         "cols": cols,
