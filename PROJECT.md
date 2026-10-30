@@ -15,7 +15,7 @@ A complete 2D Top-Down / RPG pixel art office (Pokemon / Zelda GBA / RPG Maker a
 - **Agent System**: 4 cardinal movement directions (South/Front, North/Back, East/Right, West/Left) with 3/4-frame step cycles, orthogonal A* pathfinding avoiding collision obstacles, and canvas-rendered speech bubbles / inspect modals.
 - **Viewport & UI**: Responsive desktop scaling with side chat drawer width dynamic subtraction, avoiding HUD overlap.
 - **Simulasi Terpusat (server-authoritative)**: The office is ONE shared world simulated by `services/lami-office-react/world.py` inside `server.py`, not by each browser tab. The simulation thread (`sim_loop`) ticks at 10 Hz, broadcasts a `world` frame over SSE at ~5 Hz (only when something changed, plus a 5 s idle refresh), and the browser only renders and interpolates those frames. Consequences: every visitor sees the same characters in the same places, the office keeps living while nobody is watching, and a browser refresh no longer resets anyone to their desk because positions live in the server state file.
-- **Environment**: Branch `dev` on local repo `/home/fatih/Vault/Ecobytes/Project/Lami/ai-office`, remote GitHub repo `git@github.com:lamilearn/Lami-Office.git`, and live staging deployment at `http://192.168.3.33:13579`.
+- **Environment**: Branch `dev` on local repo `/home/fatih/Vault/Ecobytes/Project/Lami/ai-office`, remote GitHub repo `git@github.com:lamilearn/Lami-Office.git`, and live staging deployment at `http://192.168.3.32:13579`.
 
 ---
 
@@ -166,6 +166,16 @@ Production is a **pure mirror of `master`**; nobody merges or edits code there.
 | 2. Release | `git checkout master && git merge --no-ff dev && git tag -a vX.Y.Z && git push origin master vX.Y.Z` |
 | 3. Deploy | `bash scripts/deploy_prod.sh` (fast-forwards `origin/master`, refuses a dirty checkout, rebuilds, waits for `/healthz`) |
 
+### Host layout
+| Host | Role | Path | Ports |
+|---|---|---|---|
+| `192.168.3.33` | **production only** (mirror of `master`) | `/home/rumi/projects/office-suite` | 8090 / 8088 |
+| `192.168.3.32` | **staging only** (mirror of `dev`), `PUBLIC_MODE=live` | `/home/rumi/projects/office-suite-dev` | 13579 / 18088 |
+
+Staging used to share `.33` with production; it was moved to `.32` so a staging
+restart or rebuild can never touch the production container, and so `.33` holds
+nothing but `master`.
+
 Server-side layout on `rumi@192.168.3.33:/home/rumi/projects/office-suite`:
 
 - **Tracked and identical to `master`**: everything, including `.env.production` (with the A2A
@@ -178,9 +188,9 @@ Server-side layout on `rumi@192.168.3.33:/home/rumi/projects/office-suite`:
 Compose is always invoked with both env files:
 `docker compose --env-file .env.production --env-file .env.production.secrets up -d --build`.
 
-Staging follows the same pattern with `.env.development` + `.env.development.secrets`, deployed by
-`bash scripts/deploy_staging.sh` (fast-forward of `dev`, refuses drift, then asserts
-`/api/a2a` reports `can_send: true`).
+Staging follows the same pattern on `.32` with `.env.development` + `.env.development.secrets`,
+deployed by `bash scripts/deploy_staging.sh` (fast-forward of `dev`, refuses drift, then asserts
+`/api/a2a` reports `can_send: true`). Override the target with `DEPLOY_HOST=user@host`.
 
 ### Agent VM resources (Server Room)
 The Server Room's wall monitor shows each agent's real CPU/RAM.

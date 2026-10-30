@@ -196,6 +196,48 @@ class MockCanvasContext2D {
   lineTo(x, y) {
     this.drawCalls.push({ type: 'lineTo', x, y });
   }
+
+  // Methods the renderer relies on that the mock previously lacked, so a full
+  // Office.render() pass can be exercised in tests.
+  setTransform(a, b, c, d, e, f) {
+    if (typeof a === 'object' && a !== null) {
+      this.currentTransform = { x: a.e || 0, y: a.f || 0, scaleX: a.a || 1, scaleY: a.d || 1 };
+      return;
+    }
+    this.currentTransform = { x: e || 0, y: f || 0, scaleX: a || 1, scaleY: d || 1 };
+  }
+
+  resetTransform() {
+    this.currentTransform = { x: 0, y: 0, scaleX: 1, scaleY: 1 };
+  }
+
+  rect(x, y, w, h) {
+    this.drawCalls.push({ type: 'rect', x, y, w, h });
+  }
+
+  clip() {
+    this.drawCalls.push({ type: 'clip' });
+  }
+
+  ellipse(x, y, rx, ry) {
+    this.drawCalls.push({ type: 'ellipse', x, y, rx, ry });
+  }
+
+  quadraticCurveTo(cx, cy, x, y) {
+    this.drawCalls.push({ type: 'quadraticCurveTo', cx, cy, x, y });
+  }
+
+  bezierCurveTo(c1x, c1y, c2x, c2y, x, y) {
+    this.drawCalls.push({ type: 'bezierCurveTo', c1x, c1y, c2x, c2y, x, y });
+  }
+
+  createLinearGradient() {
+    return { addColorStop() {} };
+  }
+
+  createRadialGradient() {
+    return { addColorStop() {} };
+  }
 }
 
 class MockCanvasElement extends MockElement {

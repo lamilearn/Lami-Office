@@ -92,6 +92,8 @@ class Bridge:
         self.spawned: set[str] = set()
         self.last_seen: dict[str, float] = {}
         self.boss_sessions = set(opts.boss_session or [])
+        self._context_last: dict = {}
+        self._context_sent_at = 0.0
 
     def _load_state(self) -> int:
         try:
@@ -244,6 +246,36 @@ class Bridge:
         self._save_state()
         return sent
 
+    def known_agents(self) -> set[str] | None:
+        """Agents the office currently has. None when the office cannot be asked."""
+        try:
+            base = self.opts.endpoint.rstrip('/')
+            with urllib.request.urlopen(base + '/api/agents', timeout=5) as resp:
+                data = json.loads(resp.read() or b'{}')
+        except Exception:  # noqa: BLE001 - best effort, keep the old behaviour
+            return None
+        agents = data.get('agents')
+        if not isinstance(agents, list):
+            return None
+        return {str(a.get('id')) for a in agents if isinstance(a, dict) and a.get('id')}
+
+    # Send the context report when it moved enough, or often enough to look live.
+    def emit_context(self):
+        now = time.time()
+        if now - self._context_sent_at < self.opts.context_interval:
+            return
+        snap = self.context_snapshot()
+        if not snap:
+            return
+        moved = (
+            snap["session"] != self._context_last.get("session")
+            or abs(float(snap["percent"]) - float(self._context_last.get("percent", -1))) >= 0.2
+        )
+        if moved or now - self._context_sent_at >= self.opts.context_interval * 4:
+            if self.send([snap]):
+                self._context_last = snap
+                self._context_sent_at = now
+
     def reap(self):
         now = time.time()
         for aid, seen in list(self.last_seen.items()):
@@ -252,10 +284,56 @@ class Bridge:
                 self.last_seen.pop(aid, None)
                 self.spawned.discard(aid)
 
+    # ---- context window ------------------------------------------------
+    # Hermes stores no per-call token count (messages.token_count is always NULL),
+    # so the context fill is estimated from the active transcript of the most
+    # recent session: characters/4 is the usual rule of thumb. It is an estimate
+    # derived from real content, not a fabricated number, and the UI says so.
+    def context_snapshot(self) -> dict | None:
+        try:
+            con = sqlite3.connect(f"file:{self.db}?mode=ro", uri=True)
+            con.row_factory = sqlite3.Row
+            row = con.execute(
+                "select id, model from sessions order by last_activity_at desc limit 1"
+            ).fetchone()
+            if not row:
+                return None
+            sid = str(row["id"] or "")
+            if sid.startswith("cron_") and not self.opts.include_cron and sid not in self.boss_sessions:
+                return None
+            chars, count = con.execute(
+                "select coalesce(sum(length(coalesce(content,'')) + length(coalesce(tool_calls,''))"
+                " + length(coalesce(reasoning,''))), 0), count(*)"
+                " from messages where session_id = ? and active = 1",
+                (sid,),
+            ).fetchone()
+            con.close()
+            limit = max(1, int(self.opts.context_limit or 128000))
+            used = int(round((chars or 0) / 4.0))
+            return {
+                "type": "context",
+                "agentId": "lami",
+                "session": agent_id_for(sid, self.boss_sessions)[:24],
+                "model": str(row["model"] or "")[:40],
+                "messages": int(count or 0),
+                "usedTokens": used,
+                "limitTokens": limit,
+                "percent": round(min(100.0, (used / limit) * 100.0), 1),
+            }
+        except Exception as exc:  # noqa: BLE001 - the office keeps running
+            log(f"context error: {exc}")
+            return None
+
     def poll_once(self, limit: int | None = None) -> int:
         rows = self.rows(limit)
         if not rows:
             return 0
+        # The office loses its roster when it restarts, but this bridge only
+        # announces an agent once per process. Re-announce anything the server no
+        # longer knows, otherwise its sessions stay invisible until it idles out.
+        known = self.known_agents()
+        if known is not None:
+            self.spawned = {a for a in self.spawned if a in known}
         batch: list[dict] = []
         for row in rows:
             batch.extend(self.parse(row))
@@ -279,6 +357,7 @@ class Bridge:
             self.poll_once(self.opts.limit)
             return
         log(f"bridge -> {self.url} db={self.db} rowid={self.last_rowid}")
+        self.emit_context()
         while True:
             try:
                 count = self.poll_once(self.opts.limit if self.opts.once else None)
@@ -286,6 +365,7 @@ class Bridge:
                     log(f"forwarded {count} events (rowid={self.last_rowid})")
             except Exception as exc:  # noqa: BLE001
                 log(f"poll error: {exc}")
+            self.emit_context()
             self.reap()
             if self.opts.once:
                 return
@@ -356,6 +436,10 @@ def main():
     ap.add_argument("--timeout", type=float, default=90.0, help="idle seconds before agent_done")
     ap.add_argument("--boss-session", action="append", default=[], help="session id(s) shown as Lami")
     ap.add_argument("--include-cron", action="store_true")
+    ap.add_argument("--context-limit", type=int, default=int(os.environ.get("HERMES_CONTEXT_LIMIT", "128000")),
+                    help="context window size used to turn estimated tokens into a percentage")
+    ap.add_argument("--context-interval", type=float, default=float(os.environ.get("HERMES_CONTEXT_INTERVAL", "5")),
+                    help="seconds between context reports")
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--once", action="store_true")
     ap.add_argument("--probe", action="store_true")
