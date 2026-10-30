@@ -1094,3 +1094,102 @@ describe('Feature 37: Mouse zoom and drag panning', () => {
       'desktop double-click must reset the camera');
   });
 });
+
+describe('Feature 38: Meeting room furniture is laid out logically', () => {
+  const WORLD = path.join(REPO, 'services/lami-office-react/web/js/world.js');
+  const CONFIG = path.join(REPO, 'services/lami-office-react/web/js/config.js');
+
+  function meetingChairs() {
+    const harness = require('../harness');
+    const env = harness.createBrowserEnvironment();
+    const LO = harness.loadScriptIntoEnv(env, 'config.js');
+    harness.loadScriptIntoEnv(env, 'sprites.js');
+    harness.loadScriptIntoEnv(env, 'world.js');
+    env.window.LO = LO;
+    LO.office = { vmResources: null, vmPanelVisible: () => false, hoveredRack: () => -1 };
+    const world = new LO.World();
+    const ctx = env.document.createElement('canvas').getContext('2d');
+    world.drawMeetingRoom(ctx, LO.TILE_SIZE, { type: 'day' });
+    // Chairs are the circles; the table is the widest filled rectangle.
+    const chairs = ctx.drawCalls.filter((c) => c.type === 'arc' && c.r >= 5)
+      .map((c) => ({ x: c.x, y: c.y, r: c.r }));
+    // The table is drawn as a top face, a front face and a shadow, all exactly
+    // 12 tiles wide: union those to get its footprint without depending on which
+    // face happens to have the largest area.
+    const spans = ctx.drawCalls.filter((c) => c.type === 'fillRect' && c.w === 12 * LO.TILE_SIZE);
+    const table = spans.length ? {
+      x: Math.min(...spans.map((c) => c.x)),
+      y: Math.min(...spans.map((c) => c.y)),
+      w: 12 * LO.TILE_SIZE,
+      h: Math.max(...spans.map((c) => c.y + c.h)) - Math.min(...spans.map((c) => c.y))
+    } : null;
+    return { chairs, table, TS: LO.TILE_SIZE };
+  }
+
+  it('F38.1: no chair overlaps the conference table', () => {
+    const { chairs, table } = meetingChairs();
+    assert.ok(chairs.length >= 6, `expected at least six seats, got ${chairs.length}`);
+    assert.ok(table, 'the table footprint must be known');
+    const tx1 = table.x;
+    const ty1 = table.y;
+    const tx2 = table.x + table.w;
+    const ty2 = table.y + table.h;
+    for (const c of chairs) {
+      const nearestX = Math.max(tx1, Math.min(c.x, tx2));
+      const nearestY = Math.max(ty1, Math.min(c.y, ty2));
+      const dist = Math.hypot(c.x - nearestX, c.y - nearestY);
+      assert.ok(dist >= c.r,
+        `chair at ${c.x},${c.y} (r${c.r}) overlaps the table (gap ${dist.toFixed(1)}px)`);
+    }
+  });
+
+  it('F38.2: the two end seats mirror each other about the table', () => {
+    const { chairs, table } = meetingChairs();
+    const midY = table.y + table.h / 2;
+    const ends = chairs.filter((c) => Math.abs(c.y - midY) < 2);
+    assert.strictEqual(ends.length, 2, 'exactly two end seats, one per head');
+    const [left, right] = ends.sort((a, b) => a.x - b.x);
+    const leftGap = table.x - (left.x + left.r);
+    const rightGap = (right.x - right.r) - (table.x + table.w);
+    assert.ok(Math.abs(leftGap - rightGap) <= 1,
+      `end seats must be symmetric (left gap ${leftGap.toFixed(1)}, right gap ${rightGap.toFixed(1)})`);
+    // Regression: the right seat used to sit on the table corner while the left
+    // floated a tile away.
+    assert.ok(Math.abs(leftGap) <= 8 && leftGap >= 0, 'the left seat must sit just off the table');
+    assert.ok(Math.abs(rightGap) <= 8 && rightGap >= 0, 'the right seat must sit just off the table');
+  });
+
+  it('F38.3: the long seat rows line up with the meeting seats in config', () => {
+    const { chairs, table } = meetingChairs();
+    const midY = table.y + table.h / 2;
+    const rows = chairs.filter((c) => Math.abs(c.y - midY) >= 2);
+    const seatXs = new Set(chairs.filter((c) => Math.abs(c.y - midY) >= 2).map((c) => c.x));
+    // Six row seats over two rows: three columns, each used twice.
+    assert.strictEqual(rows.length, 6, 'three seats on each long side');
+    assert.strictEqual(seatXs.size, 3, 'three seat columns');
+
+    const harness = require('../harness');
+    const LO = harness.loadScriptIntoEnv(harness.createBrowserEnvironment(), 'config.js');
+    const slotX = LO.SLOTS.meeting.map((s) => (s.x + 0.5) * LO.TILE_SIZE);
+    for (const x of seatXs) {
+      assert.ok(slotX.some((sx) => Math.abs(sx - x) < 0.6),
+        `seat at ${x} must line up with a meeting seat slot`);
+    }
+  });
+
+  it('F38.4: chairs are drawn from the table rect, not magic numbers', () => {
+    const world = fs.readFileSync(WORLD, 'utf8');
+    const from = world.indexOf('    drawMeetingRoom(ctx, ts, theme) {');
+    const fn = world.slice(from, from + 4000);
+    assert.ok(/const tableLeft = 38 \* ts/.test(fn), 'the table edges must be named');
+    assert.ok(/const tableRight = 50 \* ts/.test(fn));
+    assert.ok(/tableLeft - chairR - gap/.test(fn), 'the left seat must derive from the table edge');
+    assert.ok(/tableRight \+ chairR \+ gap/.test(fn), 'the right seat must derive from the table edge');
+    assert.ok(!/37\.2 \* ts/.test(fn) && !/49\.8 \* ts/.test(fn),
+      'the old hardcoded, asymmetric seat positions must be gone');
+    // Six seats in config: three per long side, matching the drawn chairs.
+    const harness = require('../harness');
+    const LO = harness.loadScriptIntoEnv(harness.createBrowserEnvironment(), 'config.js');
+    assert.strictEqual(LO.SLOTS.meeting.length, 6, 'config must define six meeting seats');
+  });
+});

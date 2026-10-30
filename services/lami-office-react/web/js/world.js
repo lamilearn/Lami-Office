@@ -738,15 +738,28 @@
       const tx = 38 * ts, ty = 30 * ts, tw = 12 * ts, th = 3 * ts;
       this.draw2DBlock(ctx, tx, ty, tw, th, 16, '#c7926b', '#9b6e4e');
 
-      // Chairs: north row, south row, heads
-      [41, 44, 47].forEach((c) => {
-        ctx.fillStyle = '#334155';
-        ctx.beginPath(); ctx.arc((c + 0.5) * ts, 29.4 * ts, 6, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.arc((c + 0.5) * ts, 33.6 * ts, 6, 0, Math.PI * 2); ctx.fill();
-      });
+      // Chairs. Each seat sits on its own tile centre with a clear gap from the
+      // table, and the two end seats mirror each other outside the table's ends -
+      // they used to overlap the right-hand corner and float free on the left.
+      const chairR = 6;
+      const gap = 3;
+      const tableLeft = 38 * ts;
+      const tableRight = 50 * ts;
+      const tableTop = 30 * ts;
+      const tableBottom = 33 * ts;
+
       ctx.fillStyle = '#334155';
-      ctx.beginPath(); ctx.arc(37.2 * ts, 31.5 * ts, 6, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc(49.8 * ts, 31.5 * ts, 6, 0, Math.PI * 2); ctx.fill();
+      [41, 44, 47].forEach((c) => {
+        const cx = (c + 0.5) * ts;
+        // Row centre chosen so the seat's edge clears the table by `gap`.
+        ctx.beginPath(); ctx.arc(cx, tableTop - chairR - gap, chairR, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(cx, tableBottom + chairR + gap, chairR, 0, Math.PI * 2); ctx.fill();
+      });
+
+      // End seats, symmetric about the table and centred on its visible height.
+      const seatY = (tableTop + tableBottom) / 2;
+      ctx.beginPath(); ctx.arc(tableLeft - chairR - gap, seatY, chairR, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(tableRight + chairR + gap, seatY, chairR, 0, Math.PI * 2); ctx.fill();
 
       // Sakura Flower Vase Centerpiece
       const flB = Math.sin(this.timeSec * 3 + 3) * 1.2;
