@@ -14,78 +14,9 @@
   // under the building no longer forces a letterbox. Everything the player must
   // see stays inside this rect, which is what guarantees no room is ever cropped.
   LO.VIEW_FOCUS = { x1: 0, y1: 0, x2: LO.GRID_COLS, y2: 42 };
-  // Headroom above the content for raised wall tops when the scene is rendered
-  // to its own canvas for depth-band compositing.
-  LO.SCENE_TOP_PAD = 32;
-
-  // Extra office props drawn in each room. Declared once here so the renderer
-  // and the collision grid (office.js getFurnitureObstacles) can never disagree:
-  // anything with `solid: true` is also an obstacle.
-  LO.DECOR_PROPS = [
-    // --- Boss Office (x2..27, y3..18): executive seating + storage
-    { room: 'boss', kind: 'meeting_chairs', x: 9,  y: 10, w: 1, h: 1, solid: true },
-    { room: 'boss', kind: 'meeting_chairs', x: 19, y: 10, w: 1, h: 1, solid: true },
-    { room: 'boss', kind: 'bookshelf',      x: 2,  y: 12, w: 2, h: 1, solid: true },
-    { room: 'boss', kind: 'sideboard',      x: 24, y: 12, w: 3, h: 1, solid: true },
-    { room: 'boss', kind: 'floor_lamp',     x: 25, y: 16, w: 1, h: 1, solid: true },
-    { room: 'boss', kind: 'plant',          x: 3,  y: 17, w: 1, h: 1, solid: true },
-    { room: 'boss', kind: 'rug',            x: 11, y: 11, w: 7, h: 4, solid: false },
-
-    // --- Research Lab (x30..55, y3..18): computer lab + bench
-    { room: 'research', kind: 'lab_bench',  x: 34, y: 6,  w: 3, h: 1, solid: true },
-    { room: 'research', kind: 'lab_bench',  x: 40, y: 6,  w: 3, h: 1, solid: true },
-    { room: 'research', kind: 'lab_bench',  x: 46, y: 6,  w: 3, h: 1, solid: true },
-    { room: 'research', kind: 'workstation', x: 30, y: 12, w: 2, h: 1, solid: true },
-    { room: 'research', kind: 'workstation', x: 38, y: 12, w: 2, h: 1, solid: true },
-    { room: 'research', kind: 'workstation', x: 46, y: 12, w: 2, h: 1, solid: true },
-    { room: 'research', kind: 'whiteboard', x: 44, y: 16, w: 4, h: 1, solid: true },
-    { room: 'research', kind: 'plant',      x: 54, y: 16, w: 1, h: 1, solid: true },
-    { room: 'research', kind: 'cabinet',    x: 34, y: 17, w: 2, h: 1, solid: true },
-
-    // --- Server Room: extra infrastructure
-    { room: 'server', kind: 'server_rack',  x: 60, y: 12, w: 2, h: 2, solid: true },
-    { room: 'server', kind: 'server_rack',  x: 80, y: 12, w: 2, h: 2, solid: true },
-    { room: 'server', kind: 'crate',        x: 82, y: 4,  w: 1, h: 1, solid: true },
-    { room: 'server', kind: 'crate',        x: 59, y: 4,  w: 1, h: 1, solid: true },
-
-    // --- Engineering Pit (x2..27, y24..39): dev desks + storage
-    { room: 'engineering', kind: 'dev_desk', x: 18, y: 26, w: 3, h: 1, solid: true },
-    { room: 'engineering', kind: 'dev_desk', x: 4,  y: 35, w: 3, h: 1, solid: true },
-    { room: 'engineering', kind: 'dev_desk', x: 11, y: 35, w: 3, h: 1, solid: true },
-    { room: 'engineering', kind: 'cabinet',  x: 23, y: 34, w: 2, h: 1, solid: true },
-    { room: 'engineering', kind: 'plant',    x: 2,  y: 38, w: 1, h: 1, solid: true },
-    { room: 'engineering', kind: 'whiteboard', x: 17, y: 38, w: 4, h: 1, solid: true },
-
-    // --- Meeting Room: side furniture
-    { room: 'meeting', kind: 'sideboard', x: 50, y: 25, w: 3, h: 1, solid: true },
-    { room: 'meeting', kind: 'plant',     x: 31, y: 25, w: 1, h: 1, solid: true },
-    { room: 'meeting', kind: 'plant',     x: 54, y: 38, w: 1, h: 1, solid: true },
-    { room: 'meeting', kind: 'cabinet',   x: 30, y: 34, w: 2, h: 1, solid: true },
-
-    // --- Pantry: the rest of the kitchen
-    { room: 'pantry', kind: 'dining_table', x: 66, y: 30, w: 3, h: 2, solid: true },
-    { room: 'pantry', kind: 'counter',      x: 60, y: 31, w: 4, h: 1, solid: true },
-    { room: 'pantry', kind: 'plant',        x: 82, y: 38, w: 1, h: 1, solid: true },
-    { room: 'pantry', kind: 'cabinet',      x: 59, y: 38, w: 2, h: 1, solid: true }
-  ];
-
-  // The five server racks in the Server Room, one per real agent (the roster is
-  // ordered lami, yuna, aurora, kira, cyro). Tile geometry, shared by the
-  // renderer and the hover hit-test so the two can never drift apart.
-  LO.VM_RACKS = [
-    { x: 60, y: 6, w: 3, h: 2 },
-    { x: 65, y: 6, w: 3, h: 2 },
-    { x: 70, y: 6, w: 3, h: 2 },
-    { x: 75, y: 6, w: 3, h: 2 },
-    { x: 80, y: 6, w: 3, h: 2 }
-  ];
   // Hard ceiling on the desktop zoom-up, relative to the classic "contain" fit.
   // Keeps very wide or very tall screens from zooming to an absurd scale.
   LO.DESKTOP_ZOOM_CAP = 1.25;
-  // Wheel zoom range. Zooming out stops at the default fitted view, so the
-  // office is never rendered smaller than "normal"; zooming in is capped
-  // relative to the plain contain fit.
-  LO.DESKTOP_ZOOM_MAX = 4;
 
   // Backward-compatibility geometric aliases
   LO.ISO_TILE_W = LO.TILE_SIZE;
@@ -753,52 +684,19 @@
 
     const containZoom = Math.min(availW / contentW, availH / contentH);
     const focusZoom = Math.min(availW / focusW, availH / focusH);
-    // Default (un-zoomed) desktop view: fill the focus region, capped so a wide or
-    // tall screen does not zoom to an absurd scale.
-    const fitZoom = Math.max(containZoom, Math.min(focusZoom, containZoom * (LO.DESKTOP_ZOOM_CAP || 1.25)));
-    // Zoom-out stops at the default fitted size: the whole office already fits
-    // there, so anything smaller just adds empty margin.
-    const minZoom = fitZoom;
-    const maxZoom = Math.max(fitZoom, containZoom * (LO.DESKTOP_ZOOM_MAX || 4));
+    // Never zoom past the focus fit (that would crop the building) and never more
+    // than DESKTOP_ZOOM_CAP beyond a plain contain fit.
+    const zoom = Math.max(containZoom, Math.min(focusZoom, containZoom * (LO.DESKTOP_ZOOM_CAP || 1.25)));
 
-    // The user can zoom and pan freely from the default view. With no explicit
-    // zoom we reproduce the classic fit exactly; with one we keep the requested
-    // point (the cursor, for wheel zoom) pinned while the scale changes.
-    if (!args.zoom) {
-      const offsetX = Math.max(0, Math.floor((availW - contentW * fitZoom) / 2));
-      const offsetY = Math.max(topInset, Math.floor(topInset + (availH - contentH * fitZoom) / 2));
-      return { zoom: fitZoom, offsetX, offsetY, availW, availH, topInset, cameraMode: false,
-               focusZoom, containZoom, minZoom, maxZoom, fitZoom };
-    }
-
-    const zoom = Math.min(maxZoom, Math.max(minZoom, args.zoom));
-
-    // Anchor the view: default to the content centre so a plain zoom-in grows
-    // from the middle, then clamp so the building never leaves the viewport.
-    const anchorX = typeof args.anchorX === 'number' ? args.anchorX : focusW / 2;
-    const anchorY = typeof args.anchorY === 'number' ? args.anchorY : focusH / 2;
-    const screenX = typeof args.anchorScreenX === 'number' ? args.anchorScreenX : availW / 2;
-    const screenY = typeof args.anchorScreenY === 'number' ? args.anchorScreenY : topInset + availH / 2;
-
-    let offsetX = Math.round(screenX - anchorX * zoom);
-    let offsetY = Math.round(screenY - anchorY * zoom);
-
-    // Clamp so at least the focus region stays reachable: never scroll past the
-    // building's own edges when the content is larger than the viewport.
-    // Horizontal: let the user scroll anywhere between the content's two edges;
-    // when the content is narrower than the viewport it stays centred.
-    const xRange = availW - contentW * zoom;
-    if (xRange >= 0) {
-      offsetX = Math.round(xRange / 2);
-    } else {
-      offsetX = Math.max(Math.round(xRange), Math.min(offsetX, 0));
-    }
-    // Vertical: never above the HUD band, never past the focus region's bottom.
-    const yMin = Math.min(topInset, Math.round(topInset + availH - focusH * zoom));
-    offsetY = Math.max(yMin, Math.min(offsetY, topInset));
-
+    // Clamp: a focus-fit can land a hair below zero through float rounding, and a
+    // negative offset would shave a column off the left wall.
+    const offsetX = Math.max(0, Math.floor((availW - contentW * zoom) / 2));
+    // Anchor to the top band: any overflow is the outside margin at the bottom.
+    // Flooring a centred fit of an odd remainder can dip to -1, which would shave
+    // the rooftop sign off the top edge, so never render above the band.
+    const offsetY = Math.max(topInset, Math.floor(topInset + (availH - contentH * zoom) / 2));
     return { zoom, offsetX, offsetY, availW, availH, topInset, cameraMode: false,
-             focusZoom, containZoom, minZoom, maxZoom, fitZoom, pannable: true };
+             focusZoom, containZoom };
   };
 
   // Classify a pointer sequence as a tap (select) or a drag (camera pan).

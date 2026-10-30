@@ -219,11 +219,9 @@ def clean_text(value, limit: int | None = None) -> str:
 
 
 ALLOWED_KEYS = {"type", "agentId", "parentId", "task", "tool", "summary", "ok", "status", "result", "text", "name", "ts",
-                "who", "role", "icon", "color", "title", "desc",
-                # context window report (from the bridge, measured from Hermes)
-                "percent", "usedTokens", "limitTokens", "messages", "model", "session"}
+                "who", "role", "icon", "color", "title", "desc"}
 ALLOWED_TYPES = {"agent_spawn", "tool_start", "tool_end", "agent_status", "agent_done", "message",
-                 "ticker", "event_banner", "context"}
+                 "ticker", "event_banner"}
 
 
 def sanitize_event(ev: dict) -> dict | None:
@@ -242,11 +240,6 @@ def sanitize_event(ev: dict) -> dict | None:
         elif k == "ok":
             out[k] = bool(v)
         elif k == "ts":
-            try:
-                out[k] = float(v)
-            except (TypeError, ValueError):
-                pass
-        elif k in ("percent", "usedTokens", "limitTokens", "messages"):
             try:
                 out[k] = float(v)
             except (TypeError, ValueError):
@@ -281,8 +274,6 @@ class Hub:
         self.last_event_ts = 0.0
         self.events_total = 0
         self.history: list[dict] = []
-        # Latest context-window report measured by the bridge from Hermes itself.
-        self.context: dict = {}
         self.state_path = Path(state_path).expanduser() if state_path else None
         self._dirty = False
         self._load_state()
@@ -305,7 +296,6 @@ class Hub:
                 "agents": list(self.agents.values()),
                 "stats": dict(self.stats),
                 "history": list(self.history[-60:]),
-                "context": dict(self.context),
                 "ts": time.time(),
             }
 
@@ -397,17 +387,6 @@ class Hub:
 
     def _apply(self, ev: dict):
         today = date.today().isoformat()
-        if ev.get("type") == "context":
-            self.context = {
-                "percent": ev.get("percent"),
-                "used_tokens": ev.get("usedTokens"),
-                "limit_tokens": ev.get("limitTokens"),
-                "messages": ev.get("messages"),
-                "model": ev.get("model"),
-                "session": ev.get("session"),
-                "ts": ev.get("ts"),
-            }
-            return
         if today != self.day:
             self.day = today
             self.stats["doneToday"] = 0
@@ -416,16 +395,7 @@ class Hub:
         if t == "agent_spawn" and aid != "lami":
             self.agents[aid] = {"id": aid, "task": ev.get("task", ""), "name": ev.get("name", ""),
                                 "tool": None, "summary": "", "status": "working", "since": now, "last": now}
-        elif (aid not in ("lami", "Sistem") and aid not in self.agents
-              and t in ("tool_start", "agent_status")):
-            # A bridge that already announced this session before our own restart
-            # will not send agent_spawn again, so adopt the agent on first contact
-            # instead of dropping everything it does.
-            self.agents[aid] = {"id": aid, "task": ev.get("summary", ""), "name": ev.get("name", ""),
-                                "tool": None, "summary": "", "status": "working", "since": now, "last": now}
-            self.agents[aid]["tool"] = ev.get("tool") if t == "tool_start" else None
-            self.agents[aid]["summary"] = ev.get("summary", "")
-        if aid in self.agents:
+        elif aid in self.agents:
             a = self.agents[aid]
             a["last"] = now
             if t == "tool_start":
@@ -1485,8 +1455,7 @@ class Handler(BaseHTTPRequestHandler):
                 "id": "lami", "name": "Lami", "title": "Hermes Agent",
                 "description": "AI orchestrator", "status": "online",
                 "color": "#C084FC", "type": "boss",
-                "sub_agents": len(HUB.agents), "tools": ["browser", "terminal", "code", "web", "memory", "vision"],
-                "context": dict(HUB.context),
+                "sub_agents": len(HUB.agents), "tools": ["browser", "terminal", "code", "web", "memory", "vision"]
             })
         if path == "/api/integration":
             def age_of(target: Path):

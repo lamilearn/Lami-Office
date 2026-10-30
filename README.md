@@ -125,7 +125,7 @@ always rejected for traffic arriving through the Cloudflare tunnel.
 Check the Hermes bridge wiring on the agent host:
 
 ```bash
-python3 deploy/hermes_bridge.py --endpoint http://192.168.3.32:13579 --verify
+python3 deploy/hermes_bridge.py --endpoint http://192.168.3.33:13579 --verify
 ```
 
 ## Wiring Hermes to the office (bridge)
@@ -136,7 +136,7 @@ The bridge on the Hermes host (`192.168.3.31`) is what makes the office
 ```bash
 # which office gets fed (check this before enabling!)
 OFFICE_URL=http://192.168.3.33:8090     # production
-# OFFICE_URL=http://192.168.3.32:13579  # staging
+# OFFICE_URL=http://192.168.3.33:13579  # staging
 ```
 
 Verify it end to end:
@@ -210,7 +210,7 @@ docker compose --env-file .env.development up -d --build
 
 # 2. On the Hermes host (stdlib only, no install):
 python3 deploy/hermes_bridge.py \
-  --endpoint http://192.168.3.32:13579 \
+  --endpoint http://192.168.3.33:13579 \
   --token "$INGEST_TOKEN" \
   --boss-session <main-session-id>
 ```

@@ -76,25 +76,6 @@
       // Latest per-agent VM metrics (Server Room monitor), filled by net.js.
       this.vmResources = null;
       this.vmResourcesAt = 0;
-      // Desktop camera: explicit zoom/pan from the mouse. Null zoom means "the
-      // default fit"; the anchor keeps the point under the cursor pinned while
-      // zooming, and the offsets implement drag-panning.
-      this.viewZoom = null;
-      this.viewAnchorX = null;
-      this.viewAnchorY = null;
-      this.viewAnchorScreenX = null;
-      this.viewAnchorScreenY = null;
-      this.panOffset = { x: 0, y: 0 };
-      // Offscreen canvas holding the static scene for depth-band compositing.
-      this._scene = null;
-      this._sceneCtx = null;
-      // Pointer position in tile space, used to reveal the Server Room's VM
-      // monitor on hover. `vmPinnedRack` keeps one open after a tap on touch
-      // devices, which have no hover at all.
-      this.hoverTile = null;
-      // Tapping a rack pins that server's resources (touch devices have no hover).
-      // The five-agent overview lives in the HUD card instead.
-      this.vmPinnedRack = -1;
       // True once a world frame has positioned everybody (the first frame snaps,
       // later frames ease). Reset only on a full page load, never on reconnect.
       this.worldPlaced = false;
@@ -253,13 +234,7 @@
         { x: 74, y: 28, w: 1, h: 1, name: 'Water Cooler' },
         { x: 63, y: 33, w: 6, h: 1, name: 'Teal Lounge Sofa' },
         { x: 68, y: 36, w: 3, h: 1, name: 'Coffee Table' },
-        { x: 78, y: 33, w: 3, h: 2, name: 'Snack Vending Machine' },
-
-        // Extra props declared in LO.DECOR_PROPS: anything marked solid blocks
-        // movement, so the drawing and the collision grid can never disagree.
-        ...(LO.DECOR_PROPS || [])
-          .filter((p) => p.solid)
-          .map((p) => ({ x: p.x, y: p.y, w: p.w || 1, h: p.h || 1, name: `Decor ${p.kind}` }))
+        { x: 78, y: 33, w: 3, h: 2, name: 'Snack Vending Machine' }
       ];
     }
 
@@ -598,15 +573,6 @@
           }
         }
 
-        // 1b. Tapping a rack pins that agent's resources, which is how touch
-        // devices (no hover) inspect a server.
-        const rack = this.rackAt(canvasX, canvasY);
-        if (rack >= 0) {
-          this.vmPinnedRack = this.vmPinnedRack === rack ? -1 : rack;
-          LO.audio.pop();
-          return true;
-        }
-
         // 2. Interactive Props in 2D Plane
         const props = LO.PROPS || {};
 
@@ -707,19 +673,6 @@
         const dx = p.x - dragStart.x;
         const dy = p.y - dragStart.y;
         if (Math.hypot(dx, dy) > (LO.TAP_MAX_DISTANCE || 8)) moved = true;
-        if (moved && !this.isPhoneMode()) {
-          // Desktop: drag the floorplan around. Convert the pixel delta into
-          // content pixels and anchor the view at the drag origin.
-          const zoom = this.view.zoom || 1;
-          const start = dragStart;
-          const anchorX = (start.x - this.view.offsetX) / zoom;
-          const anchorY = (start.y - this.view.offsetY) / zoom;
-          this.setViewAnchor(anchorX, anchorY);
-          this.viewZoom = zoom;
-          this.viewAnchorScreenX = p.x;
-          this.viewAnchorScreenY = p.y;
-          return;
-        }
         if (moved && this.isPhoneMode()) {
           const zoom = this.view.zoom || 1;
           this.camera.x = dragStart.camX - dx / zoom;
@@ -746,10 +699,9 @@
         if (moved || gesture !== 'tap') return;
 
         const now = Date.now();
-        if (now - lastTap < 320) {
+        if (this.isPhoneMode() && now - lastTap < 320) {
           lastTap = 0;
-          if (this.isPhoneMode()) this.resetCamera();
-          else this.resetView();
+          this.resetCamera();
           return;
         }
         lastTap = now;
@@ -758,30 +710,6 @@
         activateAt(p.clientX, p.clientY);
       };
 
-      // Hover tracking (independent of dragging): the Server Room monitor only
-      // appears while the pointer is inside that room.
-      const onHoverMove = (e) => {
-        const p = toWorld(e.clientX, e.clientY);
-        if (!p) return;
-        this.hoverTile = { x: p.x, y: p.y, col: p.x / LO.TILE_SIZE, row: p.y / LO.TILE_SIZE };
-      };
-      const onHoverLeave = () => { this.hoverTile = null; };
-
-      // Desktop wheel zoom, anchored on the pointer so the tile under the cursor
-      // stays put.
-      const onWheel = (e) => {
-        if (this.isPhoneMode()) return;
-        e.preventDefault();
-        const factor = Math.exp(-(e.deltaY || 0) * 0.0015);
-        const current = (this.view && this.view.zoom) || 1;
-        this.zoomAt(current * factor, e.clientX, e.clientY);
-      };
-      if (this.canvas.addEventListener) {
-        this.canvas.addEventListener('wheel', onWheel, { passive: false });
-      }
-
-      this.canvas.addEventListener('pointermove', onHoverMove);
-      this.canvas.addEventListener('pointerleave', onHoverLeave);
       this.canvas.addEventListener('pointerdown', onPointerDown);
       this.canvas.addEventListener('pointermove', onPointerMove);
       this.canvas.addEventListener('pointerup', onPointerUp);
@@ -881,38 +809,6 @@
       this.camera.zoom = Math.min(ceil, Math.max(floor, zoom || base));
     }
 
-    // Anchor the current view at a content-space point.
-    setViewAnchor(x, y) {
-      this.viewAnchorX = x;
-      this.viewAnchorY = y;
-    }
-
-    // Zoom to `zoom` keeping the content point under (clientX, clientY) fixed.
-    zoomAt(zoom, clientX, clientY) {
-      const view = this.view || this.computeView();
-      const rect = this.canvas && this.canvas.getBoundingClientRect
-        ? this.canvas.getBoundingClientRect() : { left: 0, top: 0 };
-      const screenX = (clientX === undefined ? rect.width / 2 : clientX - rect.left);
-      const screenY = (clientY === undefined ? rect.height / 2 : clientY - rect.top);
-
-      const currentZoom = view.zoom || 1;
-      this.setViewAnchor((screenX - view.offsetX) / currentZoom, (screenY - view.offsetY) / currentZoom);
-      this.viewZoom = zoom;
-      this.viewAnchorScreenX = screenX;
-      this.viewAnchorScreenY = screenY;
-      this.computeView();
-    }
-
-    // Back to the default fitted view.
-    resetView() {
-      this.viewZoom = null;
-      this.viewAnchorX = null;
-      this.viewAnchorY = null;
-      this.viewAnchorScreenX = null;
-      this.viewAnchorScreenY = null;
-      this.computeView();
-    }
-
     reclampCamera() {
       if (!this.camera) return;
       this.camera.x = Math.min(LO.GRID_COLS, Math.max(0, this.camera.x));
@@ -1010,14 +906,9 @@
         drawerInset: this.drawerInset || 0,
         topInset: this.topInsetFor(h),
         cameraMode,
-        // Desktop: the wheel/drag camera. Phones keep their own camera mode.
-        zoom: cameraMode ? (this.camera.zoom || null) : (this.viewZoom || null),
+        zoom: cameraMode ? (this.camera.zoom || null) : null,
         focusX: this.camera.x,
-        focusY: this.camera.y,
-        anchorX: this.viewAnchorX,
-        anchorY: this.viewAnchorY,
-        anchorScreenX: this.viewAnchorScreenX,
-        anchorScreenY: this.viewAnchorScreenY
+        focusY: this.camera.y
       });
 
       // Keep legacy fields in sync for anything that still reads them.
@@ -1239,37 +1130,6 @@
         LO.ui.addTicker('👑', 'Mode <b>Lami Corp AI</b> diaktifkan kembali.');
         LO.ui.appendChatMessage('Boss Lami', 'CEO', 'Selamat datang kembali di Lami Corp AI! Semangat kerjanya tim 👑✨', '👑', '#ffd25e');
       }
-    }
-
-    // Index of the server rack under the pointer, or -1. Each rack belongs to one
-    // real agent, so hovering it reports that agent's resources.
-    rackAt(x, y) {
-      const racks = LO.VM_RACKS || [];
-      if (typeof x !== 'number' || typeof y !== 'number') return -1;
-      const ts = LO.TILE_SIZE;
-      // A rack is drawn with a raised top face, so accept a little above the tile.
-      const lift = 10;
-      for (let i = 0; i < racks.length; i++) {
-        const r = racks[i];
-        if (x >= r.x * ts && x <= (r.x + r.w) * ts
-            && y >= r.y * ts - lift && y <= (r.y + r.h) * ts) {
-          return i;
-        }
-      }
-      return -1;
-    }
-
-    hoveredRack() {
-      const h = this.hoverTile;
-      if (!h) return -1;
-      return this.rackAt(h.x, h.y);
-    }
-
-    // True while a server rack is showing its resources: hovered, or pinned by a
-    // tap on a touch device.
-    vmPanelVisible() {
-      if (this.vmPinnedRack >= 0) return true;
-      return this.hoveredRack() >= 0;
     }
 
     // ---- Server-authoritative world (live mode) ------------------------------
@@ -1616,100 +1476,29 @@
       this.ctx.translate(view.offsetX, view.offsetY);
       this.ctx.scale(view.zoom, view.zoom);
 
+      // 1. World Floor, Walls & Stationary Props
+      this.world.render(this.ctx);
+
+      // 2. Elevator Adapter (no-op in 2D mode)
+      if (this.elevator && this.elevator.render) {
+        this.elevator.render(this.ctx);
+      }
+
+      // 3. Characters sorted by 2D Y-Depth (Painter's Algorithm)
       const peers = this.peerAgents ? [...this.peerAgents.values()] : [];
       const allChars = [this.lami, ...this.residents, ...peers, ...this.subagents.values(), this.cat];
       if (this.deliveryRider) allChars.push(this.deliveryRider);
       allChars.sort((a, b) => a.getDepth() - b.getDepth());
 
-      // 1-4. Floor, walls, props, characters and wall tops, composited in depth
-      //      bands so anything with height occludes whoever stands behind it.
-      if (!this.renderBanded(allChars)) {
-        // Fallback (no offscreen canvas available): the previous flat order.
-        this.world.render(this.ctx);
-        if (this.elevator && this.elevator.render) this.elevator.render(this.ctx);
-        for (const c of allChars) c.render(this.ctx);
-        if (this.world.renderOverlay) this.world.renderOverlay(this.ctx);
-      }
-
-      // 5. Speech bubbles and emotes last, so no band can paint over them.
       for (const c of allChars) {
-        if (typeof c.renderText === 'function') c.renderText(this.ctx);
+        c.render(this.ctx);
       }
 
-      // 6. The Server Room's VM monitor is a screen hanging in the walkway; it
-      //    must float above the crowd rather than being walked over.
-      if (this.world.renderVmMonitor) this.world.renderVmMonitor(this.ctx, LO.TILE_SIZE);
+      // 4. Wall tops, doorway frames & wall decor painted over characters so a
+      //    room reads as an enclosed box (architect-plan / dollhouse depth).
+      if (this.world.renderOverlay) this.world.renderOverlay(this.ctx);
 
       this.ctx.restore();
-    }
-
-    // Renders the static scene once into an offscreen canvas, then blits it in
-    // horizontal bands around the depth-sorted characters. Returns false when no
-    // offscreen canvas is available.
-    renderBanded(chars) {
-      const pad = LO.SCENE_TOP_PAD || 32;
-      const scene = this.sceneCanvas();
-      if (!scene || !scene.ctx) return false;
-
-      const sctx = scene.ctx;
-      sctx.setTransform(1, 0, 0, 1, 0, 0);
-      sctx.imageSmoothingEnabled = false;
-      sctx.clearRect(0, 0, scene.canvas.width, scene.canvas.height);
-      sctx.save();
-      sctx.translate(0, pad);
-      this.world.render(sctx);
-      if (this.elevator && this.elevator.render) this.elevator.render(sctx);
-      if (this.world.renderOverlay) this.world.renderOverlay(sctx);
-      sctx.restore();
-
-      const TS = LO.TILE_SIZE;
-      const width = LO.CONTENT_W;
-      const bottom = LO.CONTENT_H;
-      // Snap the band edges to whole content pixels and overlap each band by one
-      // pixel. A fractional source rect makes drawImage skip or repeat a source
-      // row, which showed up as a thin horizontal seam at every character's feet
-      // - a line that appeared to follow whoever was walking.
-      const blit = (fromY, toY) => {
-        let y1 = Math.max(-pad, Math.round(fromY));
-        let y2 = Math.min(bottom, Math.round(toY));
-        if (y2 <= y1) return;
-        if (y2 < bottom) y2 += 1;   // one-pixel overlap hides the seam
-        const h = y2 - y1;
-        this.ctx.drawImage(scene.canvas, 0, y1 + pad, width, h, 0, y1, width, h);
-      };
-
-      let drawnTo = -pad;
-      for (const c of chars) {
-        const row = c.row !== undefined ? c.row : c.y;
-        const footY = Math.max(-pad, Math.min(bottom, (row || 0) * TS));
-        if (footY > drawnTo) {
-          blit(drawnTo, footY);
-          drawnTo = footY;
-        }
-        c.render(this.ctx, { skipText: true });
-      }
-      blit(drawnTo, bottom);
-      return true;
-    }
-
-    // Persistent offscreen holding the static scene for the current frame.
-    sceneCanvas() {
-      const w = LO.CONTENT_W;
-      const h = LO.CONTENT_H + (LO.SCENE_TOP_PAD || 32);
-      if (this._scene && this._scene.width === w && this._scene.height === h) {
-        return { canvas: this._scene, ctx: this._sceneCtx };
-      }
-      let canvas = null;
-      if (typeof OffscreenCanvas !== 'undefined') {
-        canvas = new OffscreenCanvas(w, h);
-      } else if (typeof document !== 'undefined' && document.createElement) {
-        canvas = document.createElement('canvas');
-        canvas.width = w;
-        canvas.height = h;
-      }
-      this._scene = canvas;
-      this._sceneCtx = canvas && canvas.getContext ? canvas.getContext('2d') : null;
-      return canvas ? { canvas, ctx: this._sceneCtx } : null;
     }
   }
 

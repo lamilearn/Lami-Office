@@ -217,41 +217,6 @@
         }
       }
     }
-
-    // A dark outline along every wall edge that faces the outside of the
-    // building. Without it a room whose wall colour is close to the lawn (the
-    // green engineering pit, for instance) dissolved into the background and the
-    // building looked transparent, with holes where the boundary should be.
-    outlineBuilding(ctx, map, ts);
-  }
-
-  // True when the tile belongs to the building: a wall, or a walkable room or
-  // hallway floor. The lawn around the building is not part of it.
-  function insideBuilding(map, x, y) {
-    if (x < 0 || y < 0 || x >= map.cols || y >= map.rows) return false;
-    if (map.layers.walls[y][x]) return true;
-    const floor = map.layers.floor && map.layers.floor[y] && map.layers.floor[y][x];
-    return Boolean(floor) && floor !== OUTSIDE_TILE && floor !== 'void';
-  }
-
-  function outlineBuilding(ctx, map, ts) {
-    const walls = map.layers.walls;
-    const thickness = 3;
-    ctx.fillStyle = '#1b1420';
-    for (let y = 0; y < map.rows; y++) {
-      for (let x = 0; x < map.cols; x++) {
-        const name = walls[y][x];
-        if (!name || name === DOOR_TILE || name === OUTSIDE_TILE) continue;
-        const px = x * ts;
-        const py = y * ts;
-        // The envelope is traced wherever a wall meets ground that is not part
-        // of the building, so the structure never dissolves into the lawn.
-        if (!insideBuilding(map, x, y - 1)) ctx.fillRect(px, py - WALL_LIFT - thickness, ts, thickness);
-        if (!insideBuilding(map, x, y + 1)) ctx.fillRect(px, py + ts, ts, thickness);
-        if (!insideBuilding(map, x - 1, y)) ctx.fillRect(px - thickness, py - WALL_LIFT, thickness, ts + WALL_LIFT);
-        if (!insideBuilding(map, x + 1, y)) ctx.fillRect(px + ts, py - WALL_LIFT, thickness, ts + WALL_LIFT);
-      }
-    }
   }
 
   // Wall tops, doorway frames and decor (drawn above characters so rooms read

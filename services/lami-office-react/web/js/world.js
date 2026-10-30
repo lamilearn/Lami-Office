@@ -410,7 +410,6 @@
 
     // ---- 7. 2D Furniture & Props ----
     drawAllFurniture(ctx, ts, theme) {
-      this.drawDecorProps(ctx, ts, theme);
       this.drawBossOffice(ctx, ts, theme);
       this.drawResearchLab(ctx, ts, theme);
       this.drawServerRoom(ctx, ts, theme);
@@ -418,180 +417,6 @@
       this.drawMeetingRoom(ctx, ts, theme);
       this.drawPantryLounge(ctx, ts, theme);
       this.drawElevatorLobby(ctx, ts, theme);
-    }
-
-    // Extra office props, driven by LO.DECOR_PROPS so the drawing and the
-    // collision grid stay in step. Flat pieces (rugs) are drawn under everything.
-    drawDecorProps(ctx, ts, theme) {
-      const props = LO.DECOR_PROPS || [];
-      for (const p of props) {
-        if (p.kind !== 'rug') continue;
-        this.drawDecorProp(ctx, ts, p, theme);
-      }
-      for (const p of props) {
-        if (p.kind === 'rug') continue;
-        this.drawDecorProp(ctx, ts, p, theme);
-      }
-    }
-
-    drawDecorProp(ctx, ts, p, theme) {
-      const x = p.x * ts;
-      const y = p.y * ts;
-      const w = (p.w || 1) * ts;
-      const h = (p.h || 1) * ts;
-      switch (p.kind) {
-        case 'rug': {
-          ctx.fillStyle = 'rgba(150, 84, 72, 0.22)';
-          ctx.fillRect(x, y, w, h);
-          ctx.strokeStyle = 'rgba(255, 210, 94, 0.5)';
-          ctx.lineWidth = 1;
-          ctx.strokeRect(x + 2.5, y + 2.5, w - 5, h - 5);
-          break;
-        }
-        case 'plant': {
-          const cx = x + w / 2;
-          this.draw2DBlock(ctx, cx - 4, y + h - 8, 8, 8, 3, '#8d5a3b', '#6b4227');
-          ctx.fillStyle = '#2f8f5b';
-          ctx.beginPath();
-          ctx.ellipse(cx, y + h - 12, 7, 6, 0, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = '#3fa96b';
-          ctx.beginPath();
-          ctx.ellipse(cx - 3, y + h - 14, 4, 4, 0, 0, Math.PI * 2);
-          ctx.fill();
-          break;
-        }
-        case 'bookshelf': {
-          this.draw2DBlock(ctx, x, y, w, h, 6, '#7a5233', '#5c3d26');
-          const colours = ['#c0392b', '#2980b9', '#f1c40f', '#27ae60', '#8e44ad'];
-          for (let i = 0; i < Math.floor(w / 5); i++) {
-            ctx.fillStyle = colours[i % colours.length];
-            ctx.fillRect(x + 3 + i * 5, y + 7, 3, Math.max(6, h - 9));
-          }
-          break;
-        }
-        case 'sideboard':
-        case 'cabinet': {
-          this.draw2DBlock(ctx, x, y, w, h, 8, '#9d7a58', '#7a5c40');
-          ctx.fillStyle = '#6d5138';
-          const doors = Math.max(1, Math.round(w / ts));
-          for (let d = 1; d < doors; d++) ctx.fillRect(x + d * ts - 0.5, y + 8, 1, h - 9);
-          break;
-        }
-        case 'floor_lamp': {
-          ctx.strokeStyle = '#5b4a3a';
-          ctx.lineWidth = 1.5;
-          ctx.beginPath();
-          ctx.moveTo(x + w / 2, y + h);
-          ctx.lineTo(x + w / 2, y + 4);
-          ctx.stroke();
-          ctx.fillStyle = '#ffe9a8';
-          ctx.beginPath();
-          ctx.arc(x + w / 2, y + 4, 4.5, 0, Math.PI * 2);
-          ctx.fill();
-          break;
-        }
-        case 'meeting_chairs': {
-          ctx.fillStyle = '#334155';
-          ctx.beginPath();
-          ctx.ellipse(x + w / 2, y + h - 5, 5, 4, 0, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = '#475569';
-          ctx.beginPath();
-          ctx.ellipse(x + w / 2, y + h - 9, 5.5, 3, Math.PI, Math.PI * 2);
-          ctx.fill();
-          break;
-        }
-        case 'lab_bench': {
-          // Benchtop with a monitor, a rack of test tubes and a microscope.
-          this.draw2DBlock(ctx, x, y, w, h, 10, '#c9b79c', '#9d8a72');
-          ctx.fillStyle = '#1f2a3a';
-          ctx.fillRect(x + 4, y + 3, 12, 8);
-          ctx.fillStyle = '#7dd3fc';
-          ctx.fillRect(x + 6, y + 5, 8, 4);
-          for (let t = 0; t < 3; t++) {
-            ctx.fillStyle = ['#5eead4', '#fca5a5', '#fcd34d'][t];
-            ctx.fillRect(x + w - 22 + t * 5, y + 4, 3, 6);
-          }
-          ctx.fillStyle = '#94a3b8';
-          ctx.fillRect(x + w - 34, y + 6, 3, 6);
-          ctx.fillRect(x + w - 36, y + 10, 7, 2);
-          break;
-        }
-        case 'workstation': {
-          this.draw2DBlock(ctx, x, y, w, h, 10, '#b9a88f', '#8f7f68');
-          ctx.fillStyle = '#16202e';
-          ctx.fillRect(x + 3, y + 3, 14, 8);
-          ctx.fillStyle = '#38bdf8';
-          ctx.fillRect(x + 5, y + 5, 10, 4);
-          ctx.fillStyle = '#27313d';
-          ctx.fillRect(x + 8, y + 11, 4, 2);
-          break;
-        }
-        case 'dev_desk': {
-          // Two monitors and a keyboard: a proper dev station.
-          this.draw2DBlock(ctx, x, y, w, h, 10, '#8a7159', '#6b553f');
-          for (let m = 0; m < 2; m++) {
-            ctx.fillStyle = '#141c28';
-            ctx.fillRect(x + 4 + m * 16, y + 2, 13, 8);
-            ctx.fillStyle = m ? '#a3e635' : '#38bdf8';
-            ctx.fillRect(x + 6 + m * 16, y + 4, 9, 4);
-          }
-          ctx.fillStyle = '#3a4250';
-          ctx.fillRect(x + 6, y + 11, 20, 2);
-          break;
-        }
-        case 'whiteboard': {
-          ctx.fillStyle = '#f8fafc';
-          ctx.fillRect(x, y, w, h);
-          ctx.strokeStyle = '#94a3b8';
-          ctx.lineWidth = 1;
-          ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
-          ctx.strokeStyle = '#3b82f6';
-          ctx.beginPath();
-          ctx.moveTo(x + 5, y + h - 5);
-          ctx.lineTo(x + w * 0.35, y + 5);
-          ctx.lineTo(x + w * 0.5, y + h - 4);
-          ctx.stroke();
-          ctx.fillStyle = '#f59e0b';
-          ctx.fillRect(x + w * 0.62, y + 5, 6, 4);
-          break;
-        }
-        case 'server_rack': {
-          this.draw2DBlock(ctx, x, y, w, h, 10, '#2c2738', '#1c1826');
-          for (let r = 0; r < 4; r++) {
-            ctx.fillStyle = Math.sin(this.timeSec * 6 + r) > 0 ? '#22c55e' : '#14532d';
-            ctx.fillRect(x + 2, y + 12 + r * 6, 3, 2);
-          }
-          break;
-        }
-        case 'crate': {
-          this.draw2DBlock(ctx, x + 2, y + 3, w - 4, h - 4, 8, '#b08968', '#8b6b4a');
-          ctx.strokeStyle = '#6d5138';
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.moveTo(x + 3, y + 4);
-          ctx.lineTo(x + w - 3, y + h - 3);
-          ctx.stroke();
-          break;
-        }
-        case 'dining_table': {
-          this.draw2DBlock(ctx, x, y, w, h, 12, '#d8b48c', '#b08f6a');
-          // Two cups on the table.
-          ctx.fillStyle = '#f8fafc';
-          ctx.fillRect(x + 8, y + 4, 5, 5);
-          ctx.fillRect(x + w - 14, y + 4, 5, 5);
-          break;
-        }
-        case 'counter': {
-          this.draw2DBlock(ctx, x, y, w, h, 12, '#cfd8dc', '#9aa6ac');
-          ctx.fillStyle = '#8d99a3';
-          ctx.fillRect(x + 3, y + 2, w - 6, 4);
-          break;
-        }
-        default:
-          this.draw2DBlock(ctx, x, y, w, h, 8, '#a1887f', '#7d6a62');
-      }
     }
 
     // Helper: 2D Block
@@ -616,33 +441,15 @@
       const dx = 11 * ts, dy = 7 * ts, dw = 7 * ts, dh = 1.2 * ts;
       this.draw2DBlock(ctx, dx, dy, dw, dh, 14, '#7a3e2e', '#5a2b1e', '#ffd25e');
 
-      // Executive chair behind the desk: a seat with a backrest and a five-star
-      // base, so it reads as furniture. It used to be a plain black circle with
-      // two gold dots, which looked like a creature staring at you.
-      const cx = 14 * ts + 8, cy = 6 * ts + 7;
-      ctx.fillStyle = '#221f29';
-      for (let leg = 0; leg < 5; leg++) {
-        const a = (Math.PI * 2 * leg) / 5 - Math.PI / 2;
-        ctx.fillRect(cx + Math.cos(a) * 8 - 1, cy + Math.sin(a) * 6 - 1, 3, 3);
-      }
+      // Executive Leather Swivel Chair (behind the desk)
+      const cx = 14 * ts + 8, cy = 6 * ts;
+      ctx.fillStyle = '#1f1e24';
       ctx.beginPath();
-      ctx.ellipse(cx, cy, 7, 5.5, 0, 0, Math.PI * 2);
+      ctx.arc(cx, cy + 8, 9, 0, Math.PI * 2);
       ctx.fill();
-      // Seat cushion, lifted slightly so the base stays visible.
-      ctx.fillStyle = '#3b3745';
-      ctx.beginPath();
-      ctx.ellipse(cx, cy - 1, 6, 4.5, 0, 0, Math.PI * 2);
-      ctx.fill();
-      // Backrest on the far side of the desk.
-      ctx.fillStyle = '#2b2833';
-      ctx.beginPath();
-      ctx.ellipse(cx, cy - 7, 6.5, 3.2, 0, Math.PI, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#ffd25e';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.ellipse(cx, cy - 1, 6, 4.5, 0, 0, Math.PI * 2);
-      ctx.stroke();
+      ctx.fillStyle = '#ffd25e';
+      ctx.fillRect(cx - 3, cy + 4, 2, 2);
+      ctx.fillRect(cx + 1, cy + 4, 2, 2);
 
       // Gold Laptop on Desk
       const lx = 13 * ts, ly = 6.9 * ts;
@@ -799,65 +606,35 @@
 
     // Specific Room 3: Server Room (interior X: 58..83, Y: 3..18)
     drawServerRoom(ctx, ts, theme) {
-      const office = (typeof window !== 'undefined') ? window.LO?.office : null;
-      const agents = (office && office.vmResources && Array.isArray(office.vmResources.agents))
-        ? office.vmResources.agents : [];
-      const hovered = office && typeof office.hoveredRack === 'function' ? office.hoveredRack() : -1;
-
-      // Cable tray along the floor, below the racks.
-      ctx.fillStyle = 'rgba(56, 189, 248, 0.10)';
-      ctx.fillRect(59 * ts, 9 * ts, 24 * ts, 1.4 * ts);
-      ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
+      // Glowing raised-floor cable duct down the aisle
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.12)';
+      ctx.fillRect(69 * ts, 4 * ts, 3 * ts, 12 * ts);
+      ctx.strokeStyle = '#38bdf8';
       ctx.lineWidth = 0.8;
-      ctx.strokeRect(59 * ts + 0.5, 9 * ts + 0.5, 24 * ts - 1, 1.4 * ts - 1);
+      ctx.strokeRect(69 * ts + 0.5, 4 * ts + 0.5, 3 * ts - 1, 12 * ts - 1);
 
-      // One rack per real agent: the rack carries its owner's name and live status.
-      (LO.VM_RACKS || []).forEach((rack, idx) => {
-        const agent = agents[idx] || null;
-        const online = agent ? agent.online !== false : false;
-        const accent = (agent && agent.color) || '#38bdf8';
-        const xPx = rack.x * ts;
-        const yPx = rack.y * ts;
-        const wPx = rack.w * ts;
-        const hPx = rack.h * ts;
+      // 4 Dark Server Racks (X: 63, 69, 75, 81 @ Y: 6..7)
+      [63, 69, 75, 81].forEach((rx, idx) => {
+        const xPx = rx * ts, yPx = 6 * ts;
+        this.draw2DBlock(ctx, xPx, yPx, (idx === 3 ? 2 : 3) * ts, 2 * ts, 10, '#2c2738', '#1c1826');
 
-        this.draw2DBlock(ctx, xPx, yPx, wPx, hPx, 10, '#2c2738', '#1c1826',
-          idx === hovered ? accent : '#2d2438');
-
-        // Owner's colour stripe on the top face.
-        ctx.fillStyle = online ? accent : '#4b5563';
-        ctx.fillRect(xPx + 2, yPx + 2, wPx - 4, 3);
-
-        // Blinking status LEDs, tinted by the owner.
         for (let row = 0; row < 3; row++) {
           const ly = yPx + 10 + row * 6;
           const b1 = Math.sin(this.timeSec * 8 + idx + row) > 0;
           const b2 = Math.sin(this.timeSec * 5 + idx * 1.5 + row) > 0;
-          ctx.fillStyle = b1 ? (online ? '#2ecc71' : '#145a32') : '#145a32';
+          ctx.fillStyle = b1 ? '#2ecc71' : '#145a32';
           ctx.fillRect(xPx + 5, ly, 3, 2);
-          ctx.fillStyle = b2 ? accent : '#334155';
+          ctx.fillStyle = b2 ? '#38bdf8' : '#0369a1';
           ctx.fillRect(xPx + 11, ly, 3, 2);
           ctx.fillStyle = !b1 ? '#f59e0b' : '#78350f';
           ctx.fillRect(xPx + 17, ly, 3, 2);
         }
-
-        // Owner label under the rack, so each server is identifiable.
-        const label = agent ? String(agent.name || agent.id).slice(0, 8).toUpperCase() : '--';
-        ctx.font = '5px "Press Start 2P", monospace';
-        ctx.textAlign = 'center';
-        ctx.fillStyle = 'rgba(11, 16, 32, 0.78)';
-        const lw = Math.max(wPx, 34);
-        ctx.fillRect(xPx + wPx / 2 - lw / 2, yPx + hPx + 1, lw, 8);
-        ctx.fillStyle = agent ? accent : '#64748b';
-        ctx.fillText(label, xPx + wPx / 2, yPx + hPx + 7);
-
-        // A dot marks reachability at a glance.
-        ctx.fillStyle = online ? '#22c55e' : '#ef4444';
-        ctx.beginPath();
-        ctx.arc(xPx + wPx - 4, yPx + 4, 1.6, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.textAlign = 'left';
       });
+
+      // Wall monitor: live CPU/RAM per agent VM. Numbers come from each agent's
+      // own metrics endpoint (deploy/metrics_agent.py); when a host does not
+      // report, the row says so instead of drawing a fake gauge.
+      this.drawVmMonitor(ctx, ts);
 
       // Mainframe Ops Console Desk (X: 66..71, Y: 14)
       const cx = 66 * ts, cy = 14 * ts;
@@ -931,28 +708,15 @@
       const tx = 38 * ts, ty = 30 * ts, tw = 12 * ts, th = 3 * ts;
       this.draw2DBlock(ctx, tx, ty, tw, th, 16, '#c7926b', '#9b6e4e');
 
-      // Chairs. Each seat sits on its own tile centre with a clear gap from the
-      // table, and the two end seats mirror each other outside the table's ends -
-      // they used to overlap the right-hand corner and float free on the left.
-      const chairR = 6;
-      const gap = 3;
-      const tableLeft = 38 * ts;
-      const tableRight = 50 * ts;
-      const tableTop = 30 * ts;
-      const tableBottom = 33 * ts;
-
-      ctx.fillStyle = '#334155';
+      // Chairs: north row, south row, heads
       [41, 44, 47].forEach((c) => {
-        const cx = (c + 0.5) * ts;
-        // Row centre chosen so the seat's edge clears the table by `gap`.
-        ctx.beginPath(); ctx.arc(cx, tableTop - chairR - gap, chairR, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.arc(cx, tableBottom + chairR + gap, chairR, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#334155';
+        ctx.beginPath(); ctx.arc((c + 0.5) * ts, 29.4 * ts, 6, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc((c + 0.5) * ts, 33.6 * ts, 6, 0, Math.PI * 2); ctx.fill();
       });
-
-      // End seats, symmetric about the table and centred on its visible height.
-      const seatY = (tableTop + tableBottom) / 2;
-      ctx.beginPath(); ctx.arc(tableLeft - chairR - gap, seatY, chairR, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc(tableRight + chairR + gap, seatY, chairR, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#334155';
+      ctx.beginPath(); ctx.arc(37.2 * ts, 31.5 * ts, 6, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(49.8 * ts, 31.5 * ts, 6, 0, Math.PI * 2); ctx.fill();
 
       // Sakura Flower Vase Centerpiece
       const flB = Math.sin(this.timeSec * 3 + 3) * 1.2;
@@ -977,84 +741,79 @@
       return '#2ecc71';
     }
 
-    // Resource read-out for the racks. A hovered (or tapped) rack shows that one
-    // agent in detail; the HUD chip pins the overview of all five. Numbers come
-    // from each agent's own metrics endpoint (deploy/metrics_agent.py) and a host
-    // that does not report shows "--" instead of a fabricated gauge.
-    renderVmMonitor(ctx, ts) {
+    drawVmMonitor(ctx, ts) {
       const office = (typeof window !== 'undefined') ? window.LO?.office : null;
-      if (!office) return;
-      if (typeof office.vmPanelVisible === 'function' && !office.vmPanelVisible()) return;
-
-      const data = office.vmResources;
+      const data = office ? office.vmResources : null;
       const agents = (data && Array.isArray(data.agents)) ? data.agents : [];
-      if (!agents.length) return;
 
-      // The room only ever shows one server at a time: the rack under the cursor
-      // (or the one tapped on a touch device). The five-agent overview lives in
-      // the HUD card, so the floorplan stays readable.
-      const pinnedRack = (typeof office.vmPinnedRack === 'number') ? office.vmPinnedRack : -1;
-      const hoveredRack = (typeof office.hoveredRack === 'function') ? office.hoveredRack() : -1;
-      const single = pinnedRack >= 0 ? pinnedRack : hoveredRack;
-      if (single < 0 || !LO.VM_RACKS || !LO.VM_RACKS[single]) return;
-      this.drawRackPanel(ctx, ts, agents[single], LO.VM_RACKS[single]);
-    }
+      const x = 58 * ts + 4;
+      const y = 9.1 * ts;
+      const w = 25 * ts - 8;
+      const rowH = 13;
+      const h = 14 + Math.max(agents.length, 1) * rowH;
 
-    // Detail card for one rack, placed directly under it.
-    drawRackPanel(ctx, ts, agent, rack) {
-      const w = 150;
-      const h = 58;
-      let x = Math.round((rack.x + rack.w / 2) * ts - w / 2);
-      let y = Math.round((rack.y + rack.h) * ts + 11);
-      x = Math.max(58 * ts + 2, Math.min(x, 84 * ts - w - 2));
-      y = Math.min(y, 18 * ts - h - 2);
-
-      ctx.fillStyle = 'rgba(9, 13, 26, 0.95)';
+      // Bezel + screen
+      ctx.fillStyle = '#0b1020';
       ctx.fillRect(x, y, w, h);
-      ctx.strokeStyle = (agent && agent.color) || '#38bdf8';
+      ctx.strokeStyle = '#334155';
       ctx.lineWidth = 1;
       ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
 
       ctx.font = '5px "Press Start 2P", monospace';
       ctx.textAlign = 'left';
+      ctx.fillStyle = '#7dd3fc';
+      ctx.fillText('VM RESOURCES', x + 4, y + 9);
 
-      const has = Boolean(agent && agent.has_metrics);
-      const online = Boolean(agent && agent.online !== false);
-
-      ctx.fillStyle = (agent && agent.color) || '#7dd3fc';
-      ctx.fillText(`${(agent && agent.icon) || ''} ${String((agent && agent.name) || 'agent').slice(0, 9)}`,
-        x + 5, y + 11);
-      ctx.fillStyle = online ? '#22c55e' : '#ef4444';
-      ctx.fillText(online ? 'ONLINE' : 'OFFLINE', x + w - 46, y + 11);
-
-      const rows = [
-        ['CPU', agent && agent.cpu_percent, agent && agent.cpu_cores ? `${agent.cpu_cores} core` : ''],
-        ['RAM', agent && agent.mem_percent,
-          agent && agent.mem_used_mb != null ? `${agent.mem_used_mb}MB` : ''],
-        ['DISK', agent && agent.disk_percent,
-          agent && agent.disk_used_gb != null ? `${agent.disk_used_gb}GB` : '']
-      ];
-      const barX = x + 34;
-      const barW = 74;
-      rows.forEach(([label, pct], i) => {
-        const ry = y + 21 + i * 11;
+      if (!agents.length) {
         ctx.fillStyle = '#64748b';
-        ctx.fillText(label, x + 5, ry + 7);
+        ctx.fillText('menunggu metrik agent...', x + 4, y + 22);
+        return;
+      }
+
+      const barW = 84;
+      const cpuX = x + 96;
+      const memX = x + 96 + barW + 46;
+
+      agents.slice(0, 6).forEach((a, i) => {
+        const ry = y + 14 + i * rowH;
+        const online = a.online !== false;
+        const has = Boolean(a.has_metrics);
+
+        // name
+        ctx.fillStyle = online ? '#e2e8f0' : '#64748b';
+        const label = `${a.icon || '•'} ${String(a.name || a.id || '?').slice(0, 8)}`;
+        ctx.fillText(label, x + 4, ry + 8);
+
+        // CPU
+        ctx.fillStyle = '#64748b';
+        ctx.fillText('CPU', cpuX - 22, ry + 8);
         ctx.fillStyle = '#1e293b';
-        ctx.fillRect(barX, ry + 1, barW, 7);
-        if (has && pct != null) {
-          ctx.fillStyle = this.staticGaugeColor(pct);
-          ctx.fillRect(barX, ry + 1, Math.max(1, (barW * Math.min(100, pct)) / 100), 7);
+        ctx.fillRect(cpuX, ry + 2, barW, 7);
+        if (has && a.cpu_percent != null) {
+          ctx.fillStyle = this.staticGaugeColor(a.cpu_percent);
+          ctx.fillRect(cpuX, ry + 2, Math.max(1, (barW * Math.min(100, a.cpu_percent)) / 100), 7);
           ctx.fillStyle = '#cbd5e1';
-          ctx.fillText(`${Math.round(pct)}%`, barX + barW + 4, ry + 7);
+          ctx.fillText(`${Math.round(a.cpu_percent)}%`, cpuX + barW + 4, ry + 8);
         } else {
           ctx.fillStyle = '#64748b';
-          ctx.fillText('--', barX + barW + 4, ry + 7);
+          ctx.fillText('--', cpuX + barW + 4, ry + 8);
+        }
+
+        // RAM
+        ctx.fillStyle = '#64748b';
+        ctx.fillText('RAM', memX - 22, ry + 8);
+        ctx.fillStyle = '#1e293b';
+        ctx.fillRect(memX, ry + 2, barW, 7);
+        if (has && a.mem_percent != null) {
+          ctx.fillStyle = this.staticGaugeColor(a.mem_percent);
+          ctx.fillRect(memX, ry + 2, Math.max(1, (barW * Math.min(100, a.mem_percent)) / 100), 7);
+          ctx.fillStyle = '#cbd5e1';
+          ctx.fillText(`${Math.round(a.mem_percent)}%`, memX + barW + 4, ry + 8);
+        } else {
+          ctx.fillStyle = '#64748b';
+          ctx.fillText('--', memX + barW + 4, ry + 8);
         }
       });
-
-      ctx.fillStyle = '#64748b';
-      ctx.fillText(String((agent && agent.host) || '').slice(0, 22), x + 5, y + h - 4);
     }
 
     // Interactive Prop: Multi-Mode Whiteboard

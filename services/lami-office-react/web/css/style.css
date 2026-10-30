@@ -88,11 +88,6 @@ html, body {
   overscroll-behavior: none;
 }
 #office:active { cursor: grabbing; }
-/* The floorplan can be panned on desktop, so hint it. */
-@media (hover: hover) and (pointer: fine) {
-  #office { cursor: grab; }
-  #office:active { cursor: grabbing; }
-}
 
 /* ===== Unified HUD Header Bar ===== */
 #hud {
@@ -172,12 +167,6 @@ html, body {
 .hud-chip.pointer { cursor: pointer; }
 .hud-chip.pointer:hover { transform: translateY(-2px); }
 .hud-chip b { font-family: var(--font-pixel); font-size: 9.5px; min-width: 14px; text-align: right; }
-/* "VM INFO" chip: a HUD entry point to the Server Room's live VM resources. */
-#hud-vm-chip { gap: 5px; }
-#hud-vm-chip b { font-size: 8px; letter-spacing: 0.5px; }
-#hud-vm-chip.active { background: #7dd3fc; }
-#hud-vm-chip.off { opacity: 0.55; }
-
 .hud-chip.coin { background: linear-gradient(180deg, #fff3c4, var(--gold)); }
 
 .hud-btn {
@@ -601,37 +590,6 @@ html, body {
 @keyframes popUpModal { from { transform: scale(0.92); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
 /* ===== A2A Peer Agents Panel ===== */
-/* VM resource modal: one row per agent host, with live gauges. */
-.vm-list { list-style: none; display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
-.vm-item {
-  display: grid;
-  grid-template-columns: 118px 1fr 1fr;
-  gap: 10px;
-  align-items: center;
-  padding: 8px 10px;
-  border: 2px solid var(--line, #e3d7cd);
-  border-radius: 10px;
-  background: #fff8f2;
-}
-.vm-item.offline { opacity: 0.6; }
-.vm-name { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.vm-name b { font-size: 11px; }
-.vm-name small { display: block; font-size: 9px; opacity: 0.7; }
-.vm-gauge { font-size: 9px; }
-.vm-gauge .vm-bar {
-  position: relative;
-  height: 8px;
-  margin-top: 3px;
-  border-radius: 99px;
-  background: #e6ddd4;
-  overflow: hidden;
-}
-.vm-gauge .vm-bar i { display: block; height: 100%; border-radius: 99px; }
-.vm-gauge .vm-val { display: flex; justify-content: space-between; }
-@media (max-width: 560px) {
-  .vm-item { grid-template-columns: 1fr; gap: 6px; }
-}
-
 .a2a-list { list-style: none; display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
 .a2a-item {
   display: flex; align-items: center; gap: 10px;
