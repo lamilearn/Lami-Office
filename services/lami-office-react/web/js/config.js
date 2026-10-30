@@ -25,6 +25,9 @@
   // Hard ceiling on the desktop zoom-up, relative to the classic "contain" fit.
   // Keeps very wide or very tall screens from zooming to an absurd scale.
   LO.DESKTOP_ZOOM_CAP = 1.25;
+  // Wheel zoom range, relative to the plain "contain" fit.
+  LO.DESKTOP_ZOOM_MIN = 0.5;
+  LO.DESKTOP_ZOOM_MAX = 4;
 
   // Backward-compatibility geometric aliases
   LO.ISO_TILE_W = LO.TILE_SIZE;
@@ -692,19 +695,50 @@
 
     const containZoom = Math.min(availW / contentW, availH / contentH);
     const focusZoom = Math.min(availW / focusW, availH / focusH);
-    // Never zoom past the focus fit (that would crop the building) and never more
-    // than DESKTOP_ZOOM_CAP beyond a plain contain fit.
-    const zoom = Math.max(containZoom, Math.min(focusZoom, containZoom * (LO.DESKTOP_ZOOM_CAP || 1.25)));
+    // Default (un-zoomed) desktop view: fill the focus region, capped so a wide or
+    // tall screen does not zoom to an absurd scale.
+    const fitZoom = Math.max(containZoom, Math.min(focusZoom, containZoom * (LO.DESKTOP_ZOOM_CAP || 1.25)));
+    const minZoom = containZoom * (LO.DESKTOP_ZOOM_MIN || 0.5);
+    const maxZoom = Math.max(fitZoom, containZoom * (LO.DESKTOP_ZOOM_MAX || 4));
 
-    // Clamp: a focus-fit can land a hair below zero through float rounding, and a
-    // negative offset would shave a column off the left wall.
-    const offsetX = Math.max(0, Math.floor((availW - contentW * zoom) / 2));
-    // Anchor to the top band: any overflow is the outside margin at the bottom.
-    // Flooring a centred fit of an odd remainder can dip to -1, which would shave
-    // the rooftop sign off the top edge, so never render above the band.
-    const offsetY = Math.max(topInset, Math.floor(topInset + (availH - contentH * zoom) / 2));
+    // The user can zoom and pan freely from the default view. With no explicit
+    // zoom we reproduce the classic fit exactly; with one we keep the requested
+    // point (the cursor, for wheel zoom) pinned while the scale changes.
+    if (!args.zoom) {
+      const offsetX = Math.max(0, Math.floor((availW - contentW * fitZoom) / 2));
+      const offsetY = Math.max(topInset, Math.floor(topInset + (availH - contentH * fitZoom) / 2));
+      return { zoom: fitZoom, offsetX, offsetY, availW, availH, topInset, cameraMode: false,
+               focusZoom, containZoom, minZoom, maxZoom, fitZoom };
+    }
+
+    const zoom = Math.min(maxZoom, Math.max(minZoom, args.zoom));
+
+    // Anchor the view: default to the content centre so a plain zoom-in grows
+    // from the middle, then clamp so the building never leaves the viewport.
+    const anchorX = typeof args.anchorX === 'number' ? args.anchorX : focusW / 2;
+    const anchorY = typeof args.anchorY === 'number' ? args.anchorY : focusH / 2;
+    const screenX = typeof args.anchorScreenX === 'number' ? args.anchorScreenX : availW / 2;
+    const screenY = typeof args.anchorScreenY === 'number' ? args.anchorScreenY : topInset + availH / 2;
+
+    let offsetX = Math.round(screenX - anchorX * zoom);
+    let offsetY = Math.round(screenY - anchorY * zoom);
+
+    // Clamp so at least the focus region stays reachable: never scroll past the
+    // building's own edges when the content is larger than the viewport.
+    // Horizontal: let the user scroll anywhere between the content's two edges;
+    // when the content is narrower than the viewport it stays centred.
+    const xRange = availW - contentW * zoom;
+    if (xRange >= 0) {
+      offsetX = Math.round(xRange / 2);
+    } else {
+      offsetX = Math.max(Math.round(xRange), Math.min(offsetX, 0));
+    }
+    // Vertical: never above the HUD band, never past the focus region's bottom.
+    const yMin = Math.min(topInset, Math.round(topInset + availH - focusH * zoom));
+    offsetY = Math.max(yMin, Math.min(offsetY, topInset));
+
     return { zoom, offsetX, offsetY, availW, availH, topInset, cameraMode: false,
-             focusZoom, containZoom };
+             focusZoom, containZoom, minZoom, maxZoom, fitZoom, pannable: true };
   };
 
   // Classify a pointer sequence as a tap (select) or a drag (camera pan).

@@ -971,3 +971,77 @@ describe('Feature 36: Characters are occluded by props, not drawn over them', ()
     assert.ok(/this\.world\.render\(this\.ctx\)/.test(fallback), 'the flat order must remain as a fallback');
   });
 });
+
+describe('Feature 37: Mouse zoom and drag panning', () => {
+  const CONFIG = path.join(REPO, 'services/lami-office-react/web/js/config.js');
+  const OFFICE = path.join(REPO, 'services/lami-office-react/web/js/office.js');
+
+  it('F37.1: with no explicit zoom the view reproduces the default fit', () => {
+    const harness = require('../harness');
+    const LO = harness.loadScriptIntoEnv(harness.createBrowserEnvironment(), 'config.js');
+    const v = LO.computeViewParams({ width: 1600, height: 838, topInset: 78 });
+    const contain = Math.min(1600 / LO.CONTENT_W, 760 / LO.CONTENT_H);
+    assert.ok(v.zoom >= contain - 1e-9 && v.zoom <= contain * LO.DESKTOP_ZOOM_CAP + 1e-9,
+      'the default must stay the capped focus fit');
+    assert.ok(typeof v.minZoom === 'number' && typeof v.maxZoom === 'number', 'a zoom range must be exposed');
+    assert.ok(v.minZoom < v.zoom && v.maxZoom > v.zoom, 'the default must sit inside the range');
+  });
+
+  it('F37.2: zooming keeps the content under the cursor pinned', () => {
+    const harness = require('../harness');
+    const env = harness.createBrowserEnvironment();
+    const LO = harness.loadScriptIntoEnv(env, 'config.js');
+    harness.loadScriptIntoEnv(env, 'sprites.js');
+    harness.loadScriptIntoEnv(env, 'world.js');
+    harness.loadScriptIntoEnv(env, 'office.js');
+    env.window.LO = LO;
+    LO.audio = new Proxy({}, { get: () => () => {} });
+    harness.loadScriptIntoEnv(env, 'agents.js');
+    env.window.innerWidth = 1600;
+    env.window.matchMedia = () => ({ matches: false });
+
+    const office = new LO.Office(env.document.createElement('canvas'));
+    office.canvas = { clientWidth: 1600, clientHeight: 760,
+      getBoundingClientRect: () => ({ left: 0, top: 0, width: 1600, height: 760 }) };
+    office.computeView();
+    const cx = 900, cy = 500;
+    const before = office.screenToWorld(cx, cy);
+    office.zoomAt(office.view.zoom * 2, cx, cy);
+    const after = office.screenToWorld(cx, cy);
+    const drift = Math.hypot(after.x - before.x, after.y - before.y);
+    assert.ok(drift < 1.5, `the tile under the cursor must stay put, drifted ${drift.toFixed(2)}px`);
+    assert.ok(office.view.zoom > 1, 'zooming in must increase the scale');
+  });
+
+  it('F37.3: zoom is clamped to the configured range', () => {
+    const harness = require('../harness');
+    const LO = harness.loadScriptIntoEnv(harness.createBrowserEnvironment(), 'config.js');
+    const base = LO.computeViewParams({ width: 1600, height: 838, topInset: 78 });
+    const tooFar = LO.computeViewParams({ width: 1600, height: 838, topInset: 78, zoom: base.zoom * 100 });
+    const tooNear = LO.computeViewParams({ width: 1600, height: 838, topInset: 78, zoom: 0.0001 });
+    assert.ok(Math.abs(tooFar.zoom - base.maxZoom) < 1e-9, 'zoom-in must stop at maxZoom');
+    assert.ok(Math.abs(tooNear.zoom - base.minZoom) < 1e-9, 'zoom-out must stop at minZoom');
+  });
+
+  it('F37.4: the wheel zooms on desktop and dragging pans', () => {
+    const office = fs.readFileSync(OFFICE, 'utf8');
+    assert.ok(/addEventListener\('wheel', onWheel, \{ passive: false \}\)/.test(office),
+      'desktop must handle the mouse wheel');
+    assert.ok(/if \(this\.isPhoneMode\(\)\) return;\s*\n\s*e\.preventDefault\(\)/.test(office),
+      'the wheel must not hijack phone scrolling');
+    const drag = office.slice(office.indexOf('const onPointerMove'), office.indexOf("this.canvas.addEventListener('pointermove', onHoverMove)"));
+    assert.ok(/if \(moved && !this\.isPhoneMode\(\)\)/.test(drag),
+      'desktop drag must pan the view');
+    assert.ok(/this\.zoomAt\(/.test(office) && /resetView\(\)/.test(office),
+      'zoom and reset helpers must exist');
+    const config = fs.readFileSync(CONFIG, 'utf8');
+    assert.ok(/LO\.DESKTOP_ZOOM_MIN = 0\.5/.test(config) && /LO\.DESKTOP_ZOOM_MAX = 4/.test(config));
+  });
+
+  it('F37.5: double-click returns to the fitted view', () => {
+    const office = fs.readFileSync(OFFICE, 'utf8');
+    const tap = office.slice(office.indexOf('if (now - lastTap < 320)'), office.indexOf('lastTap = now;'));
+    assert.ok(/if \(this\.isPhoneMode\(\)\) this\.resetCamera\(\);\s*\n\s*else this\.resetView\(\)/.test(tap),
+      'desktop double-click must reset the camera');
+  });
+});

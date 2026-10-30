@@ -76,6 +76,15 @@
       // Latest per-agent VM metrics (Server Room monitor), filled by net.js.
       this.vmResources = null;
       this.vmResourcesAt = 0;
+      // Desktop camera: explicit zoom/pan from the mouse. Null zoom means "the
+      // default fit"; the anchor keeps the point under the cursor pinned while
+      // zooming, and the offsets implement drag-panning.
+      this.viewZoom = null;
+      this.viewAnchorX = null;
+      this.viewAnchorY = null;
+      this.viewAnchorScreenX = null;
+      this.viewAnchorScreenY = null;
+      this.panOffset = { x: 0, y: 0 };
       // Offscreen canvas holding the static scene for depth-band compositing.
       this._scene = null;
       this._sceneCtx = null;
@@ -694,6 +703,19 @@
         const dx = p.x - dragStart.x;
         const dy = p.y - dragStart.y;
         if (Math.hypot(dx, dy) > (LO.TAP_MAX_DISTANCE || 8)) moved = true;
+        if (moved && !this.isPhoneMode()) {
+          // Desktop: drag the floorplan around. Convert the pixel delta into
+          // content pixels and anchor the view at the drag origin.
+          const zoom = this.view.zoom || 1;
+          const start = dragStart;
+          const anchorX = (start.x - this.view.offsetX) / zoom;
+          const anchorY = (start.y - this.view.offsetY) / zoom;
+          this.setViewAnchor(anchorX, anchorY);
+          this.viewZoom = zoom;
+          this.viewAnchorScreenX = p.x;
+          this.viewAnchorScreenY = p.y;
+          return;
+        }
         if (moved && this.isPhoneMode()) {
           const zoom = this.view.zoom || 1;
           this.camera.x = dragStart.camX - dx / zoom;
@@ -720,9 +742,10 @@
         if (moved || gesture !== 'tap') return;
 
         const now = Date.now();
-        if (this.isPhoneMode() && now - lastTap < 320) {
+        if (now - lastTap < 320) {
           lastTap = 0;
-          this.resetCamera();
+          if (this.isPhoneMode()) this.resetCamera();
+          else this.resetView();
           return;
         }
         lastTap = now;
@@ -739,6 +762,19 @@
         this.hoverTile = { x: p.x, y: p.y, col: p.x / LO.TILE_SIZE, row: p.y / LO.TILE_SIZE };
       };
       const onHoverLeave = () => { this.hoverTile = null; };
+
+      // Desktop wheel zoom, anchored on the pointer so the tile under the cursor
+      // stays put.
+      const onWheel = (e) => {
+        if (this.isPhoneMode()) return;
+        e.preventDefault();
+        const factor = Math.exp(-(e.deltaY || 0) * 0.0015);
+        const current = (this.view && this.view.zoom) || 1;
+        this.zoomAt(current * factor, e.clientX, e.clientY);
+      };
+      if (this.canvas.addEventListener) {
+        this.canvas.addEventListener('wheel', onWheel, { passive: false });
+      }
 
       this.canvas.addEventListener('pointermove', onHoverMove);
       this.canvas.addEventListener('pointerleave', onHoverLeave);
@@ -841,6 +877,38 @@
       this.camera.zoom = Math.min(ceil, Math.max(floor, zoom || base));
     }
 
+    // Anchor the current view at a content-space point.
+    setViewAnchor(x, y) {
+      this.viewAnchorX = x;
+      this.viewAnchorY = y;
+    }
+
+    // Zoom to `zoom` keeping the content point under (clientX, clientY) fixed.
+    zoomAt(zoom, clientX, clientY) {
+      const view = this.view || this.computeView();
+      const rect = this.canvas && this.canvas.getBoundingClientRect
+        ? this.canvas.getBoundingClientRect() : { left: 0, top: 0 };
+      const screenX = (clientX === undefined ? rect.width / 2 : clientX - rect.left);
+      const screenY = (clientY === undefined ? rect.height / 2 : clientY - rect.top);
+
+      const currentZoom = view.zoom || 1;
+      this.setViewAnchor((screenX - view.offsetX) / currentZoom, (screenY - view.offsetY) / currentZoom);
+      this.viewZoom = zoom;
+      this.viewAnchorScreenX = screenX;
+      this.viewAnchorScreenY = screenY;
+      this.computeView();
+    }
+
+    // Back to the default fitted view.
+    resetView() {
+      this.viewZoom = null;
+      this.viewAnchorX = null;
+      this.viewAnchorY = null;
+      this.viewAnchorScreenX = null;
+      this.viewAnchorScreenY = null;
+      this.computeView();
+    }
+
     reclampCamera() {
       if (!this.camera) return;
       this.camera.x = Math.min(LO.GRID_COLS, Math.max(0, this.camera.x));
@@ -938,9 +1006,14 @@
         drawerInset: this.drawerInset || 0,
         topInset: this.topInsetFor(h),
         cameraMode,
-        zoom: cameraMode ? (this.camera.zoom || null) : null,
+        // Desktop: the wheel/drag camera. Phones keep their own camera mode.
+        zoom: cameraMode ? (this.camera.zoom || null) : (this.viewZoom || null),
         focusX: this.camera.x,
-        focusY: this.camera.y
+        focusY: this.camera.y,
+        anchorX: this.viewAnchorX,
+        anchorY: this.viewAnchorY,
+        anchorScreenX: this.viewAnchorScreenX,
+        anchorScreenY: this.viewAnchorScreenY
       });
 
       // Keep legacy fields in sync for anything that still reads them.

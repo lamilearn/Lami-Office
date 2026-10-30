@@ -88,6 +88,11 @@ html, body {
   overscroll-behavior: none;
 }
 #office:active { cursor: grabbing; }
+/* The floorplan can be panned on desktop, so hint it. */
+@media (hover: hover) and (pointer: fine) {
+  #office { cursor: grab; }
+  #office:active { cursor: grabbing; }
+}
 
 /* ===== Unified HUD Header Bar ===== */
 #hud {
