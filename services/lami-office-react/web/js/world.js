@@ -410,6 +410,7 @@
 
     // ---- 7. 2D Furniture & Props ----
     drawAllFurniture(ctx, ts, theme) {
+      this.drawDecorProps(ctx, ts, theme);
       this.drawBossOffice(ctx, ts, theme);
       this.drawResearchLab(ctx, ts, theme);
       this.drawServerRoom(ctx, ts, theme);
@@ -417,6 +418,180 @@
       this.drawMeetingRoom(ctx, ts, theme);
       this.drawPantryLounge(ctx, ts, theme);
       this.drawElevatorLobby(ctx, ts, theme);
+    }
+
+    // Extra office props, driven by LO.DECOR_PROPS so the drawing and the
+    // collision grid stay in step. Flat pieces (rugs) are drawn under everything.
+    drawDecorProps(ctx, ts, theme) {
+      const props = LO.DECOR_PROPS || [];
+      for (const p of props) {
+        if (p.kind !== 'rug') continue;
+        this.drawDecorProp(ctx, ts, p, theme);
+      }
+      for (const p of props) {
+        if (p.kind === 'rug') continue;
+        this.drawDecorProp(ctx, ts, p, theme);
+      }
+    }
+
+    drawDecorProp(ctx, ts, p, theme) {
+      const x = p.x * ts;
+      const y = p.y * ts;
+      const w = (p.w || 1) * ts;
+      const h = (p.h || 1) * ts;
+      switch (p.kind) {
+        case 'rug': {
+          ctx.fillStyle = 'rgba(150, 84, 72, 0.22)';
+          ctx.fillRect(x, y, w, h);
+          ctx.strokeStyle = 'rgba(255, 210, 94, 0.5)';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(x + 2.5, y + 2.5, w - 5, h - 5);
+          break;
+        }
+        case 'plant': {
+          const cx = x + w / 2;
+          this.draw2DBlock(ctx, cx - 4, y + h - 8, 8, 8, 3, '#8d5a3b', '#6b4227');
+          ctx.fillStyle = '#2f8f5b';
+          ctx.beginPath();
+          ctx.ellipse(cx, y + h - 12, 7, 6, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#3fa96b';
+          ctx.beginPath();
+          ctx.ellipse(cx - 3, y + h - 14, 4, 4, 0, 0, Math.PI * 2);
+          ctx.fill();
+          break;
+        }
+        case 'bookshelf': {
+          this.draw2DBlock(ctx, x, y, w, h, 6, '#7a5233', '#5c3d26');
+          const colours = ['#c0392b', '#2980b9', '#f1c40f', '#27ae60', '#8e44ad'];
+          for (let i = 0; i < Math.floor(w / 5); i++) {
+            ctx.fillStyle = colours[i % colours.length];
+            ctx.fillRect(x + 3 + i * 5, y + 7, 3, Math.max(6, h - 9));
+          }
+          break;
+        }
+        case 'sideboard':
+        case 'cabinet': {
+          this.draw2DBlock(ctx, x, y, w, h, 8, '#9d7a58', '#7a5c40');
+          ctx.fillStyle = '#6d5138';
+          const doors = Math.max(1, Math.round(w / ts));
+          for (let d = 1; d < doors; d++) ctx.fillRect(x + d * ts - 0.5, y + 8, 1, h - 9);
+          break;
+        }
+        case 'floor_lamp': {
+          ctx.strokeStyle = '#5b4a3a';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(x + w / 2, y + h);
+          ctx.lineTo(x + w / 2, y + 4);
+          ctx.stroke();
+          ctx.fillStyle = '#ffe9a8';
+          ctx.beginPath();
+          ctx.arc(x + w / 2, y + 4, 4.5, 0, Math.PI * 2);
+          ctx.fill();
+          break;
+        }
+        case 'meeting_chairs': {
+          ctx.fillStyle = '#334155';
+          ctx.beginPath();
+          ctx.ellipse(x + w / 2, y + h - 5, 5, 4, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#475569';
+          ctx.beginPath();
+          ctx.ellipse(x + w / 2, y + h - 9, 5.5, 3, Math.PI, Math.PI * 2);
+          ctx.fill();
+          break;
+        }
+        case 'lab_bench': {
+          // Benchtop with a monitor, a rack of test tubes and a microscope.
+          this.draw2DBlock(ctx, x, y, w, h, 10, '#c9b79c', '#9d8a72');
+          ctx.fillStyle = '#1f2a3a';
+          ctx.fillRect(x + 4, y + 3, 12, 8);
+          ctx.fillStyle = '#7dd3fc';
+          ctx.fillRect(x + 6, y + 5, 8, 4);
+          for (let t = 0; t < 3; t++) {
+            ctx.fillStyle = ['#5eead4', '#fca5a5', '#fcd34d'][t];
+            ctx.fillRect(x + w - 22 + t * 5, y + 4, 3, 6);
+          }
+          ctx.fillStyle = '#94a3b8';
+          ctx.fillRect(x + w - 34, y + 6, 3, 6);
+          ctx.fillRect(x + w - 36, y + 10, 7, 2);
+          break;
+        }
+        case 'workstation': {
+          this.draw2DBlock(ctx, x, y, w, h, 10, '#b9a88f', '#8f7f68');
+          ctx.fillStyle = '#16202e';
+          ctx.fillRect(x + 3, y + 3, 14, 8);
+          ctx.fillStyle = '#38bdf8';
+          ctx.fillRect(x + 5, y + 5, 10, 4);
+          ctx.fillStyle = '#27313d';
+          ctx.fillRect(x + 8, y + 11, 4, 2);
+          break;
+        }
+        case 'dev_desk': {
+          // Two monitors and a keyboard: a proper dev station.
+          this.draw2DBlock(ctx, x, y, w, h, 10, '#8a7159', '#6b553f');
+          for (let m = 0; m < 2; m++) {
+            ctx.fillStyle = '#141c28';
+            ctx.fillRect(x + 4 + m * 16, y + 2, 13, 8);
+            ctx.fillStyle = m ? '#a3e635' : '#38bdf8';
+            ctx.fillRect(x + 6 + m * 16, y + 4, 9, 4);
+          }
+          ctx.fillStyle = '#3a4250';
+          ctx.fillRect(x + 6, y + 11, 20, 2);
+          break;
+        }
+        case 'whiteboard': {
+          ctx.fillStyle = '#f8fafc';
+          ctx.fillRect(x, y, w, h);
+          ctx.strokeStyle = '#94a3b8';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+          ctx.strokeStyle = '#3b82f6';
+          ctx.beginPath();
+          ctx.moveTo(x + 5, y + h - 5);
+          ctx.lineTo(x + w * 0.35, y + 5);
+          ctx.lineTo(x + w * 0.5, y + h - 4);
+          ctx.stroke();
+          ctx.fillStyle = '#f59e0b';
+          ctx.fillRect(x + w * 0.62, y + 5, 6, 4);
+          break;
+        }
+        case 'server_rack': {
+          this.draw2DBlock(ctx, x, y, w, h, 10, '#2c2738', '#1c1826');
+          for (let r = 0; r < 4; r++) {
+            ctx.fillStyle = Math.sin(this.timeSec * 6 + r) > 0 ? '#22c55e' : '#14532d';
+            ctx.fillRect(x + 2, y + 12 + r * 6, 3, 2);
+          }
+          break;
+        }
+        case 'crate': {
+          this.draw2DBlock(ctx, x + 2, y + 3, w - 4, h - 4, 8, '#b08968', '#8b6b4a');
+          ctx.strokeStyle = '#6d5138';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(x + 3, y + 4);
+          ctx.lineTo(x + w - 3, y + h - 3);
+          ctx.stroke();
+          break;
+        }
+        case 'dining_table': {
+          this.draw2DBlock(ctx, x, y, w, h, 12, '#d8b48c', '#b08f6a');
+          // Two cups on the table.
+          ctx.fillStyle = '#f8fafc';
+          ctx.fillRect(x + 8, y + 4, 5, 5);
+          ctx.fillRect(x + w - 14, y + 4, 5, 5);
+          break;
+        }
+        case 'counter': {
+          this.draw2DBlock(ctx, x, y, w, h, 12, '#cfd8dc', '#9aa6ac');
+          ctx.fillStyle = '#8d99a3';
+          ctx.fillRect(x + 3, y + 2, w - 6, 4);
+          break;
+        }
+        default:
+          this.draw2DBlock(ctx, x, y, w, h, 8, '#a1887f', '#7d6a62');
+      }
     }
 
     // Helper: 2D Block

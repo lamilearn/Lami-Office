@@ -1409,3 +1409,147 @@ describe('Feature 41: The boss chair reads as a chair', () => {
     assert.ok(/for \(let leg = 0; leg < 5; leg\+\+\)/.test(fn), 'the five-star base must be explicit');
   });
 });
+
+describe('Feature 42: Rooms are furnished like real offices', () => {
+  const CONFIG = path.join(REPO, 'services/lami-office-react/web/js/config.js');
+  const WORLD = path.join(REPO, 'services/lami-office-react/web/js/world.js');
+  const OFFICE = path.join(REPO, 'services/lami-office-react/web/js/office.js');
+  const ROOMS = ['boss', 'research', 'server', 'engineering', 'meeting', 'pantry'];
+
+  function LO() {
+    const harness = require('../harness');
+    return harness.loadScriptIntoEnv(harness.createBrowserEnvironment(), 'config.js');
+  }
+
+  it('F42.1: every room gained props, and none of them collide with anything', () => {
+    const cfg = LO();
+    const props = cfg.DECOR_PROPS || [];
+    assert.ok(props.length >= 30, `expected a furnished building, got ${props.length} props`);
+    for (const room of ROOMS) {
+      const own = props.filter((p) => p.room === room);
+      assert.ok(own.length >= 3, `${room} needs at least three extra props, got ${own.length}`);
+    }
+
+    // No prop may sit on a wall, leave its room, or overlap another prop/slot.
+    const taken = new Map();
+    const problems = [];
+    const claim = (x, y, who) => {
+      if (taken.has(`${x},${y}`)) problems.push(`${who} overlaps ${taken.get(`${x},${y}`)}`);
+      else taken.set(`${x},${y}`, who);
+    };
+    for (const p of props) {
+      const b = cfg.ROOMS[p.room].bounds;
+      for (let dy = 0; dy < (p.h || 1); dy++) {
+        for (let dx = 0; dx < (p.w || 1); dx++) {
+          const x = p.x + dx;
+          const y = p.y + dy;
+          if (x < b.x1 || x > b.x2 || y < b.y1 || y > b.y2) problems.push(`${p.kind} outside ${p.room}`);
+          claim(x, y, `${p.kind}@${p.x},${p.y}`);
+        }
+      }
+    }
+    for (const [room, list] of Object.entries(cfg.SLOTS)) {
+      if (room === 'coding') continue;
+      for (const seat of list) {
+        if (taken.has(`${seat.x},${seat.y}`)) problems.push(`seat ${room} blocked`);
+      }
+    }
+    assert.deepStrictEqual(problems, []);
+  });
+
+  it('F42.2: solid props block movement, decorations do not', () => {
+    const harness = require('../harness');
+    const env = harness.createBrowserEnvironment();
+    const cfg = harness.loadScriptIntoEnv(env, 'config.js');
+    harness.loadScriptIntoEnv(env, 'sprites.js');
+    harness.loadScriptIntoEnv(env, 'world.js');
+    harness.loadScriptIntoEnv(env, 'office.js');
+    env.window.LO = cfg;
+    LO_audio(env);
+    harness.loadScriptIntoEnv(env, 'agents.js');
+    const office = Object.create(cfg.Office.prototype);
+    office.world = new cfg.World();
+    const grid = office.buildCollisionGrid();
+
+    for (const p of cfg.DECOR_PROPS) {
+      for (let dy = 0; dy < (p.h || 1); dy++) {
+        for (let dx = 0; dx < (p.w || 1); dx++) {
+          const solid = grid[p.y + dy][p.x + dx] === 1;
+          assert.strictEqual(solid, Boolean(p.solid),
+            `${p.kind}@${p.x},${p.y} solid=${solid}, expected ${Boolean(p.solid)}`);
+        }
+      }
+    }
+  });
+
+  it('F42.3: every seat and routine spot is still reachable from the door', () => {
+    const harness = require('../harness');
+    const env = harness.createBrowserEnvironment();
+    const cfg = harness.loadScriptIntoEnv(env, 'config.js');
+    harness.loadScriptIntoEnv(env, 'sprites.js');
+    harness.loadScriptIntoEnv(env, 'world.js');
+    harness.loadScriptIntoEnv(env, 'office.js');
+    env.window.LO = cfg;
+    LO_audio(env);
+    harness.loadScriptIntoEnv(env, 'agents.js');
+    const office = Object.create(cfg.Office.prototype);
+    office.world = new cfg.World();
+    const grid = office.buildCollisionGrid();
+    const door = { x: cfg.DOOR_COL, y: cfg.DOOR_ROW };
+
+    const spots = [];
+    for (const [room, list] of Object.entries(cfg.SLOTS)) {
+      if (room === 'coding') continue;
+      for (const s of list) spots.push([room, s.x, s.y]);
+    }
+    for (const r of (cfg.LAMI_ROUTINES || [])) spots.push(['lami', r.col, r.row]);
+    for (const [room, list] of Object.entries(cfg.ROOM_ROUTINES || {})) {
+      for (const r of list) spots.push([room, r.col, r.row]);
+    }
+
+    const unreachable = spots.filter(([, x, y]) => {
+      if (grid[y][x] !== 0) return true;
+      return !cfg.findOrthogonalPath(door, { x, y }, grid);
+    });
+    assert.deepStrictEqual(unreachable, [], 'furniture must never wall anyone off');
+  });
+
+  it('F42.4: every prop kind actually draws something', () => {
+    const harness = require('../harness');
+    const env = harness.createBrowserEnvironment();
+    const cfg = harness.loadScriptIntoEnv(env, 'config.js');
+    harness.loadScriptIntoEnv(env, 'sprites.js');
+    harness.loadScriptIntoEnv(env, 'world.js');
+    env.window.LO = cfg;
+    cfg.office = { contextUsage: 0.42, vmPanelVisible: () => false, hoveredRack: () => -1, vmResources: null };
+    const world = new cfg.World();
+    const kinds = [...new Set(cfg.DECOR_PROPS.map((p) => p.kind))];
+    const empty = [];
+    for (const kind of kinds) {
+      const ctx = env.document.createElement('canvas').getContext('2d');
+      world.drawDecorProp(ctx, 16, cfg.DECOR_PROPS.find((p) => p.kind === kind), { type: 'day' });
+      if (ctx.drawCalls.length === 0) empty.push(kind);
+    }
+    assert.ok(kinds.length >= 10, `expected a varied prop set, got ${kinds.length} kinds`);
+    assert.deepStrictEqual(empty, [], 'no prop kind may render nothing');
+  });
+
+  it('F42.5: the renderer and the server both know the new props', () => {
+    const world = fs.readFileSync(WORLD, 'utf8');
+    assert.ok(/drawDecorProps\(ctx, ts, theme\)/.test(world), 'props must be drawn');
+    assert.ok(/LO\.DECOR_PROPS/.test(world), 'the renderer must read the shared list');
+    const office = fs.readFileSync(OFFICE, 'utf8');
+    assert.ok(/LO\.DECOR_PROPS \|\| \[\]/.test(office), 'solid props must join the collision grid');
+    const server = fs.readFileSync(path.join(REPO, 'services/lami-office-react/world.py'), 'utf8');
+    assert.ok(/DECOR_PROPS = \[/.test(server), 'the simulation needs the same props');
+    assert.ok(/for obs in DECOR_PROPS/.test(server), 'the server grid must apply them');
+    const sync = fs.readFileSync(path.join(REPO, 'scripts/check_world_sync.py'), 'utf8');
+    assert.ok(/decorProps/.test(sync), 'the drift check must compare them');
+  });
+
+  function LO_audio(env) {
+    env.window.LO.audio = new Proxy({}, { get: () => () => {} });
+    env.window.LO.ui = { updateStaffCount() {}, addTicker() {}, appendChatMessage() {},
+      triggerEventBanner() {}, setStatus() {}, recordDone() {}, setOfficeStatus() {}, setRoster() {} };
+  }
+});

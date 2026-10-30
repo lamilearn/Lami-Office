@@ -253,7 +253,13 @@
         { x: 74, y: 28, w: 1, h: 1, name: 'Water Cooler' },
         { x: 63, y: 33, w: 6, h: 1, name: 'Teal Lounge Sofa' },
         { x: 68, y: 36, w: 3, h: 1, name: 'Coffee Table' },
-        { x: 78, y: 33, w: 3, h: 2, name: 'Snack Vending Machine' }
+        { x: 78, y: 33, w: 3, h: 2, name: 'Snack Vending Machine' },
+
+        // Extra props declared in LO.DECOR_PROPS: anything marked solid blocks
+        // movement, so the drawing and the collision grid can never disagree.
+        ...(LO.DECOR_PROPS || [])
+          .filter((p) => p.solid)
+          .map((p) => ({ x: p.x, y: p.y, w: p.w || 1, h: p.h || 1, name: `Decor ${p.kind}` }))
       ];
     }
 

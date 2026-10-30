@@ -18,6 +18,57 @@
   // to its own canvas for depth-band compositing.
   LO.SCENE_TOP_PAD = 32;
 
+  // Extra office props drawn in each room. Declared once here so the renderer
+  // and the collision grid (office.js getFurnitureObstacles) can never disagree:
+  // anything with `solid: true` is also an obstacle.
+  LO.DECOR_PROPS = [
+    // --- Boss Office (x2..27, y3..18): executive seating + storage
+    { room: 'boss', kind: 'meeting_chairs', x: 9,  y: 10, w: 1, h: 1, solid: true },
+    { room: 'boss', kind: 'meeting_chairs', x: 19, y: 10, w: 1, h: 1, solid: true },
+    { room: 'boss', kind: 'bookshelf',      x: 2,  y: 12, w: 2, h: 1, solid: true },
+    { room: 'boss', kind: 'sideboard',      x: 24, y: 12, w: 3, h: 1, solid: true },
+    { room: 'boss', kind: 'floor_lamp',     x: 25, y: 16, w: 1, h: 1, solid: true },
+    { room: 'boss', kind: 'plant',          x: 3,  y: 17, w: 1, h: 1, solid: true },
+    { room: 'boss', kind: 'rug',            x: 11, y: 11, w: 7, h: 4, solid: false },
+
+    // --- Research Lab (x30..55, y3..18): computer lab + bench
+    { room: 'research', kind: 'lab_bench',  x: 34, y: 6,  w: 3, h: 1, solid: true },
+    { room: 'research', kind: 'lab_bench',  x: 40, y: 6,  w: 3, h: 1, solid: true },
+    { room: 'research', kind: 'lab_bench',  x: 46, y: 6,  w: 3, h: 1, solid: true },
+    { room: 'research', kind: 'workstation', x: 30, y: 12, w: 2, h: 1, solid: true },
+    { room: 'research', kind: 'workstation', x: 38, y: 12, w: 2, h: 1, solid: true },
+    { room: 'research', kind: 'workstation', x: 46, y: 12, w: 2, h: 1, solid: true },
+    { room: 'research', kind: 'whiteboard', x: 44, y: 16, w: 4, h: 1, solid: true },
+    { room: 'research', kind: 'plant',      x: 54, y: 16, w: 1, h: 1, solid: true },
+    { room: 'research', kind: 'cabinet',    x: 34, y: 17, w: 2, h: 1, solid: true },
+
+    // --- Server Room: extra infrastructure
+    { room: 'server', kind: 'server_rack',  x: 60, y: 12, w: 2, h: 2, solid: true },
+    { room: 'server', kind: 'server_rack',  x: 80, y: 12, w: 2, h: 2, solid: true },
+    { room: 'server', kind: 'crate',        x: 82, y: 4,  w: 1, h: 1, solid: true },
+    { room: 'server', kind: 'crate',        x: 59, y: 4,  w: 1, h: 1, solid: true },
+
+    // --- Engineering Pit (x2..27, y24..39): dev desks + storage
+    { room: 'engineering', kind: 'dev_desk', x: 18, y: 26, w: 3, h: 1, solid: true },
+    { room: 'engineering', kind: 'dev_desk', x: 4,  y: 35, w: 3, h: 1, solid: true },
+    { room: 'engineering', kind: 'dev_desk', x: 11, y: 35, w: 3, h: 1, solid: true },
+    { room: 'engineering', kind: 'cabinet',  x: 23, y: 34, w: 2, h: 1, solid: true },
+    { room: 'engineering', kind: 'plant',    x: 2,  y: 38, w: 1, h: 1, solid: true },
+    { room: 'engineering', kind: 'whiteboard', x: 17, y: 38, w: 4, h: 1, solid: true },
+
+    // --- Meeting Room: side furniture
+    { room: 'meeting', kind: 'sideboard', x: 50, y: 25, w: 3, h: 1, solid: true },
+    { room: 'meeting', kind: 'plant',     x: 31, y: 25, w: 1, h: 1, solid: true },
+    { room: 'meeting', kind: 'plant',     x: 54, y: 38, w: 1, h: 1, solid: true },
+    { room: 'meeting', kind: 'cabinet',   x: 30, y: 34, w: 2, h: 1, solid: true },
+
+    // --- Pantry: the rest of the kitchen
+    { room: 'pantry', kind: 'dining_table', x: 66, y: 30, w: 3, h: 2, solid: true },
+    { room: 'pantry', kind: 'counter',      x: 60, y: 31, w: 4, h: 1, solid: true },
+    { room: 'pantry', kind: 'plant',        x: 82, y: 38, w: 1, h: 1, solid: true },
+    { room: 'pantry', kind: 'cabinet',      x: 59, y: 38, w: 2, h: 1, solid: true }
+  ];
+
   // The five server racks in the Server Room, one per real agent (the roster is
   // ordered lami, yuna, aurora, kira, cyro). Tile geometry, shared by the
   // renderer and the hover hit-test so the two can never drift apart.
