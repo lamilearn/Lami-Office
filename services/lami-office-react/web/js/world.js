@@ -743,7 +743,14 @@
 
     drawVmMonitor(ctx, ts) {
       const office = (typeof window !== 'undefined') ? window.LO?.office : null;
-      const data = office ? office.vmResources : null;
+      if (!office) return;
+      // Revealed on hover over the Server Room (or pinned by a tap on touch), so
+      // the monitor does not cover the room the rest of the time.
+      if (typeof office.vmPanelVisible === 'function' && !office.vmPanelVisible()) {
+        this.drawVmMonitorHint(ctx, ts, office);
+        return;
+      }
+      const data = office.vmResources;
       const agents = (data && Array.isArray(data.agents)) ? data.agents : [];
 
       const x = 58 * ts + 4;
@@ -814,6 +821,23 @@
           ctx.fillText('--', memX + barW + 4, ry + 8);
         }
       });
+    }
+
+    // Small affordance so the monitor is discoverable when it is hidden.
+    drawVmMonitorHint(ctx, ts, office) {
+      const has = office && office.vmResources && Array.isArray(office.vmResources.agents)
+        && office.vmResources.agents.length > 0;
+      const x = 58 * ts + 6;
+      const y = 9.1 * ts + 2;
+      ctx.fillStyle = 'rgba(11, 16, 32, 0.72)';
+      ctx.fillRect(x, y, 62, 11);
+      ctx.strokeStyle = 'rgba(125, 211, 252, 0.55)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x + 0.5, y + 0.5, 61, 10);
+      ctx.fillStyle = has ? '#7dd3fc' : '#64748b';
+      ctx.font = '5px "Press Start 2P", monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText('VM INFO', x + 5, y + 8);
     }
 
     // Interactive Prop: Multi-Mode Whiteboard

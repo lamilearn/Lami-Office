@@ -806,3 +806,54 @@ print(json.dumps({
     assert.ok(/METRICS_PORT/.test(service) && /AGENT_ID/.test(service));
   });
 });
+
+describe('Feature 35: The Server Room monitor is revealed on hover', () => {
+  const WORLD = path.join(REPO, 'services/lami-office-react/web/js/world.js');
+  const OFFICE = path.join(REPO, 'services/lami-office-react/web/js/office.js');
+
+  function renderTexts(visible) {
+    const harness = require('../harness');
+    const env = harness.createBrowserEnvironment();
+    const LO = harness.loadScriptIntoEnv(env, 'config.js');
+    harness.loadScriptIntoEnv(env, 'sprites.js');
+    harness.loadScriptIntoEnv(env, 'world.js');
+    env.window.LO = LO;
+    env.window.LO.office = {
+      vmResources: { agents: [
+        { id: 'lami', name: 'Lami', icon: 'L', online: true, has_metrics: true, cpu_percent: 50, mem_percent: 40 }
+      ] },
+      vmPanelVisible: () => visible
+    };
+    const ctx = env.document.createElement('canvas').getContext('2d');
+    new LO.World().drawVmMonitor(ctx, 16);
+    return ctx.drawCalls.filter((c) => c.type === 'fillText').map((c) => c.text);
+  }
+
+  it('F35.1: the full panel only renders while the room is hovered', () => {
+    const hidden = renderTexts(false);
+    const shown = renderTexts(true);
+    // Regression: the monitor used to be drawn every frame, covering the room.
+    assert.ok(!hidden.includes('VM RESOURCES'), 'the panel must be hidden without hover');
+    assert.ok(hidden.includes('VM INFO'), 'a small hint must remain so it is discoverable');
+    assert.ok(shown.includes('VM RESOURCES'), 'hovering the room must reveal the panel');
+    assert.ok(shown.includes('CPU') && shown.includes('50%'), 'the real numbers must render');
+  });
+
+  it('F35.2: hover is tracked in tile space and scoped to the server room', () => {
+    const office = fs.readFileSync(OFFICE, 'utf8');
+    assert.ok(/this\.hoverTile = \{/.test(office), 'the pointer position must be tracked');
+    assert.ok(/pointerleave/.test(office), 'leaving the canvas must clear the hover');
+    assert.ok(/vmPanelVisible\(\)/.test(office), 'the visibility rule must live on the office');
+    const fn = office.slice(office.indexOf('    vmPanelVisible() {'), office.indexOf('    // ---- Server-authoritative world'));
+    assert.ok(/LO\.ROOMS\.server\.bounds/.test(fn), 'the rule must use the server room bounds');
+    assert.ok(/col >= room\.x1/.test(fn) && /row <= room\.y2/.test(fn), 'hover must be inside the room');
+  });
+
+  it('F35.3: a tap pins the panel for devices without hover', () => {
+    const office = fs.readFileSync(OFFICE, 'utf8');
+    assert.ok(/this\.vmPanelPinned = !this\.vmPanelPinned/.test(office),
+      'tapping the server room floor must toggle the pinned state');
+    const fn = office.slice(office.indexOf('    vmPanelVisible() {'), office.indexOf('    // ---- Server-authoritative world'));
+    assert.ok(/if \(this\.vmPanelPinned\) return true/.test(fn), 'pinned must win over hover');
+  });
+});

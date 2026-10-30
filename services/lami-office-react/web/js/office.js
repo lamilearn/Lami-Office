@@ -76,6 +76,11 @@
       // Latest per-agent VM metrics (Server Room monitor), filled by net.js.
       this.vmResources = null;
       this.vmResourcesAt = 0;
+      // Pointer position in tile space, used to reveal the Server Room's VM
+      // monitor on hover. `vmPanelPinned` keeps it open after a tap on touch
+      // devices, which have no hover at all.
+      this.hoverTile = null;
+      this.vmPanelPinned = false;
       // True once a world frame has positioned everybody (the first frame snaps,
       // later frames ease). Reset only on a full page load, never on reconnect.
       this.worldPlaced = false;
@@ -573,6 +578,19 @@
           }
         }
 
+        // 1b. Server Room floor: on touch there is no hover, so a tap pins the
+        // VM monitor open (and taps it closed again).
+        const room = LO.ROOMS && LO.ROOMS.server && LO.ROOMS.server.bounds;
+        if (room) {
+          const tileX = canvasX / LO.TILE_SIZE;
+          const tileY = canvasY / LO.TILE_SIZE;
+          if (tileX >= room.x1 && tileX <= room.x2 && tileY >= room.y1 && tileY <= room.y2) {
+            this.vmPanelPinned = !this.vmPanelPinned;
+            LO.audio.pop();
+            return true;
+          }
+        }
+
         // 2. Interactive Props in 2D Plane
         const props = LO.PROPS || {};
 
@@ -710,6 +728,17 @@
         activateAt(p.clientX, p.clientY);
       };
 
+      // Hover tracking (independent of dragging): the Server Room monitor only
+      // appears while the pointer is inside that room.
+      const onHoverMove = (e) => {
+        const p = toWorld(e.clientX, e.clientY);
+        if (!p) return;
+        this.hoverTile = { x: p.x, y: p.y, col: p.x / LO.TILE_SIZE, row: p.y / LO.TILE_SIZE };
+      };
+      const onHoverLeave = () => { this.hoverTile = null; };
+
+      this.canvas.addEventListener('pointermove', onHoverMove);
+      this.canvas.addEventListener('pointerleave', onHoverLeave);
       this.canvas.addEventListener('pointerdown', onPointerDown);
       this.canvas.addEventListener('pointermove', onPointerMove);
       this.canvas.addEventListener('pointerup', onPointerUp);
@@ -1130,6 +1159,16 @@
         LO.ui.addTicker('👑', 'Mode <b>Lami Corp AI</b> diaktifkan kembali.');
         LO.ui.appendChatMessage('Boss Lami', 'CEO', 'Selamat datang kembali di Lami Corp AI! Semangat kerjanya tim 👑✨', '👑', '#ffd25e');
       }
+    }
+
+    // True when the Server Room's VM monitor should be drawn.
+    vmPanelVisible() {
+      const room = LO.ROOMS && LO.ROOMS.server && LO.ROOMS.server.bounds;
+      if (!room) return false;
+      if (this.vmPanelPinned) return true;
+      const h = this.hoverTile;
+      if (!h) return false;
+      return h.col >= room.x1 && h.col <= room.x2 && h.row >= room.y1 && h.row <= room.y2;
     }
 
     // ---- Server-authoritative world (live mode) ------------------------------
