@@ -606,29 +606,64 @@
 
     // Specific Room 3: Server Room (interior X: 58..83, Y: 3..18)
     drawServerRoom(ctx, ts, theme) {
-      // Glowing raised-floor cable duct down the aisle
-      ctx.fillStyle = 'rgba(56, 189, 248, 0.12)';
-      ctx.fillRect(69 * ts, 4 * ts, 3 * ts, 12 * ts);
-      ctx.strokeStyle = '#38bdf8';
+      const office = (typeof window !== 'undefined') ? window.LO?.office : null;
+      const agents = (office && office.vmResources && Array.isArray(office.vmResources.agents))
+        ? office.vmResources.agents : [];
+      const hovered = office && typeof office.hoveredRack === 'function' ? office.hoveredRack() : -1;
+
+      // Cable tray along the floor, below the racks.
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.10)';
+      ctx.fillRect(59 * ts, 9 * ts, 24 * ts, 1.4 * ts);
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
       ctx.lineWidth = 0.8;
-      ctx.strokeRect(69 * ts + 0.5, 4 * ts + 0.5, 3 * ts - 1, 12 * ts - 1);
+      ctx.strokeRect(59 * ts + 0.5, 9 * ts + 0.5, 24 * ts - 1, 1.4 * ts - 1);
 
-      // 4 Dark Server Racks (X: 63, 69, 75, 81 @ Y: 6..7)
-      [63, 69, 75, 81].forEach((rx, idx) => {
-        const xPx = rx * ts, yPx = 6 * ts;
-        this.draw2DBlock(ctx, xPx, yPx, (idx === 3 ? 2 : 3) * ts, 2 * ts, 10, '#2c2738', '#1c1826');
+      // One rack per real agent: the rack carries its owner's name and live status.
+      (LO.VM_RACKS || []).forEach((rack, idx) => {
+        const agent = agents[idx] || null;
+        const online = agent ? agent.online !== false : false;
+        const accent = (agent && agent.color) || '#38bdf8';
+        const xPx = rack.x * ts;
+        const yPx = rack.y * ts;
+        const wPx = rack.w * ts;
+        const hPx = rack.h * ts;
 
+        this.draw2DBlock(ctx, xPx, yPx, wPx, hPx, 10, '#2c2738', '#1c1826',
+          idx === hovered ? accent : '#2d2438');
+
+        // Owner's colour stripe on the top face.
+        ctx.fillStyle = online ? accent : '#4b5563';
+        ctx.fillRect(xPx + 2, yPx + 2, wPx - 4, 3);
+
+        // Blinking status LEDs, tinted by the owner.
         for (let row = 0; row < 3; row++) {
           const ly = yPx + 10 + row * 6;
           const b1 = Math.sin(this.timeSec * 8 + idx + row) > 0;
           const b2 = Math.sin(this.timeSec * 5 + idx * 1.5 + row) > 0;
-          ctx.fillStyle = b1 ? '#2ecc71' : '#145a32';
+          ctx.fillStyle = b1 ? (online ? '#2ecc71' : '#145a32') : '#145a32';
           ctx.fillRect(xPx + 5, ly, 3, 2);
-          ctx.fillStyle = b2 ? '#38bdf8' : '#0369a1';
+          ctx.fillStyle = b2 ? accent : '#334155';
           ctx.fillRect(xPx + 11, ly, 3, 2);
           ctx.fillStyle = !b1 ? '#f59e0b' : '#78350f';
           ctx.fillRect(xPx + 17, ly, 3, 2);
         }
+
+        // Owner label under the rack, so each server is identifiable.
+        const label = agent ? String(agent.name || agent.id).slice(0, 8).toUpperCase() : '--';
+        ctx.font = '5px "Press Start 2P", monospace';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = 'rgba(11, 16, 32, 0.78)';
+        const lw = Math.max(wPx, 34);
+        ctx.fillRect(xPx + wPx / 2 - lw / 2, yPx + hPx + 1, lw, 8);
+        ctx.fillStyle = agent ? accent : '#64748b';
+        ctx.fillText(label, xPx + wPx / 2, yPx + hPx + 7);
+
+        // A dot marks reachability at a glance.
+        ctx.fillStyle = online ? '#22c55e' : '#ef4444';
+        ctx.beginPath();
+        ctx.arc(xPx + wPx - 4, yPx + 4, 1.6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.textAlign = 'left';
       });
 
       // Mainframe Ops Console Desk (X: 66..71, Y: 14)
@@ -736,26 +771,96 @@
       return '#2ecc71';
     }
 
-    drawVmMonitor(ctx, ts) {
+    // Resource read-out for the racks. A hovered (or tapped) rack shows that one
+    // agent in detail; the HUD chip pins the overview of all five. Numbers come
+    // from each agent's own metrics endpoint (deploy/metrics_agent.py) and a host
+    // that does not report shows "--" instead of a fabricated gauge.
+    renderVmMonitor(ctx, ts) {
       const office = (typeof window !== 'undefined') ? window.LO?.office : null;
       if (!office) return;
-      // Revealed on hover over the Server Room (or pinned by a tap on touch), so
-      // the monitor does not cover the room the rest of the time.
-      if (typeof office.vmPanelVisible === 'function' && !office.vmPanelVisible()) {
-        this.drawVmMonitorHint(ctx, ts, office);
-        return;
-      }
+      if (typeof office.vmPanelVisible === 'function' && !office.vmPanelVisible()) return;
+
       const data = office.vmResources;
       const agents = (data && Array.isArray(data.agents)) ? data.agents : [];
+      if (!agents.length) return;
 
+      const pinnedRack = (typeof office.vmPinnedRack === 'number') ? office.vmPinnedRack : -1;
+      const hoveredRack = (typeof office.hoveredRack === 'function') ? office.hoveredRack() : -1;
+      const single = pinnedRack >= 0 ? pinnedRack : hoveredRack;
+
+      if (single >= 0 && LO.VM_RACKS && LO.VM_RACKS[single]) {
+        this.drawRackPanel(ctx, ts, agents[single], LO.VM_RACKS[single]);
+        return;
+      }
+      this.drawVmOverview(ctx, ts, agents);
+    }
+
+    // Detail card for one rack, placed directly under it.
+    drawRackPanel(ctx, ts, agent, rack) {
+      const w = 150;
+      const h = 58;
+      let x = Math.round((rack.x + rack.w / 2) * ts - w / 2);
+      let y = Math.round((rack.y + rack.h) * ts + 11);
+      x = Math.max(58 * ts + 2, Math.min(x, 84 * ts - w - 2));
+      y = Math.min(y, 18 * ts - h - 2);
+
+      ctx.fillStyle = 'rgba(9, 13, 26, 0.95)';
+      ctx.fillRect(x, y, w, h);
+      ctx.strokeStyle = (agent && agent.color) || '#38bdf8';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+
+      ctx.font = '5px "Press Start 2P", monospace';
+      ctx.textAlign = 'left';
+
+      const has = Boolean(agent && agent.has_metrics);
+      const online = Boolean(agent && agent.online !== false);
+
+      ctx.fillStyle = (agent && agent.color) || '#7dd3fc';
+      ctx.fillText(`${(agent && agent.icon) || ''} ${String((agent && agent.name) || 'agent').slice(0, 9)}`,
+        x + 5, y + 11);
+      ctx.fillStyle = online ? '#22c55e' : '#ef4444';
+      ctx.fillText(online ? 'ONLINE' : 'OFFLINE', x + w - 46, y + 11);
+
+      const rows = [
+        ['CPU', agent && agent.cpu_percent, agent && agent.cpu_cores ? `${agent.cpu_cores} core` : ''],
+        ['RAM', agent && agent.mem_percent,
+          agent && agent.mem_used_mb != null ? `${agent.mem_used_mb}MB` : ''],
+        ['DISK', agent && agent.disk_percent,
+          agent && agent.disk_used_gb != null ? `${agent.disk_used_gb}GB` : '']
+      ];
+      const barX = x + 34;
+      const barW = 74;
+      rows.forEach(([label, pct], i) => {
+        const ry = y + 21 + i * 11;
+        ctx.fillStyle = '#64748b';
+        ctx.fillText(label, x + 5, ry + 7);
+        ctx.fillStyle = '#1e293b';
+        ctx.fillRect(barX, ry + 1, barW, 7);
+        if (has && pct != null) {
+          ctx.fillStyle = this.staticGaugeColor(pct);
+          ctx.fillRect(barX, ry + 1, Math.max(1, (barW * Math.min(100, pct)) / 100), 7);
+          ctx.fillStyle = '#cbd5e1';
+          ctx.fillText(`${Math.round(pct)}%`, barX + barW + 4, ry + 7);
+        } else {
+          ctx.fillStyle = '#64748b';
+          ctx.fillText('--', barX + barW + 4, ry + 7);
+        }
+      });
+
+      ctx.fillStyle = '#64748b';
+      ctx.fillText(String((agent && agent.host) || '').slice(0, 22), x + 5, y + h - 4);
+    }
+
+    // Overview of every agent, used by the HUD "VM INFO" chip.
+    drawVmOverview(ctx, ts, agents) {
       const x = 58 * ts + 4;
-      const y = 9.1 * ts;
+      const y = 9.4 * ts;
       const w = 25 * ts - 8;
-      const rowH = 13;
+      const rowH = 12;
       const h = 14 + Math.max(agents.length, 1) * rowH;
 
-      // Bezel + screen
-      ctx.fillStyle = '#0b1020';
+      ctx.fillStyle = 'rgba(9, 13, 26, 0.95)';
       ctx.fillRect(x, y, w, h);
       ctx.strokeStyle = '#334155';
       ctx.lineWidth = 1;
@@ -766,86 +871,30 @@
       ctx.fillStyle = '#7dd3fc';
       ctx.fillText('VM RESOURCES', x + 4, y + 9);
 
-      if (!agents.length) {
-        ctx.fillStyle = '#64748b';
-        ctx.fillText('menunggu metrik agent...', x + 4, y + 22);
-        return;
-      }
-
-      const barW = 84;
-      const cpuX = x + 96;
-      const memX = x + 96 + barW + 46;
-
+      const barW = 74;
+      const cpuX = x + 108;
+      const memX = cpuX + barW + 44;
       agents.slice(0, 6).forEach((a, i) => {
         const ry = y + 14 + i * rowH;
-        const online = a.online !== false;
         const has = Boolean(a.has_metrics);
-
-        // name
-        ctx.fillStyle = online ? '#e2e8f0' : '#64748b';
-        const label = `${a.icon || '•'} ${String(a.name || a.id || '?').slice(0, 8)}`;
-        ctx.fillText(label, x + 4, ry + 8);
-
-        // CPU
-        ctx.fillStyle = '#64748b';
-        ctx.fillText('CPU', cpuX - 22, ry + 8);
-        ctx.fillStyle = '#1e293b';
-        ctx.fillRect(cpuX, ry + 2, barW, 7);
-        if (has && a.cpu_percent != null) {
-          ctx.fillStyle = this.staticGaugeColor(a.cpu_percent);
-          ctx.fillRect(cpuX, ry + 2, Math.max(1, (barW * Math.min(100, a.cpu_percent)) / 100), 7);
-          ctx.fillStyle = '#cbd5e1';
-          ctx.fillText(`${Math.round(a.cpu_percent)}%`, cpuX + barW + 4, ry + 8);
-        } else {
+        ctx.fillStyle = a.online === false ? '#64748b' : '#e2e8f0';
+        ctx.fillText(`${a.icon || '•'} ${String(a.name || a.id).slice(0, 7)}`, x + 4, ry + 8);
+        [['CPU', a.cpu_percent, cpuX], ['RAM', a.mem_percent, memX]].forEach(([label, pct, bx]) => {
           ctx.fillStyle = '#64748b';
-          ctx.fillText('--', cpuX + barW + 4, ry + 8);
-        }
-
-        // RAM
-        ctx.fillStyle = '#64748b';
-        ctx.fillText('RAM', memX - 22, ry + 8);
-        ctx.fillStyle = '#1e293b';
-        ctx.fillRect(memX, ry + 2, barW, 7);
-        if (has && a.mem_percent != null) {
-          ctx.fillStyle = this.staticGaugeColor(a.mem_percent);
-          ctx.fillRect(memX, ry + 2, Math.max(1, (barW * Math.min(100, a.mem_percent)) / 100), 7);
-          ctx.fillStyle = '#cbd5e1';
-          ctx.fillText(`${Math.round(a.mem_percent)}%`, memX + barW + 4, ry + 8);
-        } else {
-          ctx.fillStyle = '#64748b';
-          ctx.fillText('--', memX + barW + 4, ry + 8);
-        }
+          ctx.fillText(label, bx - 22, ry + 8);
+          ctx.fillStyle = '#1e293b';
+          ctx.fillRect(bx, ry + 2, barW, 7);
+          if (has && pct != null) {
+            ctx.fillStyle = this.staticGaugeColor(pct);
+            ctx.fillRect(bx, ry + 2, Math.max(1, (barW * Math.min(100, pct)) / 100), 7);
+            ctx.fillStyle = '#cbd5e1';
+            ctx.fillText(`${Math.round(pct)}%`, bx + barW + 4, ry + 8);
+          } else {
+            ctx.fillStyle = '#64748b';
+            ctx.fillText('--', bx + barW + 4, ry + 8);
+          }
+        });
       });
-    }
-
-    // Wall monitor: live CPU/RAM per agent VM. Drawn after the characters
-    // (see Office.render) because the panel hangs in the middle of the room
-    // where people walk - inside the depth-sorted scene they walked over it.
-    // Numbers come from each agent's metrics endpoint (deploy/metrics_agent.py);
-    // a host that does not report shows "--" instead of a fabricated gauge.
-    renderVmMonitor(ctx, ts) {
-      this.drawVmMonitor(ctx, ts);
-    }
-
-    // Small affordance so the monitor is discoverable when it is hidden.
-    drawVmMonitorHint(ctx, ts, office) {
-      const has = office && office.vmResources && Array.isArray(office.vmResources.agents)
-        && office.vmResources.agents.length > 0;
-      // Geometry comes from config.js (LO.VM_INFO_CHIP) so the drawn chip and the
-      // hover/tap target can never disagree.
-      const chip = LO.VM_INFO_CHIP;
-      if (!chip) return;
-      const x = chip.x;
-      const y = chip.y;
-      ctx.fillStyle = 'rgba(11, 16, 32, 0.72)';
-      ctx.fillRect(x, y, chip.w, chip.h);
-      ctx.strokeStyle = 'rgba(125, 211, 252, 0.55)';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(x + 0.5, y + 0.5, chip.w - 1, chip.h - 1);
-      ctx.fillStyle = has ? '#7dd3fc' : '#64748b';
-      ctx.font = '5px "Press Start 2P", monospace';
-      ctx.textAlign = 'left';
-      ctx.fillText('VM INFO', x + 5, y + 8);
     }
 
     // Interactive Prop: Multi-Mode Whiteboard

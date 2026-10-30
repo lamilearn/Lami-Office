@@ -172,6 +172,12 @@ html, body {
 .hud-chip.pointer { cursor: pointer; }
 .hud-chip.pointer:hover { transform: translateY(-2px); }
 .hud-chip b { font-family: var(--font-pixel); font-size: 9.5px; min-width: 14px; text-align: right; }
+/* "VM INFO" chip: a HUD entry point to the Server Room's live VM resources. */
+#hud-vm-chip { gap: 5px; }
+#hud-vm-chip b { font-size: 8px; letter-spacing: 0.5px; }
+#hud-vm-chip.active { background: #7dd3fc; }
+#hud-vm-chip.off { opacity: 0.55; }
+
 .hud-chip.coin { background: linear-gradient(180deg, #fff3c4, var(--gold)); }
 
 .hud-btn {

@@ -92,7 +92,10 @@
       // monitor on hover. `vmPanelPinned` keeps it open after a tap on touch
       // devices, which have no hover at all.
       this.hoverTile = null;
+      // HUD "VM INFO" chip: pins the overview of all five agents.
       this.vmPanelPinned = false;
+      // Tapping a rack on a touch device pins that single agent instead.
+      this.vmPinnedRack = -1;
       // True once a world frame has positioned everybody (the first frame snaps,
       // later frames ease). Reset only on a full page load, never on reconnect.
       this.worldPlaced = false;
@@ -590,17 +593,13 @@
           }
         }
 
-        // 1b. The "VM INFO" chip: on touch there is no hover, so a tap pins the
-        // VM monitor open (and taps it closed again).
-        const chip = LO.VM_INFO_CHIP;
-        if (chip) {
-          const pad = 6;
-          if (canvasX >= chip.x - pad && canvasX <= chip.x + chip.w + pad
-              && canvasY >= chip.y - pad && canvasY <= chip.y + chip.h + pad) {
-            this.vmPanelPinned = !this.vmPanelPinned;
-            LO.audio.pop();
-            return true;
-          }
+        // 1b. Tapping a rack pins that agent's resources, which is how touch
+        // devices (no hover) inspect a server.
+        const rack = this.rackAt(canvasX, canvasY);
+        if (rack >= 0) {
+          this.vmPinnedRack = this.vmPinnedRack === rack ? -1 : rack;
+          LO.audio.pop();
+          return true;
         }
 
         // 2. Interactive Props in 2D Plane
@@ -1237,22 +1236,35 @@
       }
     }
 
-    // True when the pointer is on the "VM INFO" chip (pixel space), with a small
-    // tolerance so a 62x11px target is still comfortable to hit at low zoom.
-    pointerOnVmChip() {
-      const chip = LO.VM_INFO_CHIP;
-      const h = this.hoverTile;
-      if (!chip || !h) return false;
-      const pad = 4;
-      return h.x >= chip.x - pad && h.x <= chip.x + chip.w + pad
-        && h.y >= chip.y - pad && h.y <= chip.y + chip.h + pad;
+    // Index of the server rack under the pointer, or -1. Each rack belongs to one
+    // real agent, so hovering it reports that agent's resources.
+    rackAt(x, y) {
+      const racks = LO.VM_RACKS || [];
+      if (typeof x !== 'number' || typeof y !== 'number') return -1;
+      const ts = LO.TILE_SIZE;
+      // A rack is drawn with a raised top face, so accept a little above the tile.
+      const lift = 10;
+      for (let i = 0; i < racks.length; i++) {
+        const r = racks[i];
+        if (x >= r.x * ts && x <= (r.x + r.w) * ts
+            && y >= r.y * ts - lift && y <= (r.y + r.h) * ts) {
+          return i;
+        }
+      }
+      return -1;
     }
 
-    // True when the Server Room's VM monitor should be drawn: only while the
-    // chip itself is hovered, or when pinned by a tap on a touch device.
+    hoveredRack() {
+      const h = this.hoverTile;
+      if (!h) return -1;
+      return this.rackAt(h.x, h.y);
+    }
+
+    // True while the Server Room is showing resources: a specific rack is hovered
+    // (or pinned by a tap), or the HUD chip pinned the whole overview.
     vmPanelVisible() {
-      if (this.vmPanelPinned) return true;
-      return this.pointerOnVmChip();
+      if (this.vmPanelPinned || this.vmPinnedRack >= 0) return true;
+      return this.hoveredRack() >= 0;
     }
 
     // ---- Server-authoritative world (live mode) ------------------------------

@@ -767,33 +767,39 @@ print(json.dumps({
     }
   }, { timeout: 60000 });
 
-  it('F34.4: the Server Room monitor draws each agent and dashes missing gauges', () => {
+  it('F34.4: the overview lists every agent and dashes missing gauges', () => {
     const src = fs.readFileSync(WORLD, 'utf8');
-    assert.ok(/drawVmMonitor\(ctx, ts\)/.test(src), 'the server room must draw the monitor');
-    assert.ok(/VM RESOURCES/.test(src), 'the panel must be labelled');
+    assert.ok(/renderVmMonitor\(ctx, ts\)/.test(src), 'the server room must expose a monitor pass');
+    assert.ok(/VM RESOURCES/.test(src), 'the overview must be labelled');
     assert.ok(/office\.vmResources/.test(src), 'it must read the polled resources');
     assert.ok(/'--'/.test(src), 'a missing gauge must show a dash, not a number');
 
-    const vm = require('node:vm');
-    const env = require('../harness').createBrowserEnvironment();
-    const LO = require('../harness').loadScriptIntoEnv(env, 'config.js');
-    require('../harness').loadScriptIntoEnv(env, 'sprites.js');
-    require('../harness').loadScriptIntoEnv(env, 'world.js');
+    const harness = require('../harness');
+    const env = harness.createBrowserEnvironment();
+    const LO = harness.loadScriptIntoEnv(env, 'config.js');
+    harness.loadScriptIntoEnv(env, 'sprites.js');
+    harness.loadScriptIntoEnv(env, 'world.js');
     env.window.LO = LO;
-    env.window.LO.office = { vmResources: { agents: [
-      { id: 'lami', name: 'Lami', icon: '👑', online: true, has_metrics: true, cpu_percent: 54.5, mem_percent: 64.4 },
-      { id: 'cyro', name: 'Cyro', icon: '🛠️', online: false, has_metrics: false }
-    ] } };
+    // The HUD chip pins the overview of all agents.
+    env.window.LO.office = {
+      vmPanelPinned: true,
+      vmPinnedRack: -1,
+      hoveredRack: () => -1,
+      vmPanelVisible: () => true,
+      vmResources: { agents: [
+        { id: 'lami', name: 'Lami', icon: 'L', online: true, has_metrics: true, cpu_percent: 54.5, mem_percent: 64.4 },
+        { id: 'cyro', name: 'Cyro', icon: 'C', online: false, has_metrics: false }
+      ] }
+    };
     const world = new LO.World();
     const ctx = env.document.createElement('canvas').getContext('2d');
-    world.drawVmMonitor(ctx, 16);
+    world.renderVmMonitor(ctx, 16);
     const texts = ctx.drawCalls.filter((c) => c.type === 'fillText').map((c) => c.text);
     assert.ok(texts.includes('VM RESOURCES'));
     assert.ok(texts.some((t) => /Lami/.test(t)), 'the reporting agent must be listed');
     assert.ok(texts.includes('55%') && texts.includes('64%'), 'real percentages must be shown');
     const dashes = texts.filter((t) => t === '--').length;
     assert.strictEqual(dashes, 2, 'the silent agent gets two dashes (CPU + RAM)');
-    assert.ok(vm, 'sanity');
   });
 
   it('F34.5: the client polls /api/resources and the deploy ships the agent', () => {
@@ -807,87 +813,121 @@ print(json.dumps({
   });
 });
 
-describe('Feature 35: The Server Room monitor is revealed on hover', () => {
+describe('Feature 35: The Server Room shows one rack per agent', () => {
   const WORLD = path.join(REPO, 'services/lami-office-react/web/js/world.js');
   const OFFICE = path.join(REPO, 'services/lami-office-react/web/js/office.js');
+  const CONFIG = path.join(REPO, 'services/lami-office-react/web/js/config.js');
 
-  function renderTexts(visible) {
-    const harness = require('../harness');
-    const env = harness.createBrowserEnvironment();
-    const LO = harness.loadScriptIntoEnv(env, 'config.js');
-    harness.loadScriptIntoEnv(env, 'sprites.js');
-    harness.loadScriptIntoEnv(env, 'world.js');
-    env.window.LO = LO;
-    env.window.LO.office = {
-      vmResources: { agents: [
-        { id: 'lami', name: 'Lami', icon: 'L', online: true, has_metrics: true, cpu_percent: 50, mem_percent: 40 }
-      ] },
-      vmPanelVisible: () => visible
-    };
-    const ctx = env.document.createElement('canvas').getContext('2d');
-    new LO.World().drawVmMonitor(ctx, 16);
-    return ctx.drawCalls.filter((c) => c.type === 'fillText').map((c) => c.text);
-  }
-
-  it('F35.1: the full panel only renders while the room is hovered', () => {
-    const hidden = renderTexts(false);
-    const shown = renderTexts(true);
-    // Regression: the monitor used to be drawn every frame, covering the room.
-    assert.ok(!hidden.includes('VM RESOURCES'), 'the panel must be hidden without hover');
-    assert.ok(hidden.includes('VM INFO'), 'a small hint must remain so it is discoverable');
-    assert.ok(shown.includes('VM RESOURCES'), 'hovering the room must reveal the panel');
-    assert.ok(shown.includes('CPU') && shown.includes('50%'), 'the real numbers must render');
-  });
-
-  it('F35.2: only the VM INFO chip reveals the panel, not the whole room', () => {
+  function buildOffice() {
     const harness = require('../harness');
     const env = harness.createBrowserEnvironment();
     const LO = harness.loadScriptIntoEnv(env, 'config.js');
     harness.loadScriptIntoEnv(env, 'sprites.js');
     harness.loadScriptIntoEnv(env, 'world.js');
     harness.loadScriptIntoEnv(env, 'office.js');
+    env.window.LO = LO;
+    LO.audio = new Proxy({}, { get: () => () => {} });
+    harness.loadScriptIntoEnv(env, 'agents.js');
+    LO.ui = { updateStaffCount() {}, addTicker() {}, appendChatMessage() {}, triggerEventBanner() {},
+      setStatus() {}, recordDone() {}, setOfficeStatus() {}, setRoster() {} };
     env.window.innerWidth = 1600;
     env.window.matchMedia = () => ({ matches: false });
+    const office = new LO.Office(env.document.createElement('canvas'));
+    office.canvas = { clientWidth: 1600, clientHeight: 900,
+      getBoundingClientRect: () => ({ left: 0, top: 0, width: 1600, height: 900 }) };
+    office.simulatedExternally = true;
+    office.world = new LO.World();
+    office.vmResources = { agents: [
+      { id: 'lami', name: 'Lami', icon: 'L', color: '#c084fc', online: true, has_metrics: true, cpu_percent: 50, mem_percent: 40 },
+      { id: 'yuna', name: 'Yuna', icon: 'Y', color: '#60a5fa', online: true, has_metrics: true, cpu_percent: 2, mem_percent: 21 },
+      { id: 'aurora', name: 'Aurora', icon: 'A', color: '#f472b6', online: true, has_metrics: true, cpu_percent: 3, mem_percent: 35 },
+      { id: 'kira', name: 'Kira', icon: 'K', color: '#34d399', online: true, has_metrics: false },
+      { id: 'cyro', name: 'Cyro', icon: 'C', color: '#a78bfa', online: false, has_metrics: false }
+    ] };
+    return { office, LO, env };
+  }
 
-    const office = Object.create(LO.Office.prototype);
-    office.vmPanelPinned = false;
-    office.hoverTile = null;
-    const chip = LO.VM_INFO_CHIP;
-    assert.ok(chip && chip.w > 0 && chip.h > 0, 'the chip geometry must be defined once in config.js');
-
-    // Regression: hovering anywhere in the server room used to reveal the panel.
-    office.hoverTile = { x: (70 + 0.5) * 16, y: (10 + 0.5) * 16, col: 70.5, row: 10.5 };
-    assert.strictEqual(office.vmPanelVisible(), false, 'the room floor must not reveal the panel');
-
-    office.hoverTile = { x: chip.x + chip.w / 2, y: chip.y + chip.h / 2, col: 0, row: 0 };
-    assert.strictEqual(office.vmPanelVisible(), true, 'hovering the chip must reveal the panel');
-
-    office.hoverTile = { x: chip.x + chip.w + 30, y: chip.y, col: 0, row: 0 };
-    assert.strictEqual(office.vmPanelVisible(), false, 'hovering past the chip must hide it again');
-
-    assert.ok(/pointerleave/.test(fs.readFileSync(OFFICE, 'utf8')), 'leaving the canvas must clear the hover');
+  it('F35.1: there is one rack per agent, defined once in config', () => {
+    const harness = require('../harness');
+    const LO = harness.loadScriptIntoEnv(harness.createBrowserEnvironment(), 'config.js');
+    assert.strictEqual(LO.VM_RACKS.length, 5, 'five racks for the five real agents');
+    const seen = new Set();
+    for (const r of LO.VM_RACKS) {
+      assert.ok(r.w > 0 && r.h > 0, 'each rack needs a size');
+      const key = `${r.x},${r.y}`;
+      assert.ok(!seen.has(key), 'racks must not overlap');
+      seen.add(key);
+      // Inside the server room interior (x 58..83, y 3..18).
+      assert.ok(r.x >= 58 && r.x + r.w <= 84, 'rack must sit inside the room');
+      assert.ok(r.y >= 3 && r.y + r.h <= 18, 'rack must sit inside the room');
+    }
+    assert.ok(!/VM_INFO_CHIP/.test(fs.readFileSync(CONFIG, 'utf8')), 'the old floor chip must be gone');
   });
 
-  it('F35.3: a tap on the chip pins the panel for devices without hover', () => {
-    const office = fs.readFileSync(OFFICE, 'utf8');
-    assert.ok(/this\.vmPanelPinned = !this\.vmPanelPinned/.test(office),
-      'tapping the chip must toggle the pinned state');
-    const tap = office.slice(office.indexOf('// 1b. The "VM INFO" chip'), office.indexOf('// 2. Interactive Props'));
-    assert.ok(/LO\.VM_INFO_CHIP/.test(tap), 'the tap target must be the chip, not the room');
-    assert.ok(!/LO\.ROOMS\.server\.bounds/.test(tap), 'the whole room must no longer be a tap target');
-    const fn = office.slice(office.indexOf('    vmPanelVisible() {'), office.indexOf('    // ---- Server-authoritative world'));
-    assert.ok(/if \(this\.vmPanelPinned\) return true/.test(fn), 'pinned must win over hover');
+  it('F35.2: hovering a rack selects that rack only', () => {
+    const { office, LO } = buildOffice();
+    assert.strictEqual(office.hoveredRack(), -1, 'nothing hovered initially');
+    const rack = LO.VM_RACKS[2];
+    office.hoverTile = { x: (rack.x + 0.5) * LO.TILE_SIZE, y: (rack.y + 0.5) * LO.TILE_SIZE };
+    assert.strictEqual(office.hoveredRack(), 2);
+    assert.strictEqual(office.vmPanelVisible(), true);
+
+    // Off the racks the panel goes away again.
+    office.hoverTile = { x: 62 * LO.TILE_SIZE, y: 15 * LO.TILE_SIZE };
+    assert.strictEqual(office.hoveredRack(), -1);
+    assert.strictEqual(office.vmPanelVisible(), false);
   });
 
-  it('F35.4: the chip is drawn from the same config geometry it is hit-tested with', () => {
+  it('F35.3: a rack panel shows only its owner, and dashes missing metrics', () => {
+    const { office, LO } = buildOffice();
+    const rack = LO.VM_RACKS[0];
+    office.hoverTile = { x: (rack.x + 0.5) * LO.TILE_SIZE, y: (rack.y + 0.5) * LO.TILE_SIZE };
+    let ctx = office.world._ctxFor ? null : null;
+    const canvas = office.world && null;
+    // Render through the office so the monitor pass runs after the characters.
+    office.ctx.drawCalls.length = 0;
+    office.world.renderVmMonitor(office.ctx, LO.TILE_SIZE);
+    const names = office.ctx.drawCalls.filter(c => c.type === 'fillText').map(c => c.text);
+    assert.ok(names.some(t => /Lami/.test(t)), 'the hovered rack\'s owner must be shown');
+    assert.ok(names.includes('ONLINE'), 'its live status must be shown');
+    assert.ok(!names.some(t => /Yuna/.test(t)), 'other agents must not appear in a single-rack panel');
+
+    // A rack whose agent reports nothing must show dashes, never numbers.
+    office.hoverTile = { x: (LO.VM_RACKS[3].x + 0.5) * LO.TILE_SIZE, y: (LO.VM_RACKS[3].y + 0.5) * LO.TILE_SIZE };
+    office.ctx.drawCalls.length = 0;
+    office.world.renderVmMonitor(office.ctx, LO.TILE_SIZE);
+    const dashes = office.ctx.drawCalls.filter(c => c.type === 'fillText' && c.text === '--').length;
+    assert.strictEqual(dashes, 3, 'CPU, RAM and DISK all show a dash when nothing is measured');
+  });
+
+  it('F35.4: the HUD chip pins the overview of all five agents', () => {
+    const { office } = buildOffice();
+    assert.strictEqual(office.vmPanelVisible(), false, 'hidden by default');
+    office.vmPanelPinned = true;
+    assert.strictEqual(office.vmPanelVisible(), true, 'the HUD chip reveals the overview');
+    office.ctx.drawCalls.length = 0;
+    office.world.renderVmMonitor(office.ctx, LO_TILE());
+    const names = office.ctx.drawCalls.filter(c => c.type === 'fillText').map(c => c.text);
+    assert.ok(names.includes('VM RESOURCES'), 'the overview is labelled');
+    for (const who of ['Lami', 'Yuna', 'Aurora', 'Kira', 'Cyro']) {
+      assert.ok(names.some(t => t.indexOf(who) > -1), `${who} must be listed in the overview`);
+    }
+  });
+
+  it('F35.5: the HUD owns the VM INFO affordance and the client feeds it', () => {
+    const html = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/index.html'), 'utf8');
+    assert.ok(/id="hud-vm-chip"/.test(html), 'the chip must live in the HUD');
+    assert.ok(/VM INFO/.test(html), 'the chip must be labelled VM INFO');
+    const ui = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/js/ui.js'), 'utf8');
+    assert.ok(/vmPanelPinned = !office\.vmPanelPinned/.test(ui), 'the chip must toggle the overview');
+    assert.ok(/setVmStatus/.test(ui), 'the chip must reflect how many agents report');
+    const net = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/js/net.js'), 'utf8');
+    assert.ok(/LO\.ui\.setVmStatus/.test(net), 'the poller must feed the chip');
     const world = fs.readFileSync(WORLD, 'utf8');
-    const start = world.indexOf('    drawVmMonitorHint(');
-    const hint = world.slice(start, world.indexOf('    // Interactive Prop', start));
-    assert.ok(/LO\.VM_INFO_CHIP/.test(hint), 'the hint must use the shared chip rect');
-    assert.ok(!/58 \* ts \+ 6/.test(hint), 'no hardcoded chip coordinates may remain');
-    const config = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/js/config.js'), 'utf8');
-    assert.ok(/LO\.VM_INFO_CHIP = \{ x: 58 \* LO\.TILE_SIZE \+ 6/.test(config));
+    assert.ok(!/drawVmMonitorHint/.test(world), 'the old floor hint must be gone');
   });
+
+  function LO_TILE() { return 16; }
 });
 
 describe('Feature 36: Characters are occluded by props, not drawn over them', () => {

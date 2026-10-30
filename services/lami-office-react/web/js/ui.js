@@ -30,6 +30,7 @@
       this.wbTabContents = document.querySelectorAll('.wb-tab-content');
 
       this.ctxChip = document.getElementById('hud-ctx-chip');
+      this.vmChip = document.getElementById('hud-vm-chip');
       this.ctxVal = document.getElementById('hud-ctx-val');
       this.ctxModal = document.getElementById('context-modal');
       this.ctxClose = document.getElementById('ctx-close');
@@ -183,6 +184,18 @@
       }
 
       // Context Window Trashcan Modal bindings
+      // HUD chip: pins the overview of every agent, which is the only way to see
+      // it on a touch device (racks are hover targets). Also doubles as the
+      // discoverability hint that the Server Room has live VM data.
+      if (this.vmChip) {
+        this.vmChip.addEventListener('click', () => {
+          const office = window.LO?.office;
+          if (!office) return;
+          office.vmPanelPinned = !office.vmPanelPinned;
+          office.vmPinnedRack = -1;
+          this.vmChip.classList.toggle('active', Boolean(office.vmPanelPinned));
+        });
+      }
       if (this.ctxChip && this.ctxModal) {
         this.ctxChip.addEventListener('click', () => this.showContextModal());
         if (this.ctxClose) this.ctxClose.addEventListener('click', () => this.hideContextModal());
@@ -526,6 +539,17 @@
     }
 
     // Real agent roster (HUB.agents + A2A) as published by the server.
+    // Show how many agents are actually reporting resources.
+    setVmStatus(agents) {
+      if (!this.vmChip) return;
+      const list = Array.isArray(agents) ? agents : [];
+      const reporting = list.filter((a) => a && a.has_metrics).length;
+      this.vmChip.classList.toggle('off', list.length > 0 && reporting === 0);
+      this.vmChip.title = list.length
+        ? `Resource VM: ${reporting}/${list.length} agent melaporkan`
+        : 'Resource VM tiap agent (menunggu metrik)';
+    }
+
     setRoster(roster) {
       this.roster = roster || { agents: [] };
       const count = Array.isArray(this.roster.agents) ? this.roster.agents.length : 0;

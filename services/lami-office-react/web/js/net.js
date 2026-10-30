@@ -73,6 +73,7 @@
         if (data && Array.isArray(data.agents) && this.office) {
           this.office.vmResources = data;
           this.office.vmResourcesAt = Date.now();
+          if (LO.ui && typeof LO.ui.setVmStatus === 'function') LO.ui.setVmStatus(data.agents);
         }
       } catch (e) {
         /* gauges are best-effort; the Server Room keeps rendering */

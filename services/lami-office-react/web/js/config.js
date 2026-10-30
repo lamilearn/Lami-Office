@@ -18,10 +18,16 @@
   // to its own canvas for depth-band compositing.
   LO.SCENE_TOP_PAD = 32;
 
-  // The "VM INFO" chip in the Server Room. It is both the hover target that
-  // reveals the resource monitor and the hint drawn while the monitor is hidden,
-  // so the two can never drift apart. Pixel coordinates in content space.
-  LO.VM_INFO_CHIP = { x: 58 * LO.TILE_SIZE + 6, y: 9.1 * LO.TILE_SIZE + 2, w: 62, h: 11 };
+  // The five server racks in the Server Room, one per real agent (the roster is
+  // ordered lami, yuna, aurora, kira, cyro). Tile geometry, shared by the
+  // renderer and the hover hit-test so the two can never drift apart.
+  LO.VM_RACKS = [
+    { x: 60, y: 6, w: 3, h: 2 },
+    { x: 65, y: 6, w: 3, h: 2 },
+    { x: 70, y: 6, w: 3, h: 2 },
+    { x: 75, y: 6, w: 3, h: 2 },
+    { x: 80, y: 6, w: 3, h: 2 }
+  ];
   // Hard ceiling on the desktop zoom-up, relative to the classic "contain" fit.
   // Keeps very wide or very tall screens from zooming to an absurd scale.
   LO.DESKTOP_ZOOM_CAP = 1.25;
