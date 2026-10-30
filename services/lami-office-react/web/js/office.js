@@ -578,13 +578,13 @@
           }
         }
 
-        // 1b. Server Room floor: on touch there is no hover, so a tap pins the
+        // 1b. The "VM INFO" chip: on touch there is no hover, so a tap pins the
         // VM monitor open (and taps it closed again).
-        const room = LO.ROOMS && LO.ROOMS.server && LO.ROOMS.server.bounds;
-        if (room) {
-          const tileX = canvasX / LO.TILE_SIZE;
-          const tileY = canvasY / LO.TILE_SIZE;
-          if (tileX >= room.x1 && tileX <= room.x2 && tileY >= room.y1 && tileY <= room.y2) {
+        const chip = LO.VM_INFO_CHIP;
+        if (chip) {
+          const pad = 6;
+          if (canvasX >= chip.x - pad && canvasX <= chip.x + chip.w + pad
+              && canvasY >= chip.y - pad && canvasY <= chip.y + chip.h + pad) {
             this.vmPanelPinned = !this.vmPanelPinned;
             LO.audio.pop();
             return true;
@@ -1161,14 +1161,22 @@
       }
     }
 
-    // True when the Server Room's VM monitor should be drawn.
-    vmPanelVisible() {
-      const room = LO.ROOMS && LO.ROOMS.server && LO.ROOMS.server.bounds;
-      if (!room) return false;
-      if (this.vmPanelPinned) return true;
+    // True when the pointer is on the "VM INFO" chip (pixel space), with a small
+    // tolerance so a 62x11px target is still comfortable to hit at low zoom.
+    pointerOnVmChip() {
+      const chip = LO.VM_INFO_CHIP;
       const h = this.hoverTile;
-      if (!h) return false;
-      return h.col >= room.x1 && h.col <= room.x2 && h.row >= room.y1 && h.row <= room.y2;
+      if (!chip || !h) return false;
+      const pad = 4;
+      return h.x >= chip.x - pad && h.x <= chip.x + chip.w + pad
+        && h.y >= chip.y - pad && h.y <= chip.y + chip.h + pad;
+    }
+
+    // True when the Server Room's VM monitor should be drawn: only while the
+    // chip itself is hovered, or when pinned by a tap on a touch device.
+    vmPanelVisible() {
+      if (this.vmPanelPinned) return true;
+      return this.pointerOnVmChip();
     }
 
     // ---- Server-authoritative world (live mode) ------------------------------

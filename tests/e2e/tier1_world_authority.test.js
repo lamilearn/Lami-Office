@@ -839,21 +839,53 @@ describe('Feature 35: The Server Room monitor is revealed on hover', () => {
     assert.ok(shown.includes('CPU') && shown.includes('50%'), 'the real numbers must render');
   });
 
-  it('F35.2: hover is tracked in tile space and scoped to the server room', () => {
-    const office = fs.readFileSync(OFFICE, 'utf8');
-    assert.ok(/this\.hoverTile = \{/.test(office), 'the pointer position must be tracked');
-    assert.ok(/pointerleave/.test(office), 'leaving the canvas must clear the hover');
-    assert.ok(/vmPanelVisible\(\)/.test(office), 'the visibility rule must live on the office');
-    const fn = office.slice(office.indexOf('    vmPanelVisible() {'), office.indexOf('    // ---- Server-authoritative world'));
-    assert.ok(/LO\.ROOMS\.server\.bounds/.test(fn), 'the rule must use the server room bounds');
-    assert.ok(/col >= room\.x1/.test(fn) && /row <= room\.y2/.test(fn), 'hover must be inside the room');
+  it('F35.2: only the VM INFO chip reveals the panel, not the whole room', () => {
+    const harness = require('../harness');
+    const env = harness.createBrowserEnvironment();
+    const LO = harness.loadScriptIntoEnv(env, 'config.js');
+    harness.loadScriptIntoEnv(env, 'sprites.js');
+    harness.loadScriptIntoEnv(env, 'world.js');
+    harness.loadScriptIntoEnv(env, 'office.js');
+    env.window.innerWidth = 1600;
+    env.window.matchMedia = () => ({ matches: false });
+
+    const office = Object.create(LO.Office.prototype);
+    office.vmPanelPinned = false;
+    office.hoverTile = null;
+    const chip = LO.VM_INFO_CHIP;
+    assert.ok(chip && chip.w > 0 && chip.h > 0, 'the chip geometry must be defined once in config.js');
+
+    // Regression: hovering anywhere in the server room used to reveal the panel.
+    office.hoverTile = { x: (70 + 0.5) * 16, y: (10 + 0.5) * 16, col: 70.5, row: 10.5 };
+    assert.strictEqual(office.vmPanelVisible(), false, 'the room floor must not reveal the panel');
+
+    office.hoverTile = { x: chip.x + chip.w / 2, y: chip.y + chip.h / 2, col: 0, row: 0 };
+    assert.strictEqual(office.vmPanelVisible(), true, 'hovering the chip must reveal the panel');
+
+    office.hoverTile = { x: chip.x + chip.w + 30, y: chip.y, col: 0, row: 0 };
+    assert.strictEqual(office.vmPanelVisible(), false, 'hovering past the chip must hide it again');
+
+    assert.ok(/pointerleave/.test(fs.readFileSync(OFFICE, 'utf8')), 'leaving the canvas must clear the hover');
   });
 
-  it('F35.3: a tap pins the panel for devices without hover', () => {
+  it('F35.3: a tap on the chip pins the panel for devices without hover', () => {
     const office = fs.readFileSync(OFFICE, 'utf8');
     assert.ok(/this\.vmPanelPinned = !this\.vmPanelPinned/.test(office),
-      'tapping the server room floor must toggle the pinned state');
+      'tapping the chip must toggle the pinned state');
+    const tap = office.slice(office.indexOf('// 1b. The "VM INFO" chip'), office.indexOf('// 2. Interactive Props'));
+    assert.ok(/LO\.VM_INFO_CHIP/.test(tap), 'the tap target must be the chip, not the room');
+    assert.ok(!/LO\.ROOMS\.server\.bounds/.test(tap), 'the whole room must no longer be a tap target');
     const fn = office.slice(office.indexOf('    vmPanelVisible() {'), office.indexOf('    // ---- Server-authoritative world'));
     assert.ok(/if \(this\.vmPanelPinned\) return true/.test(fn), 'pinned must win over hover');
+  });
+
+  it('F35.4: the chip is drawn from the same config geometry it is hit-tested with', () => {
+    const world = fs.readFileSync(WORLD, 'utf8');
+    const start = world.indexOf('    drawVmMonitorHint(');
+    const hint = world.slice(start, world.indexOf('    // Interactive Prop', start));
+    assert.ok(/LO\.VM_INFO_CHIP/.test(hint), 'the hint must use the shared chip rect');
+    assert.ok(!/58 \* ts \+ 6/.test(hint), 'no hardcoded chip coordinates may remain');
+    const config = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/js/config.js'), 'utf8');
+    assert.ok(/LO\.VM_INFO_CHIP = \{ x: 58 \* LO\.TILE_SIZE \+ 6/.test(config));
   });
 });

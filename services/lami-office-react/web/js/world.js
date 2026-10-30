@@ -827,13 +827,17 @@
     drawVmMonitorHint(ctx, ts, office) {
       const has = office && office.vmResources && Array.isArray(office.vmResources.agents)
         && office.vmResources.agents.length > 0;
-      const x = 58 * ts + 6;
-      const y = 9.1 * ts + 2;
+      // Geometry comes from config.js (LO.VM_INFO_CHIP) so the drawn chip and the
+      // hover/tap target can never disagree.
+      const chip = LO.VM_INFO_CHIP;
+      if (!chip) return;
+      const x = chip.x;
+      const y = chip.y;
       ctx.fillStyle = 'rgba(11, 16, 32, 0.72)';
-      ctx.fillRect(x, y, 62, 11);
+      ctx.fillRect(x, y, chip.w, chip.h);
       ctx.strokeStyle = 'rgba(125, 211, 252, 0.55)';
       ctx.lineWidth = 1;
-      ctx.strokeRect(x + 0.5, y + 0.5, 61, 10);
+      ctx.strokeRect(x + 0.5, y + 0.5, chip.w - 1, chip.h - 1);
       ctx.fillStyle = has ? '#7dd3fc' : '#64748b';
       ctx.font = '5px "Press Start 2P", monospace';
       ctx.textAlign = 'left';

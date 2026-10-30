@@ -14,6 +14,11 @@
   // under the building no longer forces a letterbox. Everything the player must
   // see stays inside this rect, which is what guarantees no room is ever cropped.
   LO.VIEW_FOCUS = { x1: 0, y1: 0, x2: LO.GRID_COLS, y2: 42 };
+
+  // The "VM INFO" chip in the Server Room. It is both the hover target that
+  // reveals the resource monitor and the hint drawn while the monitor is hidden,
+  // so the two can never drift apart. Pixel coordinates in content space.
+  LO.VM_INFO_CHIP = { x: 58 * LO.TILE_SIZE + 6, y: 9.1 * LO.TILE_SIZE + 2, w: 62, h: 11 };
   // Hard ceiling on the desktop zoom-up, relative to the classic "contain" fit.
   // Keeps very wide or very tall screens from zooming to an absurd scale.
   LO.DESKTOP_ZOOM_CAP = 1.25;
