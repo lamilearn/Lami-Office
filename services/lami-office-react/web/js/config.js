@@ -25,8 +25,9 @@
   // Hard ceiling on the desktop zoom-up, relative to the classic "contain" fit.
   // Keeps very wide or very tall screens from zooming to an absurd scale.
   LO.DESKTOP_ZOOM_CAP = 1.25;
-  // Wheel zoom range, relative to the plain "contain" fit.
-  LO.DESKTOP_ZOOM_MIN = 0.5;
+  // Wheel zoom range. Zooming out stops at the default fitted view, so the
+  // office is never rendered smaller than "normal"; zooming in is capped
+  // relative to the plain contain fit.
   LO.DESKTOP_ZOOM_MAX = 4;
 
   // Backward-compatibility geometric aliases
@@ -698,7 +699,9 @@
     // Default (un-zoomed) desktop view: fill the focus region, capped so a wide or
     // tall screen does not zoom to an absurd scale.
     const fitZoom = Math.max(containZoom, Math.min(focusZoom, containZoom * (LO.DESKTOP_ZOOM_CAP || 1.25)));
-    const minZoom = containZoom * (LO.DESKTOP_ZOOM_MIN || 0.5);
+    // Zoom-out stops at the default fitted size: the whole office already fits
+    // there, so anything smaller just adds empty margin.
+    const minZoom = fitZoom;
     const maxZoom = Math.max(fitZoom, containZoom * (LO.DESKTOP_ZOOM_MAX || 4));
 
     // The user can zoom and pan freely from the default view. With no explicit

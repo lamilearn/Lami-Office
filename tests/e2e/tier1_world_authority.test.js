@@ -984,7 +984,9 @@ describe('Feature 37: Mouse zoom and drag panning', () => {
     assert.ok(v.zoom >= contain - 1e-9 && v.zoom <= contain * LO.DESKTOP_ZOOM_CAP + 1e-9,
       'the default must stay the capped focus fit');
     assert.ok(typeof v.minZoom === 'number' && typeof v.maxZoom === 'number', 'a zoom range must be exposed');
-    assert.ok(v.minZoom < v.zoom && v.maxZoom > v.zoom, 'the default must sit inside the range');
+    assert.ok(Math.abs(v.minZoom - v.zoom) < 1e-9,
+      'zoom-out must stop at the default fitted size, never smaller');
+    assert.ok(v.maxZoom > v.zoom, 'zooming in must be possible');
   });
 
   it('F37.2: zooming keeps the content under the cursor pinned', () => {
@@ -1021,6 +1023,12 @@ describe('Feature 37: Mouse zoom and drag panning', () => {
     const tooNear = LO.computeViewParams({ width: 1600, height: 838, topInset: 78, zoom: 0.0001 });
     assert.ok(Math.abs(tooFar.zoom - base.maxZoom) < 1e-9, 'zoom-in must stop at maxZoom');
     assert.ok(Math.abs(tooNear.zoom - base.minZoom) < 1e-9, 'zoom-out must stop at minZoom');
+    // Regression: 0.5x of the contain fit was allowed, which shrank the office
+    // well below its normal size and just added empty margin.
+    assert.ok(Math.abs(base.minZoom - base.zoom) < 1e-9,
+      'the floor must be the default fitted size');
+    assert.ok(base.minZoom > Math.min(1600 / LO.CONTENT_W, 760 / LO.CONTENT_H),
+      'never smaller than a plain contain fit');
   });
 
   it('F37.4: the wheel zooms on desktop and dragging pans', () => {
@@ -1035,7 +1043,8 @@ describe('Feature 37: Mouse zoom and drag panning', () => {
     assert.ok(/this\.zoomAt\(/.test(office) && /resetView\(\)/.test(office),
       'zoom and reset helpers must exist');
     const config = fs.readFileSync(CONFIG, 'utf8');
-    assert.ok(/LO\.DESKTOP_ZOOM_MIN = 0\.5/.test(config) && /LO\.DESKTOP_ZOOM_MAX = 4/.test(config));
+    assert.ok(/LO\.DESKTOP_ZOOM_MAX = 4/.test(config), 'the zoom-in cap must be configured');
+    assert.ok(!/LO\.DESKTOP_ZOOM_MIN/.test(config), 'the old zoom-out floor must be gone');
   });
 
   it('F37.5: double-click returns to the fitted view', () => {
