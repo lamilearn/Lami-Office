@@ -170,7 +170,7 @@ Production is a **pure mirror of `master`**; nobody merges or edits code there.
 | Host | Role | Path | Ports |
 |---|---|---|---|
 | `192.168.3.33` | **production only** (mirror of `master`) | `/home/rumi/projects/office-suite` | 8090 / 8088 |
-| `192.168.3.32` | **staging only** (mirror of `dev`) | `/home/rumi/projects/office-suite-dev` | 13579 / 18088 |
+| `192.168.3.32` | **staging only** (mirror of `dev`), `PUBLIC_MODE=live` | `/home/rumi/projects/office-suite-dev` | 13579 / 18088 |
 
 Staging used to share `.33` with production; it was moved to `.32` so a staging
 restart or rebuild can never touch the production container, and so `.33` holds
