@@ -1265,3 +1265,94 @@ print(json.dumps(snap))
     assert.ok(/"context"/.test(server), 'the server must accept and store context reports');
   });
 });
+
+describe('Feature 40: No seam or notch artefacts around characters', () => {
+  const OFFICE = path.join(REPO, 'services/lami-office-react/web/js/office.js');
+  const SPRITES = path.join(REPO, 'services/lami-office-react/web/js/sprites.js');
+
+  function build() {
+    const harness = require('../harness');
+    const env = harness.createBrowserEnvironment();
+    const LO = harness.loadScriptIntoEnv(env, 'config.js');
+    harness.loadScriptIntoEnv(env, 'sprites.js');
+    harness.loadScriptIntoEnv(env, 'world.js');
+    harness.loadScriptIntoEnv(env, 'office.js');
+    env.window.LO = LO;
+    LO.audio = new Proxy({}, { get: () => () => {} });
+    harness.loadScriptIntoEnv(env, 'agents.js');
+    LO.ui = { updateStaffCount() {}, addTicker() {}, appendChatMessage() {}, triggerEventBanner() {},
+      setStatus() {}, recordDone() {}, setOfficeStatus() {}, setRoster() {} };
+    env.window.innerWidth = 1600;
+    env.window.matchMedia = () => ({ matches: false });
+    const office = new LO.Office(env.document.createElement('canvas'));
+    office.canvas = { clientWidth: 1600, clientHeight: 900,
+      getBoundingClientRect: () => ({ left: 0, top: 0, width: 1600, height: 900 }) };
+    office.simulatedExternally = true;
+    office.world = new LO.World();
+    return { office, LO, env };
+  }
+
+  it('F40.1: depth bands use whole pixels and never leave a gap', () => {
+    const { office } = build();
+    // Fractional rows, like a character mid-stride. A fractional source rect made
+    // drawImage skip a source row, which showed as a horizontal line that seemed
+    // to follow the character.
+    office.residents.forEach((c, i) => { c.row = 8.37 + i * 1.62; c.col = 4.21 + i * 2.37; });
+    office.ctx.drawCalls.length = 0;
+    office.render();
+
+    const scene = office._scene;
+    const bands = office.ctx.drawCalls
+      .filter((c) => c.type === 'drawImage' && c.image === scene && c.args.length >= 8)
+      .map((c) => ({ sy: c.args[1], sh: c.args[3], dy: c.args[5], dh: c.args[7] }));
+    assert.ok(bands.length > 2, `expected several bands, got ${bands.length}`);
+    for (const b of bands) {
+      for (const v of [b.sy, b.sh, b.dy, b.dh]) {
+        assert.ok(Number.isInteger(v), `band rect must be whole pixels, got ${v}`);
+      }
+    }
+    for (let i = 1; i < bands.length; i++) {
+      const covered = bands[i - 1].dy + bands[i - 1].dh;
+      assert.ok(bands[i].dy <= covered,
+        `bands must overlap or touch (gap ${bands[i].dy - covered}px)`);
+    }
+  });
+
+  it('F40.2: every sprite row is the same width', () => {
+    const src = fs.readFileSync(SPRITES, 'utf8');
+    // Regression: three NORTH_BODY rows were 13 characters wide instead of 14,
+    // leaving a 1px notch down the torso of every character seen from behind.
+    for (const name of ['SOUTH_BODY', 'NORTH_BODY', 'LEGS_WALK', 'LEGS_SIT']) {
+      const m = src.match(new RegExp(name + '\\s*=\\s*\\[([\\s\\S]*?)\\];'));
+      if (!m) continue;
+      const rows = [...m[1].matchAll(/'([^']*)'/g)].map((x) => x[1]);
+      if (!rows.length) continue;
+      const widths = new Set(rows.map((r) => r.length));
+      assert.strictEqual(widths.size, 1,
+        `${name} rows must all be the same width, got ${[...widths].join(',')}`);
+    }
+    // And the rasteriser pads defensively, so a future short row cannot notch.
+    assert.ok(/rows = rows\.map\(\(r\) => \(r\.length === rows\[0\]\.length/.test(src),
+      'rasterising must pad short rows');
+  });
+
+  it('F40.3: every frame and direction renders at one size', () => {
+    const harness = require('../harness');
+    const env = harness.createBrowserEnvironment();
+    const LO = harness.loadScriptIntoEnv(env, 'config.js');
+    harness.loadScriptIntoEnv(env, 'sprites.js');
+    const look = (LO.AGENT_LOOKS && LO.AGENT_LOOKS[0]) || { cloth: 0 };
+    const set = LO.getCharacterSprites(look);
+    const w = set.S.idle.width;
+    const h = set.S.idle.height;
+    for (const dir of ['S', 'N', 'E', 'W']) {
+      for (const frame of ['idle', 'walk', 'type', 'blink', 'happy', 'sit', 'drink']) {
+        const img = set[dir] && set[dir][frame];
+        assert.ok(img, `${dir}.${frame} must exist`);
+        assert.ok(img.width === w && img.height === h,
+          `${dir}.${frame} is ${img.width}x${img.height}, expected ${w}x${h}`);
+      }
+    }
+    assert.ok(env, 'sanity');
+  });
+});

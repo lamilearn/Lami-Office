@@ -1659,10 +1659,17 @@
       const TS = LO.TILE_SIZE;
       const width = LO.CONTENT_W;
       const bottom = LO.CONTENT_H;
+      // Snap the band edges to whole content pixels and overlap each band by one
+      // pixel. A fractional source rect makes drawImage skip or repeat a source
+      // row, which showed up as a thin horizontal seam at every character's feet
+      // - a line that appeared to follow whoever was walking.
       const blit = (fromY, toY) => {
-        if (toY <= fromY) return;
-        this.ctx.drawImage(scene.canvas, 0, fromY + pad, width, toY - fromY,
-          0, fromY, width, toY - fromY);
+        let y1 = Math.max(-pad, Math.round(fromY));
+        let y2 = Math.min(bottom, Math.round(toY));
+        if (y2 <= y1) return;
+        if (y2 < bottom) y2 += 1;   // one-pixel overlap hides the seam
+        const h = y2 - y1;
+        this.ctx.drawImage(scene.canvas, 0, y1 + pad, width, h, 0, y1, width, h);
       };
 
       let drawnTo = -pad;
