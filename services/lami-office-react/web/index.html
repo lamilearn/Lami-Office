@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&family=Press+Start+2P&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=a3b17d72">
+  <link rel="stylesheet" href="css/style.css?v=bfa1d494">
 </head>
 <body>
   <main id="stage" aria-label="Lami's AI Office">
@@ -183,6 +183,22 @@
       </div>
     </div>
 
+    <div id="vm-modal" class="modal hidden" role="dialog" aria-label="Resource VM tiap agent">
+      <div class="modal-card">
+        <div class="modal-head">
+          <div class="modal-title">
+            <span>🖥️</span>
+            <b>VM RESOURCES</b>
+          </div>
+          <button id="vm-close" class="modal-close" aria-label="Tutup">✕</button>
+        </div>
+        <div class="modal-body">
+          <ul id="vm-list" class="vm-list"></ul>
+          <p id="vm-hint" class="ctx-hint">💡 Angka diambil langsung dari tiap agent host. Arahkan kursor ke rak di ruang server untuk melihat satu server.</p>
+        </div>
+      </div>
+    </div>
+
     <!-- Context Window Trashcan Modal (Claude-Office reference) -->
     <div id="context-modal" class="modal hidden" role="dialog" aria-label="Context Window Trashcan">
       <div class="modal-card">
@@ -226,10 +242,10 @@
   <script src="js/sprites.js?v=6b939163"></script>
   <script src="js/audio.js?v=120c44b4"></script>
   <script src="js/tilemap.js?v=d9f6d70a"></script>
-  <script src="js/world.js?v=09f354e5"></script>
+  <script src="js/world.js?v=7777a1b3"></script>
   <script src="js/agents.js?v=23524db0"></script>
-  <script src="js/office.js?v=ac2022b4"></script>
-  <script src="js/ui.js?v=cbc16dba"></script>
+  <script src="js/office.js?v=2656a3bf"></script>
+  <script src="js/ui.js?v=fa4c94be"></script>
   <script src="js/demo.js?v=bf192b75"></script>
   <script src="js/net.js?v=0f8c14af"></script>
   <script src="js/main.js?v=04c7b64a"></script>

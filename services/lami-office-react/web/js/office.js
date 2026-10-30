@@ -89,12 +89,11 @@
       this._scene = null;
       this._sceneCtx = null;
       // Pointer position in tile space, used to reveal the Server Room's VM
-      // monitor on hover. `vmPanelPinned` keeps it open after a tap on touch
+      // monitor on hover. `vmPinnedRack` keeps one open after a tap on touch
       // devices, which have no hover at all.
       this.hoverTile = null;
-      // HUD "VM INFO" chip: pins the overview of all five agents.
-      this.vmPanelPinned = false;
-      // Tapping a rack on a touch device pins that single agent instead.
+      // Tapping a rack pins that server's resources (touch devices have no hover).
+      // The five-agent overview lives in the HUD card instead.
       this.vmPinnedRack = -1;
       // True once a world frame has positioned everybody (the first frame snaps,
       // later frames ease). Reset only on a full page load, never on reconnect.
@@ -1260,10 +1259,10 @@
       return this.rackAt(h.x, h.y);
     }
 
-    // True while the Server Room is showing resources: a specific rack is hovered
-    // (or pinned by a tap), or the HUD chip pinned the whole overview.
+    // True while a server rack is showing its resources: hovered, or pinned by a
+    // tap on a touch device.
     vmPanelVisible() {
-      if (this.vmPanelPinned || this.vmPinnedRack >= 0) return true;
+      if (this.vmPinnedRack >= 0) return true;
       return this.hoveredRack() >= 0;
     }
 

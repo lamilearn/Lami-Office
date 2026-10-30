@@ -767,11 +767,10 @@ print(json.dumps({
     }
   }, { timeout: 60000 });
 
-  it('F34.4: the overview lists every agent and dashes missing gauges', () => {
+  it('F34.4: the room shows one rack at a time; the card lists them all', () => {
     const src = fs.readFileSync(WORLD, 'utf8');
     assert.ok(/renderVmMonitor\(ctx, ts\)/.test(src), 'the server room must expose a monitor pass');
-    assert.ok(/VM RESOURCES/.test(src), 'the overview must be labelled');
-    assert.ok(/office\.vmResources/.test(src), 'it must read the polled resources');
+    assert.ok(!/drawVmOverview/.test(src), 'the in-world overview must be gone');
     assert.ok(/'--'/.test(src), 'a missing gauge must show a dash, not a number');
 
     const harness = require('../harness');
@@ -780,26 +779,24 @@ print(json.dumps({
     harness.loadScriptIntoEnv(env, 'sprites.js');
     harness.loadScriptIntoEnv(env, 'world.js');
     env.window.LO = LO;
-    // The HUD chip pins the overview of all agents.
+    const agents = [
+      { id: 'lami', name: 'Lami', icon: 'L', color: '#c084fc', online: true, has_metrics: true, cpu_percent: 54.5, mem_percent: 64.4 },
+      { id: 'cyro', name: 'Cyro', icon: 'C', color: '#a78bfa', online: false, has_metrics: false }
+    ];
+    // Hovering the second rack must report that rack's owner only.
     env.window.LO.office = {
-      vmPanelPinned: true,
+      vmResources: { agents },
+      hoveredRack: () => 1,
       vmPinnedRack: -1,
-      hoveredRack: () => -1,
-      vmPanelVisible: () => true,
-      vmResources: { agents: [
-        { id: 'lami', name: 'Lami', icon: 'L', online: true, has_metrics: true, cpu_percent: 54.5, mem_percent: 64.4 },
-        { id: 'cyro', name: 'Cyro', icon: 'C', online: false, has_metrics: false }
-      ] }
+      vmPanelVisible: () => true
     };
     const world = new LO.World();
     const ctx = env.document.createElement('canvas').getContext('2d');
     world.renderVmMonitor(ctx, 16);
     const texts = ctx.drawCalls.filter((c) => c.type === 'fillText').map((c) => c.text);
-    assert.ok(texts.includes('VM RESOURCES'));
-    assert.ok(texts.some((t) => /Lami/.test(t)), 'the reporting agent must be listed');
-    assert.ok(texts.includes('55%') && texts.includes('64%'), 'real percentages must be shown');
-    const dashes = texts.filter((t) => t === '--').length;
-    assert.strictEqual(dashes, 2, 'the silent agent gets two dashes (CPU + RAM)');
+    assert.ok(texts.some((t) => /Cyro/.test(t)), 'the hovered rack must be shown');
+    assert.ok(!texts.some((t) => /Lami/.test(t)), 'other agents must not be drawn on the floor');
+    assert.strictEqual(texts.filter((t) => t === '--').length, 3, 'CPU, RAM and DISK dash when nothing is measured');
   });
 
   it('F34.5: the client polls /api/resources and the deploy ships the agent', () => {
@@ -900,26 +897,30 @@ describe('Feature 35: The Server Room shows one rack per agent', () => {
     assert.strictEqual(dashes, 3, 'CPU, RAM and DISK all show a dash when nothing is measured');
   });
 
-  it('F35.4: the HUD chip pins the overview of all five agents', () => {
+  it('F35.4: the HUD chip opens a card and never draws on the floor', () => {
     const { office } = buildOffice();
-    assert.strictEqual(office.vmPanelVisible(), false, 'hidden by default');
-    office.vmPanelPinned = true;
-    assert.strictEqual(office.vmPanelVisible(), true, 'the HUD chip reveals the overview');
+    assert.strictEqual(office.vmPanelVisible(), false, 'nothing on the floor by default');
+    // Even with data available the floor stays clean: the overview is a card.
     office.ctx.drawCalls.length = 0;
-    office.world.renderVmMonitor(office.ctx, LO_TILE());
-    const names = office.ctx.drawCalls.filter(c => c.type === 'fillText').map(c => c.text);
-    assert.ok(names.includes('VM RESOURCES'), 'the overview is labelled');
-    for (const who of ['Lami', 'Yuna', 'Aurora', 'Kira', 'Cyro']) {
-      assert.ok(names.some(t => t.indexOf(who) > -1), `${who} must be listed in the overview`);
-    }
+    office.world.renderVmMonitor(office.ctx, 16);
+    const texts = office.ctx.drawCalls.filter((c) => c.type === 'fillText').map((c) => c.text);
+    assert.ok(!texts.includes('VM RESOURCES'), 'the floor must not host the overview');
+    assert.ok(!texts.some((t) => /Yuna/.test(t)), 'no agent list on the floor');
+    assert.ok(!texts.some((t) => /Lami/.test(t)));
+
+    const ui = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/js/ui.js'), 'utf8');
+    assert.ok(/showVmModal\(\)/.test(ui), 'the chip must open a modal card');
+    assert.ok(/renderVmList/.test(ui), 'the card must render one row per agent');
+    assert.ok(!/vmPanelPinned/.test(ui), 'the chip must not pin an in-world panel');
   });
 
   it('F35.5: the HUD owns the VM INFO affordance and the client feeds it', () => {
     const html = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/index.html'), 'utf8');
     assert.ok(/id="hud-vm-chip"/.test(html), 'the chip must live in the HUD');
     assert.ok(/VM INFO/.test(html), 'the chip must be labelled VM INFO');
+    assert.ok(/id="vm-modal"/.test(html) && /id="vm-list"/.test(html), 'the card must exist in the DOM');
     const ui = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/js/ui.js'), 'utf8');
-    assert.ok(/vmPanelPinned = !office\.vmPanelPinned/.test(ui), 'the chip must toggle the overview');
+    assert.ok(/showVmModal\(\)/.test(ui), 'the chip must open the VM card');
     assert.ok(/setVmStatus/.test(ui), 'the chip must reflect how many agents report');
     const net = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/js/net.js'), 'utf8');
     assert.ok(/LO\.ui\.setVmStatus/.test(net), 'the poller must feed the chip');

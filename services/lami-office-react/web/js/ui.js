@@ -31,6 +31,9 @@
 
       this.ctxChip = document.getElementById('hud-ctx-chip');
       this.vmChip = document.getElementById('hud-vm-chip');
+      this.vmModal = document.getElementById('vm-modal');
+      this.vmClose = document.getElementById('vm-close');
+      this.vmList = document.getElementById('vm-list');
       this.ctxVal = document.getElementById('hud-ctx-val');
       this.ctxModal = document.getElementById('context-modal');
       this.ctxClose = document.getElementById('ctx-close');
@@ -184,16 +187,16 @@
       }
 
       // Context Window Trashcan Modal bindings
-      // HUD chip: pins the overview of every agent, which is the only way to see
-      // it on a touch device (racks are hover targets). Also doubles as the
-      // discoverability hint that the Server Room has live VM data.
+      // HUD chip: opens the VM resources card, exactly like the other chips
+      // (context window, A2A). The server room itself only shows the per-rack
+      // detail on hover.
       if (this.vmChip) {
-        this.vmChip.addEventListener('click', () => {
-          const office = window.LO?.office;
-          if (!office) return;
-          office.vmPanelPinned = !office.vmPanelPinned;
-          office.vmPinnedRack = -1;
-          this.vmChip.classList.toggle('active', Boolean(office.vmPanelPinned));
+        this.vmChip.addEventListener('click', () => this.showVmModal());
+      }
+      if (this.vmClose) this.vmClose.addEventListener('click', () => this.hideVmModal());
+      if (this.vmModal) {
+        this.vmModal.addEventListener('click', (e) => {
+          if (e.target === this.vmModal) this.hideVmModal();
         });
       }
       if (this.ctxChip && this.ctxModal) {
@@ -539,12 +542,53 @@
     }
 
     // Real agent roster (HUB.agents + A2A) as published by the server.
+    showVmModal() {
+      if (!this.vmModal) return;
+      this.renderVmList(window.LO?.office?.vmResources?.agents);
+      this.vmModal.classList.remove('hidden');
+      LO.audio.pop();
+    }
+
+    hideVmModal() {
+      if (this.vmModal) this.vmModal.classList.add('hidden');
+    }
+
+    // One row per agent host: name, CPU and RAM gauges, straight from the host.
+    renderVmList(agents) {
+      if (!this.vmList) return;
+      const list = Array.isArray(agents) ? agents : [];
+      if (!list.length) {
+        this.vmList.innerHTML = '<li class="vm-item"><div class="vm-name"><b>Menunggu metrik…</b></div></li>';
+        return;
+      }
+      const colour = (pct) => (pct == null ? '#94a3b8' : pct >= 85 ? '#e74c3c' : pct >= 65 ? '#f59e0b' : '#2ecc71');
+      const gauge = (label, pct, extra) => {
+        const shown = pct == null ? '--' : `${Math.round(pct)}%`;
+        return `<div class="vm-gauge">
+          <div class="vm-val"><span>${label}${extra ? ` · ${extra}` : ''}</span><b>${shown}</b></div>
+          <div class="vm-bar"><i style="width:${pct == null ? 0 : Math.min(100, pct)}%;background:${colour(pct)}"></i></div>
+        </div>`;
+      };
+      this.vmList.innerHTML = list.map((a) => {
+        const online = a.online !== false;
+        return `<li class="vm-item ${online ? '' : 'offline'}">
+          <div class="vm-name">
+            <span style="color:${a.color || '#94a3b8'}">${a.icon || '🖥️'}</span>
+            <span><b>${a.name || a.id}</b><small>${online ? 'online' : 'offline'} · ${a.host || ''}</small></span>
+          </div>
+          ${gauge('CPU', a.cpu_percent, a.cpu_cores ? `${a.cpu_cores} core` : '')}
+          ${gauge('RAM', a.mem_percent, a.mem_used_mb != null ? `${a.mem_used_mb}MB` : '')}
+        </li>`;
+      }).join('');
+    }
+
     // Show how many agents are actually reporting resources.
     setVmStatus(agents) {
       if (!this.vmChip) return;
       const list = Array.isArray(agents) ? agents : [];
       const reporting = list.filter((a) => a && a.has_metrics).length;
       this.vmChip.classList.toggle('off', list.length > 0 && reporting === 0);
+      this.vmChip.classList.remove('active');
       this.vmChip.title = list.length
         ? `Resource VM: ${reporting}/${list.length} agent melaporkan`
         : 'Resource VM tiap agent (menunggu metrik)';

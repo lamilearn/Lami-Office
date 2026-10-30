@@ -797,15 +797,14 @@
       const agents = (data && Array.isArray(data.agents)) ? data.agents : [];
       if (!agents.length) return;
 
+      // The room only ever shows one server at a time: the rack under the cursor
+      // (or the one tapped on a touch device). The five-agent overview lives in
+      // the HUD card, so the floorplan stays readable.
       const pinnedRack = (typeof office.vmPinnedRack === 'number') ? office.vmPinnedRack : -1;
       const hoveredRack = (typeof office.hoveredRack === 'function') ? office.hoveredRack() : -1;
       const single = pinnedRack >= 0 ? pinnedRack : hoveredRack;
-
-      if (single >= 0 && LO.VM_RACKS && LO.VM_RACKS[single]) {
-        this.drawRackPanel(ctx, ts, agents[single], LO.VM_RACKS[single]);
-        return;
-      }
-      this.drawVmOverview(ctx, ts, agents);
+      if (single < 0 || !LO.VM_RACKS || !LO.VM_RACKS[single]) return;
+      this.drawRackPanel(ctx, ts, agents[single], LO.VM_RACKS[single]);
     }
 
     // Detail card for one rack, placed directly under it.
@@ -863,51 +862,6 @@
 
       ctx.fillStyle = '#64748b';
       ctx.fillText(String((agent && agent.host) || '').slice(0, 22), x + 5, y + h - 4);
-    }
-
-    // Overview of every agent, used by the HUD "VM INFO" chip.
-    drawVmOverview(ctx, ts, agents) {
-      const x = 58 * ts + 4;
-      const y = 9.4 * ts;
-      const w = 25 * ts - 8;
-      const rowH = 12;
-      const h = 14 + Math.max(agents.length, 1) * rowH;
-
-      ctx.fillStyle = 'rgba(9, 13, 26, 0.95)';
-      ctx.fillRect(x, y, w, h);
-      ctx.strokeStyle = '#334155';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
-
-      ctx.font = '5px "Press Start 2P", monospace';
-      ctx.textAlign = 'left';
-      ctx.fillStyle = '#7dd3fc';
-      ctx.fillText('VM RESOURCES', x + 4, y + 9);
-
-      const barW = 74;
-      const cpuX = x + 108;
-      const memX = cpuX + barW + 44;
-      agents.slice(0, 6).forEach((a, i) => {
-        const ry = y + 14 + i * rowH;
-        const has = Boolean(a.has_metrics);
-        ctx.fillStyle = a.online === false ? '#64748b' : '#e2e8f0';
-        ctx.fillText(`${a.icon || '•'} ${String(a.name || a.id).slice(0, 7)}`, x + 4, ry + 8);
-        [['CPU', a.cpu_percent, cpuX], ['RAM', a.mem_percent, memX]].forEach(([label, pct, bx]) => {
-          ctx.fillStyle = '#64748b';
-          ctx.fillText(label, bx - 22, ry + 8);
-          ctx.fillStyle = '#1e293b';
-          ctx.fillRect(bx, ry + 2, barW, 7);
-          if (has && pct != null) {
-            ctx.fillStyle = this.staticGaugeColor(pct);
-            ctx.fillRect(bx, ry + 2, Math.max(1, (barW * Math.min(100, pct)) / 100), 7);
-            ctx.fillStyle = '#cbd5e1';
-            ctx.fillText(`${Math.round(pct)}%`, bx + barW + 4, ry + 8);
-          } else {
-            ctx.fillStyle = '#64748b';
-            ctx.fillText('--', bx + barW + 4, ry + 8);
-          }
-        });
-      });
     }
 
     // Interactive Prop: Multi-Mode Whiteboard
