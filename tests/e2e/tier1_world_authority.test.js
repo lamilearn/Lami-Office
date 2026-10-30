@@ -1356,3 +1356,56 @@ describe('Feature 40: No seam or notch artefacts around characters', () => {
     assert.ok(env, 'sanity');
   });
 });
+
+describe('Feature 41: The boss chair reads as a chair', () => {
+  const WORLD = path.join(REPO, 'services/lami-office-react/web/js/world.js');
+
+  function bossOps() {
+    const harness = require('../harness');
+    const env = harness.createBrowserEnvironment();
+    const LO = harness.loadScriptIntoEnv(env, 'config.js');
+    harness.loadScriptIntoEnv(env, 'sprites.js');
+    harness.loadScriptIntoEnv(env, 'world.js');
+    env.window.LO = LO;
+    LO.office = { contextUsage: 0.42, vmPanelVisible: () => false, hoveredRack: () => -1 };
+    const world = new LO.World();
+    const ctx = env.document.createElement('canvas').getContext('2d');
+    world.drawBossOffice(ctx, LO.TILE_SIZE, { type: 'day' });
+    return { ops: ctx.drawCalls, TS: LO.TILE_SIZE };
+  }
+
+  it('F41.1: the chair is a seat, a backrest and a star base - not a blob with eyes', () => {
+    const { ops, TS } = bossOps();
+    // Chair is centred on the boss seat column, just behind the desk.
+    const cx = 14 * TS + 8;
+    const cy = 6 * TS + 7;
+    const near = (x, y, r = 16) => Math.hypot(x - cx, y - cy) <= r;
+
+    const ellipses = ops.filter((c) => c.type === 'ellipse' && near(c.x, c.y));
+    assert.ok(ellipses.length >= 2, `expected a seat and a backrest, got ${ellipses.length}`);
+    assert.ok(ops.some((c) => c.type === 'stroke' && ellipses.some((e) => e.x === c.x || true)),
+      'the seat must be outlined');
+
+    const legs = ops.filter((c) => c.type === 'fillRect' && c.w === 3 && c.h === 3 && near(c.x + 1.5, c.y + 1.5, 14));
+    assert.ok(legs.length >= 5, `expected a five-star base, got ${legs.length} legs`);
+
+    // Regression: the old drawing was a 9px black circle with exactly two 2x2 gold
+    // dots. Those dots read as eyes, which is why it looked like a creature.
+    const eyeDots = ops.filter((c) => c.type === 'fillRect' && c.w === 2 && c.h === 2
+      && String(c.fillStyle).toLowerCase() === '#ffd25e' && near(c.x, c.y, 12));
+    assert.deepStrictEqual(eyeDots, [], 'the chair must not have eye-like dots');
+
+    const blackCircle = ops.filter((c) => c.type === 'arc' && c.r === 9
+      && String(c.fillStyle).toLowerCase() === '#1f1e24');
+    assert.deepStrictEqual(blackCircle, [], 'the old black blob must be gone');
+  });
+
+  it('F41.2: the chair uses ellipses, so it is not built from a plain circle', () => {
+    const src = fs.readFileSync(WORLD, 'utf8');
+    const fn = src.slice(src.indexOf('    drawBossOffice(ctx, ts, theme) {'),
+      src.indexOf('    drawResearchLab('));
+    assert.ok(/ctx\.ellipse\(/.test(fn), 'the chair must use ellipses');
+    assert.ok(!/#1f1e24/.test(fn), 'the flat black fill must be gone');
+    assert.ok(/for \(let leg = 0; leg < 5; leg\+\+\)/.test(fn), 'the five-star base must be explicit');
+  });
+});

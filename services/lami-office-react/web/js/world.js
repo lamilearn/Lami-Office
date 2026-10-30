@@ -441,15 +441,33 @@
       const dx = 11 * ts, dy = 7 * ts, dw = 7 * ts, dh = 1.2 * ts;
       this.draw2DBlock(ctx, dx, dy, dw, dh, 14, '#7a3e2e', '#5a2b1e', '#ffd25e');
 
-      // Executive Leather Swivel Chair (behind the desk)
-      const cx = 14 * ts + 8, cy = 6 * ts;
-      ctx.fillStyle = '#1f1e24';
+      // Executive chair behind the desk: a seat with a backrest and a five-star
+      // base, so it reads as furniture. It used to be a plain black circle with
+      // two gold dots, which looked like a creature staring at you.
+      const cx = 14 * ts + 8, cy = 6 * ts + 7;
+      ctx.fillStyle = '#221f29';
+      for (let leg = 0; leg < 5; leg++) {
+        const a = (Math.PI * 2 * leg) / 5 - Math.PI / 2;
+        ctx.fillRect(cx + Math.cos(a) * 8 - 1, cy + Math.sin(a) * 6 - 1, 3, 3);
+      }
       ctx.beginPath();
-      ctx.arc(cx, cy + 8, 9, 0, Math.PI * 2);
+      ctx.ellipse(cx, cy, 7, 5.5, 0, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = '#ffd25e';
-      ctx.fillRect(cx - 3, cy + 4, 2, 2);
-      ctx.fillRect(cx + 1, cy + 4, 2, 2);
+      // Seat cushion, lifted slightly so the base stays visible.
+      ctx.fillStyle = '#3b3745';
+      ctx.beginPath();
+      ctx.ellipse(cx, cy - 1, 6, 4.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Backrest on the far side of the desk.
+      ctx.fillStyle = '#2b2833';
+      ctx.beginPath();
+      ctx.ellipse(cx, cy - 7, 6.5, 3.2, 0, Math.PI, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#ffd25e';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy - 1, 6, 4.5, 0, 0, Math.PI * 2);
+      ctx.stroke();
 
       // Gold Laptop on Desk
       const lx = 13 * ts, ly = 6.9 * ts;
