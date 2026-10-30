@@ -631,11 +631,6 @@
         }
       });
 
-      // Wall monitor: live CPU/RAM per agent VM. Numbers come from each agent's
-      // own metrics endpoint (deploy/metrics_agent.py); when a host does not
-      // report, the row says so instead of drawing a fake gauge.
-      this.drawVmMonitor(ctx, ts);
-
       // Mainframe Ops Console Desk (X: 66..71, Y: 14)
       const cx = 66 * ts, cy = 14 * ts;
       this.draw2DBlock(ctx, cx, cy, 6 * ts, 1.2 * ts, 12, '#34495e', '#2c3e50');
@@ -821,6 +816,15 @@
           ctx.fillText('--', memX + barW + 4, ry + 8);
         }
       });
+    }
+
+    // Wall monitor: live CPU/RAM per agent VM. Drawn after the characters
+    // (see Office.render) because the panel hangs in the middle of the room
+    // where people walk - inside the depth-sorted scene they walked over it.
+    // Numbers come from each agent's metrics endpoint (deploy/metrics_agent.py);
+    // a host that does not report shows "--" instead of a fabricated gauge.
+    renderVmMonitor(ctx, ts) {
+      this.drawVmMonitor(ctx, ts);
     }
 
     // Small affordance so the monitor is discoverable when it is hidden.

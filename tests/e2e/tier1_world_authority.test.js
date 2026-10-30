@@ -889,3 +889,85 @@ describe('Feature 35: The Server Room monitor is revealed on hover', () => {
     assert.ok(/LO\.VM_INFO_CHIP = \{ x: 58 \* LO\.TILE_SIZE \+ 6/.test(config));
   });
 });
+
+describe('Feature 36: Characters are occluded by props, not drawn over them', () => {
+  const OFFICE = path.join(REPO, 'services/lami-office-react/web/js/office.js');
+  const AGENTS = path.join(REPO, 'services/lami-office-react/web/js/agents.js');
+  const WORLD = path.join(REPO, 'services/lami-office-react/web/js/world.js');
+
+  function buildOffice() {
+    const harness = require('../harness');
+    const env = harness.createBrowserEnvironment();
+    const LO = harness.loadScriptIntoEnv(env, 'config.js');
+    harness.loadScriptIntoEnv(env, 'sprites.js');
+    harness.loadScriptIntoEnv(env, 'world.js');
+    harness.loadScriptIntoEnv(env, 'office.js');
+    env.window.LO = LO;
+    LO.audio = new Proxy({}, { get: () => () => {} });
+    harness.loadScriptIntoEnv(env, 'agents.js');
+    LO.ui = { updateStaffCount() {}, addTicker() {}, appendChatMessage() {}, triggerEventBanner() {},
+      setStatus() {}, recordDone() {}, setOfficeStatus() {}, setRoster() {} };
+    env.window.innerWidth = 1600;
+    env.window.matchMedia = () => ({ matches: false });
+    const office = new LO.Office(env.document.createElement('canvas'));
+    office.canvas = { clientWidth: 1600, clientHeight: 900,
+      getBoundingClientRect: () => ({ left: 0, top: 0, width: 1600, height: 900 }) };
+    office.simulatedExternally = true;
+    office.world = new LO.World();
+    return { office, LO, env };
+  }
+
+  it('F36.1: the scene is rendered offscreen and blitted in depth order', () => {
+    const { office, LO } = buildOffice();
+    const scene = office.sceneCanvas();
+    assert.ok(scene && scene.canvas, 'an offscreen scene canvas must exist');
+    assert.strictEqual(scene.canvas.height, LO.CONTENT_H + LO.SCENE_TOP_PAD);
+
+    // Record when each band is blitted and when each character body is drawn.
+    const timeline = [];
+    for (const c of office.residents) {
+      const orig = c.render.bind(c);
+      c.render = (ctx, opts) => { timeline.push({ y: (c.row || 0) * LO.TILE_SIZE, kind: 'char' }); return orig(ctx, opts); };
+    }
+    office.ctx.drawCalls.length = 0;
+    office.render();
+    const sceneBands = office.ctx.drawCalls
+      .filter((c) => c.type === 'drawImage' && c.args && c.args.length >= 8 && c.image === scene.canvas)
+      .map((c) => ({ y: c.args[5], kind: 'band' }));
+
+    const all = [...sceneBands, ...timeline].sort((a, b) => a.y - b.y);
+    assert.ok(sceneBands.length > 0, 'the scene must be blitted in bands');
+    for (let i = 1; i < all.length; i++) {
+      assert.ok(all[i].y >= all[i - 1].y - 0.001, 'bands and characters must interleave by depth');
+    }
+  });
+
+  it('F36.2: bodies and speech are separate passes', () => {
+    const src = fs.readFileSync(AGENTS, 'utf8');
+    const render = src.slice(src.indexOf('    render(ctx, opts) {'), src.indexOf('    renderText(ctx, pos, hopY) {'));
+    assert.ok(/if \(opts && opts.skipText\) return;/.test(render), 'the body pass must be skippable');
+    const text = src.slice(src.indexOf('    renderText(ctx, pos, hopY) {'), src.indexOf('    renderEmote(ctx, x, py) {'));
+    assert.ok(/renderEmote/.test(text) && /renderBubble/.test(text), 'speech must live in renderText');
+    const office = fs.readFileSync(OFFICE, 'utf8');
+    assert.ok(/renderText\(this\.ctx\)/.test(office), 'the office must draw speech after the bands');
+    assert.ok(/skipText: true/.test(office), 'bodies inside the bands must skip speech');
+  });
+
+  it('F36.3: the VM monitor floats above the crowd', () => {
+    const world = fs.readFileSync(WORLD, 'utf8');
+    assert.ok(/renderVmMonitor\(ctx, ts\)/.test(world), 'the monitor must have its own pass');
+    const room = world.slice(world.indexOf('    drawServerRoom(ctx, ts, theme) {'), world.indexOf('    drawEngineeringPit('));
+    assert.ok(!/drawVmMonitor\(ctx, ts\)/.test(room),
+      'the monitor must not be drawn with the furniture, or characters walk over it');
+    const office = fs.readFileSync(OFFICE, 'utf8');
+    const afterBands = office.slice(office.indexOf('// 5. Speech bubbles'), office.indexOf('this.ctx.restore()'));
+    assert.ok(/renderVmMonitor/.test(afterBands), 'the monitor must be drawn after the characters');
+  });
+
+  it('F36.4: a fallback keeps working without an offscreen canvas', () => {
+    const src = fs.readFileSync(OFFICE, 'utf8');
+    assert.ok(/if \(!this\.renderBanded\(allChars\)\)/.test(src), 'the banded path must be optional');
+    const fallback = src.slice(src.indexOf('if (!this.renderBanded(allChars)) {'), src.indexOf('// 5. Speech bubbles'));
+    assert.ok(/this\.world\.render\(this\.ctx\)/.test(fallback), 'the flat order must remain as a fallback');
+  });
+});

@@ -14,6 +14,9 @@
   // under the building no longer forces a letterbox. Everything the player must
   // see stays inside this rect, which is what guarantees no room is ever cropped.
   LO.VIEW_FOCUS = { x1: 0, y1: 0, x2: LO.GRID_COLS, y2: 42 };
+  // Headroom above the content for raised wall tops when the scene is rendered
+  // to its own canvas for depth-band compositing.
+  LO.SCENE_TOP_PAD = 32;
 
   // The "VM INFO" chip in the Server Room. It is both the hover target that
   // reveals the resource monitor and the hint drawn while the monitor is hidden,

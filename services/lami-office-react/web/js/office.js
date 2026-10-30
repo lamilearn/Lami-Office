@@ -76,6 +76,9 @@
       // Latest per-agent VM metrics (Server Room monitor), filled by net.js.
       this.vmResources = null;
       this.vmResourcesAt = 0;
+      // Offscreen canvas holding the static scene for depth-band compositing.
+      this._scene = null;
+      this._sceneCtx = null;
       // Pointer position in tile space, used to reveal the Server Room's VM
       // monitor on hover. `vmPanelPinned` keeps it open after a tap on touch
       // devices, which have no hover at all.
@@ -1523,29 +1526,93 @@
       this.ctx.translate(view.offsetX, view.offsetY);
       this.ctx.scale(view.zoom, view.zoom);
 
-      // 1. World Floor, Walls & Stationary Props
-      this.world.render(this.ctx);
-
-      // 2. Elevator Adapter (no-op in 2D mode)
-      if (this.elevator && this.elevator.render) {
-        this.elevator.render(this.ctx);
-      }
-
-      // 3. Characters sorted by 2D Y-Depth (Painter's Algorithm)
       const peers = this.peerAgents ? [...this.peerAgents.values()] : [];
       const allChars = [this.lami, ...this.residents, ...peers, ...this.subagents.values(), this.cat];
       if (this.deliveryRider) allChars.push(this.deliveryRider);
       allChars.sort((a, b) => a.getDepth() - b.getDepth());
 
-      for (const c of allChars) {
-        c.render(this.ctx);
+      // 1-4. Floor, walls, props, characters and wall tops, composited in depth
+      //      bands so anything with height occludes whoever stands behind it.
+      if (!this.renderBanded(allChars)) {
+        // Fallback (no offscreen canvas available): the previous flat order.
+        this.world.render(this.ctx);
+        if (this.elevator && this.elevator.render) this.elevator.render(this.ctx);
+        for (const c of allChars) c.render(this.ctx);
+        if (this.world.renderOverlay) this.world.renderOverlay(this.ctx);
       }
 
-      // 4. Wall tops, doorway frames & wall decor painted over characters so a
-      //    room reads as an enclosed box (architect-plan / dollhouse depth).
-      if (this.world.renderOverlay) this.world.renderOverlay(this.ctx);
+      // 5. Speech bubbles and emotes last, so no band can paint over them.
+      for (const c of allChars) {
+        if (typeof c.renderText === 'function') c.renderText(this.ctx);
+      }
+
+      // 6. The Server Room's VM monitor is a screen hanging in the walkway; it
+      //    must float above the crowd rather than being walked over.
+      if (this.world.renderVmMonitor) this.world.renderVmMonitor(this.ctx, LO.TILE_SIZE);
 
       this.ctx.restore();
+    }
+
+    // Renders the static scene once into an offscreen canvas, then blits it in
+    // horizontal bands around the depth-sorted characters. Returns false when no
+    // offscreen canvas is available.
+    renderBanded(chars) {
+      const pad = LO.SCENE_TOP_PAD || 32;
+      const scene = this.sceneCanvas();
+      if (!scene || !scene.ctx) return false;
+
+      const sctx = scene.ctx;
+      sctx.setTransform(1, 0, 0, 1, 0, 0);
+      sctx.imageSmoothingEnabled = false;
+      sctx.clearRect(0, 0, scene.canvas.width, scene.canvas.height);
+      sctx.save();
+      sctx.translate(0, pad);
+      this.world.render(sctx);
+      if (this.elevator && this.elevator.render) this.elevator.render(sctx);
+      if (this.world.renderOverlay) this.world.renderOverlay(sctx);
+      sctx.restore();
+
+      const TS = LO.TILE_SIZE;
+      const width = LO.CONTENT_W;
+      const bottom = LO.CONTENT_H;
+      const blit = (fromY, toY) => {
+        if (toY <= fromY) return;
+        this.ctx.drawImage(scene.canvas, 0, fromY + pad, width, toY - fromY,
+          0, fromY, width, toY - fromY);
+      };
+
+      let drawnTo = -pad;
+      for (const c of chars) {
+        const row = c.row !== undefined ? c.row : c.y;
+        const footY = Math.max(-pad, Math.min(bottom, (row || 0) * TS));
+        if (footY > drawnTo) {
+          blit(drawnTo, footY);
+          drawnTo = footY;
+        }
+        c.render(this.ctx, { skipText: true });
+      }
+      blit(drawnTo, bottom);
+      return true;
+    }
+
+    // Persistent offscreen holding the static scene for the current frame.
+    sceneCanvas() {
+      const w = LO.CONTENT_W;
+      const h = LO.CONTENT_H + (LO.SCENE_TOP_PAD || 32);
+      if (this._scene && this._scene.width === w && this._scene.height === h) {
+        return { canvas: this._scene, ctx: this._sceneCtx };
+      }
+      let canvas = null;
+      if (typeof OffscreenCanvas !== 'undefined') {
+        canvas = new OffscreenCanvas(w, h);
+      } else if (typeof document !== 'undefined' && document.createElement) {
+        canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+      }
+      this._scene = canvas;
+      this._sceneCtx = canvas && canvas.getContext ? canvas.getContext('2d') : null;
+      return canvas ? { canvas, ctx: this._sceneCtx } : null;
     }
   }
 
