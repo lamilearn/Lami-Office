@@ -872,18 +872,29 @@
       }
     }
 
-    setContextUsage(ratio) {
+    // `detail` carries the real measurement from the bridge: usedTokens and
+    // limitTokens come straight from the Hermes transcript (an estimate, since
+    // Hermes stores no per-call token count). Without it we fall back to a plain
+    // ratio, which is what the manual /context command sets.
+    setContextUsage(ratio, detail) {
       const clamped = Math.max(0, Math.min(1, ratio));
       const office = window.LO?.office;
       if (office) office.contextUsage = clamped;
 
       const pct = Math.round(clamped * 100);
-      const usedTokens = Math.round(clamped * 200000);
+      const limit = Number(detail && detail.limitTokens) || Number(detail && detail.limit_tokens) || 0;
+      const used = Number(detail && detail.usedTokens) || Number(detail && detail.used_tokens) || 0;
+      const usedTokens = used || Math.round(clamped * 200000);
 
       if (this.ctxVal) this.ctxVal.textContent = `${pct}%`;
-      if (this.ctxPctText) this.ctxPctText.textContent = `${pct}% Terisi`;
+      if (this.ctxPctText) {
+        this.ctxPctText.textContent = limit
+          ? `~${Math.round(used / 1000)}k / ${Math.round(limit / 1000)}k token (estimasi)`
+          : `${pct}% Terisi`;
+      }
       if (this.ctxGaugeBar) this.ctxGaugeBar.style.width = `${pct}%`;
       if (this.ctxUsedVal) this.ctxUsedVal.textContent = usedTokens.toLocaleString();
+      this.contextDetail = detail || null;
 
       if (this.ctxStatusText) {
         if (clamped >= 0.85) {

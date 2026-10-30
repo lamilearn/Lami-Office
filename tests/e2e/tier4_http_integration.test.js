@@ -939,3 +939,43 @@ describe('Tier 4 — HTTP Integration: Ingest survives an office restart', () =>
     assert.ok(!world.json.chars.some((c) => c.id === 'Sistem'), 'Sistem must not be rendered');
   }, { timeout: 45000 });
 });
+
+describe('Tier 4 — HTTP Integration: Live context window', () => {
+  let srv = null;
+  beforeAll(async () => { srv = await H.startServer(); });
+  afterAll(async () => { if (srv) await srv.stop(); srv = null; });
+
+  it('H9: a context report from the bridge reaches the API and the stream', async () => {
+    if (!HAVE_PY) return;
+    const res = await srv.post('/api/event', {
+      type: 'context', agentId: 'lami', session: 'sa-live', model: 'deepseek/x',
+      messages: 12, usedTokens: 84000, limitTokens: 128000, percent: 65.6
+    });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.json.accepted, 1, 'context must be an accepted event type');
+    await H.sleep(300);
+
+    const boss = await srv.get('/api/boss');
+    assert.strictEqual(boss.json.context.percent, 65.6);
+    assert.strictEqual(boss.json.context.used_tokens, 84000);
+    assert.strictEqual(boss.json.context.limit_tokens, 128000);
+    assert.strictEqual(boss.json.context.session, 'sa-live');
+
+    const sse = await srv.sse();
+    try {
+      const snap = await sse.waitFor((ev) => ev.type === 'snapshot', 4000);
+      assert.strictEqual(snap.context.percent, 65.6, 'a fresh page must learn the context fill');
+    } finally {
+      sse.close();
+    }
+  }, LONG);
+
+  it('H10: a context report never becomes an agent card or a plot item', async () => {
+    if (!HAVE_PY) return;
+    await H.sleep(1200);
+    const agents = await srv.get('/api/agents');
+    assert.ok(!agents.json.agents.some((a) => a.id === 'context'), 'context is not an agent');
+    const world = await srv.get('/api/world');
+    assert.strictEqual(world.json.chars.filter((c) => c.id === 'context').length, 0);
+  }, LONG);
+});

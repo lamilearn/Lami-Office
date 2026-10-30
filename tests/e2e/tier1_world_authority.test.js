@@ -1194,3 +1194,74 @@ describe('Feature 38: Meeting room furniture is laid out logically', () => {
     assert.strictEqual(LO.SLOTS.meeting.length, 6, 'config must define six meeting seats');
   });
 });
+
+describe('Feature 39: The trashcan shows the context window live', () => {
+  const BRIDGE = path.join(REPO, 'services/lami-office-react/deploy/hermes_bridge.py');
+  const WORLD = path.join(REPO, 'services/lami-office-react/web/js/world.js');
+  const UI = path.join(REPO, 'services/lami-office-react/web/js/ui.js');
+  const NET = path.join(REPO, 'services/lami-office-react/web/js/net.js');
+
+  it('F39.1: the bridge measures the real Hermes transcript', () => {
+    if (!HAVE_PY) return;
+    const out = pyJson(`
+import importlib.util, json, os, sqlite3, sys, tempfile
+sys.path.insert(0, 'deploy')
+spec = importlib.util.spec_from_file_location('hb', 'deploy/hermes_bridge.py')
+hb = importlib.util.module_from_spec(spec); spec.loader.exec_module(hb)
+
+d = tempfile.mkdtemp(); db = os.path.join(d, 'state.db')
+con = sqlite3.connect(db)
+con.execute("CREATE TABLE sessions (id TEXT, model TEXT, last_activity_at REAL)")
+con.execute("CREATE TABLE messages (session_id TEXT, content TEXT, tool_calls TEXT, reasoning TEXT, active INTEGER)")
+con.execute("INSERT INTO sessions VALUES ('s1','deepseek/x',100)")
+con.execute("INSERT INTO messages VALUES ('s1', ?, NULL, NULL, 1)", ('x' * 4000,))
+con.execute("INSERT INTO messages VALUES ('s1', ?, NULL, NULL, 0)", ('y' * 4000,))   # inactive: ignored
+con.commit(); con.close()
+
+class O: pass
+o = O(); o.db = db; o.include_cron = False; o.boss_session = []; o.context_limit = 1000
+b = hb.Bridge.__new__(hb.Bridge); b.opts = o; b.boss_sessions = set(); b.db = db
+snap = b.context_snapshot()
+print(json.dumps(snap))
+`);
+    assert.strictEqual(out.messages, 1, 'only active messages count');
+    assert.strictEqual(out.usedTokens, 1000, 'tokens estimated at 4 chars each');
+    assert.strictEqual(out.limitTokens, 1000);
+    assert.strictEqual(out.percent, 100.0);
+    assert.strictEqual(out.type, 'context');
+  }, { timeout: 60000 });
+
+  it('F39.2: the trashcan badge follows office.contextUsage, not a constant', () => {
+    const world = fs.readFileSync(WORLD, 'utf8');
+    const fn = world.slice(world.indexOf('    drawContextTrashcan(ctx, tx, ty) {'),
+      world.indexOf('    // Interactive Prop: Multi-Mode Whiteboard'));
+    assert.ok(/office\.contextUsage/.test(fn), 'the badge must read the live value');
+    assert.ok(fn.indexOf('${pct}%') > -1, 'the badge shows the percentage');
+
+    const harness = require('../harness');
+    const env = harness.createBrowserEnvironment();
+    const LO = harness.loadScriptIntoEnv(env, 'config.js');
+    harness.loadScriptIntoEnv(env, 'sprites.js');
+    harness.loadScriptIntoEnv(env, 'world.js');
+    env.window.LO = LO;
+    env.window.LO.office = { contextUsage: 0.87 };
+    const world2 = new LO.World();
+    const ctx = env.document.createElement('canvas').getContext('2d');
+    world2.drawContextTrashcan(ctx, 100, 100);
+    const texts = ctx.drawCalls.filter((c) => c.type === 'fillText').map((c) => c.text);
+    assert.ok(texts.includes('87% 🗑️'), `the badge must show the live percentage, got ${texts}`);
+  });
+
+  it('F39.3: the client applies the streamed report and labels it an estimate', () => {
+    const net = fs.readFileSync(NET, 'utf8');
+    assert.ok(/case 'context':/.test(net), 'the stream must carry context reports');
+    assert.ok(net.indexOf('setContextUsage(pct / 100, data)') > -1, 'the ratio and detail must be passed');
+    assert.ok(/data\.context/.test(net), 'a fresh snapshot must seed the value too');
+    const ui = fs.readFileSync(UI, 'utf8');
+    const fn = ui.slice(ui.indexOf('    setContextUsage(ratio, detail) {'), ui.indexOf('    setContextUsage('.length + 1600));
+    assert.ok(/detail\.limitTokens|detail\.limit_tokens/.test(fn), 'the real limit must be used');
+    assert.ok(/estimasi/.test(fn), 'the UI must say the value is an estimate');
+    const server = fs.readFileSync(path.join(REPO, 'services/lami-office-react/server.py'), 'utf8');
+    assert.ok(/"context"/.test(server), 'the server must accept and store context reports');
+  });
+});

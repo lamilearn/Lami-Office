@@ -18,7 +18,7 @@
 | **Tier 4** | Real-World Application Scenarios | End-to-End Office Workflows | `tests/e2e/tier4_real_world_scenarios.test.js` | 5 | **PASSED** (5/5) |
 | **Tier 4** | HTTP Integration | Real server, HTTP, SSE, A2A stubs, Hermes bridge, world stream | `tests/e2e/tier4_http_integration.test.js` | 42 | **PASSED** (42/42) |
 | **Tier 1** | World Authority | Server simulation parity + render-only client | `tests/e2e/tier1_world_authority.test.js` | 10 | **PASSED** (10/10) |
-| **Total** | **Comprehensive Suite** | **All Core Requirements** | — | **311** | **PASSED** (311/311) |
+| **Total** | **Comprehensive Suite** | **All Core Requirements** | — | **316** | **PASSED** (316/316) |
 
 ---
 
