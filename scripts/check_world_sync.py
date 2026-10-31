@@ -41,6 +41,7 @@ const out = {
     .map(([k, list]) => [k, list.map(s => [s.x, s.y, s.type, s.facing])])),
   hallwayBands: LO.HALLWAY_BANDS.map(b => [b.x1, b.y1, b.x2, b.y2]),
   residents: LO.RESIDENTS.map(r => [r.id, r.room, r.slot]),
+  decorProps: (LO.DECOR_PROPS || []).map(p => [p.room, p.kind, p.x, p.y, p.w || 1, p.h || 1, !!p.solid]),
   roomRoutines: Object.fromEntries(Object.entries(LO.ROOM_ROUTINES)
     .map(([room, list]) => [room, list.map(r => [r.id, r.col, r.row, r.duration])])),
 };
@@ -137,6 +138,11 @@ def compare() -> list[str]:
 
     py_furniture = [[o["x"], o["y"], o["w"], o["h"]] for o in world.FURNITURE]
     check("furniture obstacles", load_furniture_from_office_js(), py_furniture)
+
+    # Props added via LO.DECOR_PROPS are obstacles too, so both sides must agree.
+    py_decor = [[p["room"], p["kind"], p["x"], p["y"], p.get("w", 1), p.get("h", 1),
+                 bool(p.get("solid"))] for p in world.DECOR_PROPS]
+    check("decor props", snap["decorProps"], py_decor)
 
     # Aliases the client relies on must exist server-side too.
     if world.SLOTS.get("coding") is not world.SLOTS.get("engineering"):

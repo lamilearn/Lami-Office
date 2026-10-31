@@ -73,6 +73,7 @@
         if (data && Array.isArray(data.agents) && this.office) {
           this.office.vmResources = data;
           this.office.vmResourcesAt = Date.now();
+          if (LO.ui && typeof LO.ui.setVmStatus === 'function') LO.ui.setVmStatus(data.agents);
         }
       } catch (e) {
         /* gauges are best-effort; the Server Room keeps rendering */
@@ -157,6 +158,11 @@
           if (data.stats) {
             LO.ui.setStats(data.stats.doneToday || 0, data.stats.coins || 0);
           }
+          // A fresh page already knows the current context fill.
+          if (data.context && LO.ui && typeof LO.ui.setContextUsage === 'function'
+              && Number.isFinite(Number(data.context.percent))) {
+            LO.ui.setContextUsage(Number(data.context.percent) / 100, data.context);
+          }
           // The roster is NOT rebuilt here. In live mode the server owns who is on
           // the floor and sends it inside `world` frames; building agents from the
           // event feed as well would create bodies the server never simulated.
@@ -236,6 +242,14 @@
         case 'event_banner':
           if (LO.ui && LO.ui.triggerEventBanner) {
             LO.ui.triggerEventBanner(data.icon || '✨', data.title || '', data.desc || '');
+          }
+          break;
+
+        case 'context':
+          // The bridge measures the Hermes context window and reports it live.
+          if (LO.ui && typeof LO.ui.setContextUsage === 'function') {
+            const pct = Number(data.percent);
+            if (Number.isFinite(pct)) LO.ui.setContextUsage(pct / 100, data);
           }
           break;
 

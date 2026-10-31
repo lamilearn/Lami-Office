@@ -471,7 +471,7 @@
       }
     }
 
-    render(ctx) {
+    render(ctx, opts) {
       const pos = LO.isoToScreen(this.col, this.row, this.floor);
       const sprGroup = this.sprites[this.facing] || this.sprites.SE || this.sprites.right;
       const img = sprGroup[this.frame] || sprGroup.idle;
@@ -504,20 +504,27 @@
       }
       ctx.restore();
 
-      const py = Math.floor(pos.y - this.sprites.h + 2 - hopY);
+      // The office composites bodies in depth bands, so callers can ask for the
+      // body alone and draw every bubble in a final pass - otherwise the next
+      // band would paint over a nearby character's speech.
+      if (opts && opts.skipText) return;
+      this.renderText(ctx, pos, hopY);
+    }
 
-      // Emote & Speech Bubble
-      if (this.emote) this.renderEmote(ctx, pos.x, py);
-      if (this.bubble) this.renderBubble(ctx, pos.x, py);
-
-      // Render Floating Particles
-      for (const p of this.particles) {
+    // Emotes, speech bubbles and floating particles, drawn above everything.
+    renderText(ctx, pos, hopY) {
+      const p = pos || LO.isoToScreen(this.col, this.row, this.floor);
+      const hy = hopY || 0;
+      const py = Math.floor(p.y - this.sprites.h + 2 - hy);
+      if (this.emote) this.renderEmote(ctx, p.x, py);
+      if (this.bubble) this.renderBubble(ctx, p.x, py);
+      for (const particle of this.particles) {
         ctx.save();
-        ctx.globalAlpha = p.alpha;
+        ctx.globalAlpha = particle.alpha;
         ctx.font = '7px "Press Start 2P", monospace';
-        ctx.fillStyle = p.color;
+        ctx.fillStyle = particle.color;
         ctx.textAlign = 'center';
-        ctx.fillText(`${p.icon} ${p.text}`, p.x, p.y);
+        ctx.fillText(`${particle.icon} ${particle.text}`, particle.x, particle.y);
         ctx.restore();
       }
     }

@@ -54,9 +54,9 @@
     '..OHHHHHHHHO..',
     '...OHHHHHHO...',
     '...OOHHHHOO...',
-    '..OCCCCCCCC..',
-    '.OCCCCCCCCCC.',
-    '.OCCCCCCCCCC.',
+    '..OCCCCCCCCO..',
+    '.OCCCCCCCCCCO.',
+    '.OCCCCCCCCCCO.',
     '..OccccccccO..',
     '...OPPPPPPO...',
     '...OPPOOPPO...',
@@ -103,6 +103,10 @@
 
   function buildRows(look, frame, isBack = false) {
     let rows = (isBack ? BACK_BODY : FRONT_BODY).slice();
+    // Defensive: every row must be exactly as wide as the first one. A short row
+    // used to leave a transparent 1px notch, which read as a horizontal line
+    // that followed the character around whenever it faced away.
+    rows = rows.map((r) => (r.length === rows[0].length ? r : r.padEnd(rows[0].length, '.')));
     if (look.long) {
       for (let r = 6; r <= 11; r++) {
         rows[r] = setChar(setChar(setChar(setChar(rows[r], 0, 'O'), 1, 'H'), 12, 'H'), 13, 'O');

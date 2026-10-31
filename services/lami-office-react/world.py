@@ -152,6 +152,44 @@ FURNITURE = [
     {"x": 63, "y": 33, "w": 6, "h": 1}, {"x": 68, "y": 36, "w": 3, "h": 1},
     {"x": 78, "y": 33, "w": 3, "h": 2},
 ]
+DECOR_PROPS = [
+    {"room": "boss", "kind": "meeting_chairs", "x": 9, "y": 10, "w": 1, "h": 1, "solid": True},
+    {"room": "boss", "kind": "meeting_chairs", "x": 19, "y": 10, "w": 1, "h": 1, "solid": True},
+    {"room": "boss", "kind": "bookshelf", "x": 2, "y": 12, "w": 2, "h": 1, "solid": True},
+    {"room": "boss", "kind": "sideboard", "x": 24, "y": 12, "w": 3, "h": 1, "solid": True},
+    {"room": "boss", "kind": "floor_lamp", "x": 25, "y": 16, "w": 1, "h": 1, "solid": True},
+    {"room": "boss", "kind": "plant", "x": 3, "y": 17, "w": 1, "h": 1, "solid": True},
+    {"room": "boss", "kind": "rug", "x": 11, "y": 11, "w": 7, "h": 4, "solid": False},
+    {"room": "research", "kind": "lab_bench", "x": 34, "y": 6, "w": 3, "h": 1, "solid": True},
+    {"room": "research", "kind": "lab_bench", "x": 40, "y": 6, "w": 3, "h": 1, "solid": True},
+    {"room": "research", "kind": "lab_bench", "x": 46, "y": 6, "w": 3, "h": 1, "solid": True},
+    {"room": "research", "kind": "workstation", "x": 30, "y": 12, "w": 2, "h": 1, "solid": True},
+    {"room": "research", "kind": "workstation", "x": 38, "y": 12, "w": 2, "h": 1, "solid": True},
+    {"room": "research", "kind": "workstation", "x": 46, "y": 12, "w": 2, "h": 1, "solid": True},
+    {"room": "research", "kind": "whiteboard", "x": 44, "y": 16, "w": 4, "h": 1, "solid": True},
+    {"room": "research", "kind": "plant", "x": 54, "y": 16, "w": 1, "h": 1, "solid": True},
+    {"room": "research", "kind": "cabinet", "x": 34, "y": 17, "w": 2, "h": 1, "solid": True},
+    {"room": "server", "kind": "server_rack", "x": 60, "y": 12, "w": 2, "h": 2, "solid": True},
+    {"room": "server", "kind": "server_rack", "x": 80, "y": 12, "w": 2, "h": 2, "solid": True},
+    {"room": "server", "kind": "crate", "x": 82, "y": 4, "w": 1, "h": 1, "solid": True},
+    {"room": "server", "kind": "crate", "x": 59, "y": 4, "w": 1, "h": 1, "solid": True},
+    {"room": "engineering", "kind": "dev_desk", "x": 18, "y": 26, "w": 3, "h": 1, "solid": True},
+    {"room": "engineering", "kind": "dev_desk", "x": 4, "y": 35, "w": 3, "h": 1, "solid": True},
+    {"room": "engineering", "kind": "dev_desk", "x": 11, "y": 35, "w": 3, "h": 1, "solid": True},
+    {"room": "engineering", "kind": "cabinet", "x": 23, "y": 34, "w": 2, "h": 1, "solid": True},
+    {"room": "engineering", "kind": "plant", "x": 2, "y": 38, "w": 1, "h": 1, "solid": True},
+    {"room": "engineering", "kind": "whiteboard", "x": 17, "y": 38, "w": 4, "h": 1, "solid": True},
+    {"room": "meeting", "kind": "sideboard", "x": 50, "y": 25, "w": 3, "h": 1, "solid": True},
+    {"room": "meeting", "kind": "plant", "x": 31, "y": 25, "w": 1, "h": 1, "solid": True},
+    {"room": "meeting", "kind": "plant", "x": 54, "y": 38, "w": 1, "h": 1, "solid": True},
+    {"room": "meeting", "kind": "cabinet", "x": 30, "y": 34, "w": 2, "h": 1, "solid": True},
+    {"room": "pantry", "kind": "dining_table", "x": 66, "y": 30, "w": 3, "h": 2, "solid": True},
+    {"room": "pantry", "kind": "counter", "x": 60, "y": 31, "w": 4, "h": 1, "solid": True},
+    {"room": "pantry", "kind": "plant", "x": 82, "y": 38, "w": 1, "h": 1, "solid": True},
+    {"room": "pantry", "kind": "cabinet", "x": 59, "y": 38, "w": 2, "h": 1, "solid": True},
+]
+
+
 
 # Tool -> room mapping (mirror of LO.TOOL_ROOMS / LO.roomForTool)
 TOOL_ROOMS = [
@@ -317,6 +355,15 @@ def build_collision_grid():
         door = ROOMS[key]["door"]
         open_tile(door["x"], door["y"])
         open_tile(door["x"] + 1, door["y"])
+
+    for obs in DECOR_PROPS:
+        if not obs.get("solid"):
+            continue
+        for dy in range(obs.get("h", 1)):
+            for dx in range(obs.get("w", 1)):
+                x, y = obs["x"] + dx, obs["y"] + dy
+                if 0 <= x < GRID_COLS and 0 <= y < GRID_ROWS:
+                    grid[y][x] = 1
 
     for obs in FURNITURE:
         for dy in range(obs["h"]):
