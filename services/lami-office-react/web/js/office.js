@@ -1631,12 +1631,34 @@
         //      bands so anything with height occludes whoever stands behind it.
         if (!this.renderBanded(allChars)) {
           // Fallback (no offscreen canvas available or banded render failed): the previous flat order.
-          this.world.render(this.ctx);
-          if (this.elevator && this.elevator.render) this.elevator.render(this.ctx);
-          for (const c of allChars) {
-            if (typeof c.render === 'function') c.render(this.ctx);
+          try {
+            this.world.render(this.ctx);
+          } catch (err) {
+            console.warn('Fallback world.render encountered an error:', err);
           }
-          if (this.world.renderOverlay) this.world.renderOverlay(this.ctx);
+          if (this.elevator && this.elevator.render) {
+            try {
+              this.elevator.render(this.ctx);
+            } catch (err) {
+              console.warn('Fallback elevator.render encountered an error:', err);
+            }
+          }
+          for (const c of allChars) {
+            if (typeof c.render === 'function') {
+              try {
+                c.render(this.ctx);
+              } catch (err) {
+                console.warn('Fallback character render encountered an error:', err);
+              }
+            }
+          }
+          if (this.world.renderOverlay) {
+            try {
+              this.world.renderOverlay(this.ctx);
+            } catch (err) {
+              console.warn('Fallback world.renderOverlay encountered an error:', err);
+            }
+          }
         }
 
         // 5. Speech bubbles and emotes last, so no band can paint over them.

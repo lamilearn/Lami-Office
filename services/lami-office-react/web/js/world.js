@@ -426,11 +426,19 @@
       const props = LO.DECOR_PROPS || [];
       for (const p of props) {
         if (p.kind !== 'rug') continue;
-        this.drawDecorProp(ctx, ts, p, theme);
+        try {
+          this.drawDecorProp(ctx, ts, p, theme);
+        } catch (err) {
+          console.warn('Failed to draw decor rug prop:', p, err);
+        }
       }
       for (const p of props) {
         if (p.kind === 'rug') continue;
-        this.drawDecorProp(ctx, ts, p, theme);
+        try {
+          this.drawDecorProp(ctx, ts, p, theme);
+        } catch (err) {
+          console.warn('Failed to draw decor prop:', p, err);
+        }
       }
     }
 
@@ -498,7 +506,7 @@
           ctx.fill();
           ctx.fillStyle = '#475569';
           ctx.beginPath();
-          ctx.ellipse(x + w / 2, y + h - 9, 5.5, 3, Math.PI, Math.PI * 2);
+          ctx.ellipse(x + w / 2, y + h - 9, 5.5, 3, 0, Math.PI, Math.PI * 2);
           ctx.fill();
           break;
         }

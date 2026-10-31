@@ -219,8 +219,11 @@ class MockCanvasContext2D {
     this.drawCalls.push({ type: 'clip' });
   }
 
-  ellipse(x, y, rx, ry) {
-    this.drawCalls.push({ type: 'ellipse', x, y, rx, ry });
+  ellipse(x, y, rx, ry, rotation, startAngle, endAngle, counterclockwise) {
+    if (arguments.length < 7) {
+      throw new TypeError(`Failed to execute 'ellipse' on 'CanvasRenderingContext2D': 7 arguments required, but only ${arguments.length} present.`);
+    }
+    this.drawCalls.push({ type: 'ellipse', x, y, rx, ry, rotation, startAngle, endAngle, counterclockwise });
   }
 
   quadraticCurveTo(cx, cy, x, y) {
