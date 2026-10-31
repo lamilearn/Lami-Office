@@ -219,8 +219,11 @@ class MockCanvasContext2D {
     this.drawCalls.push({ type: 'clip' });
   }
 
-  ellipse(x, y, rx, ry) {
-    this.drawCalls.push({ type: 'ellipse', x, y, rx, ry });
+  ellipse(x, y, rx, ry, rotation, startAngle, endAngle, counterclockwise) {
+    if (arguments.length < 7) {
+      throw new TypeError(`Failed to execute 'ellipse' on 'CanvasRenderingContext2D': 7 arguments required, but only ${arguments.length} present.`);
+    }
+    this.drawCalls.push({ type: 'ellipse', x, y, rx, ry, rotation, startAngle, endAngle, counterclockwise });
   }
 
   quadraticCurveTo(cx, cy, x, y) {
@@ -247,6 +250,19 @@ class MockCanvasElement extends MockElement {
     this.height = height;
     this.clientWidth = width;
     this.clientHeight = height;
+    this.ctx = new MockCanvasContext2D(this);
+  }
+
+  getContext(type) {
+    if (type === '2d') return this.ctx;
+    return null;
+  }
+}
+
+class MockOffscreenCanvas {
+  constructor(width = 1024, height = 576) {
+    this.width = width;
+    this.height = height;
     this.ctx = new MockCanvasContext2D(this);
   }
 
@@ -328,6 +344,7 @@ function createBrowserEnvironment() {
     URLSearchParams: class MockURLSearchParams {
       get() { return null; }
     },
+    OffscreenCanvas: MockOffscreenCanvas,
     AudioContext: class MockAudioContext {
       constructor() {
         this.destination = {};
@@ -373,5 +390,6 @@ module.exports = {
   createBrowserEnvironment,
   loadScriptIntoEnv,
   MockCanvasElement,
+  MockOffscreenCanvas,
   MockElement
 };

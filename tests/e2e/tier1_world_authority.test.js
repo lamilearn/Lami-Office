@@ -1553,3 +1553,120 @@ describe('Feature 42: Rooms are furnished like real offices', () => {
       triggerEventBanner() {}, setStatus() {}, recordDone() {}, setOfficeStatus() {}, setRoster() {} };
   }
 });
+
+describe('Feature 44: Canvas Pipeline Hardening & Layout Display Resilience', () => {
+  const TILESET = path.join(REPO, 'services/lami-office-react/web/assets/tiles/tileset.json');
+  const MAP = path.join(REPO, 'services/lami-office-react/web/assets/map/office.map.json');
+
+  function buildCompleteOfficeEnv() {
+    const harness = require('../harness');
+    const env = harness.createBrowserEnvironment();
+    let imgSrc = null;
+    env.window.fetch = (url) => {
+      const body = url.includes('tileset')
+        ? fs.readFileSync(TILESET, 'utf8')
+        : fs.readFileSync(MAP, 'utf8');
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(JSON.parse(body)) });
+    };
+    env.window.Image = class {
+      set src(v) { imgSrc = v; this.width = 128; this.height = 192; setTimeout(() => this.onload && this.onload(), 0); }
+      get src() { return imgSrc; }
+    };
+    const LO = harness.loadScriptIntoEnv(env, 'config.js');
+    harness.loadScriptIntoEnv(env, 'tilemap.js');
+    harness.loadScriptIntoEnv(env, 'sprites.js');
+    harness.loadScriptIntoEnv(env, 'world.js');
+    harness.loadScriptIntoEnv(env, 'office.js');
+    env.window.LO = LO;
+    LO.audio = new Proxy({}, { get: () => () => {} });
+    harness.loadScriptIntoEnv(env, 'agents.js');
+    LO.ui = { updateStaffCount() {}, addTicker() {}, appendChatMessage() {}, triggerEventBanner() {},
+      setStatus() {}, recordDone() {}, setOfficeStatus() {}, setRoster() {} };
+    env.window.innerWidth = 1600;
+    env.window.matchMedia = () => ({ matches: false });
+    const office = new LO.Office(env.document.createElement('canvas'));
+    office.canvas = { clientWidth: 1600, clientHeight: 900,
+      getBoundingClientRect: () => ({ left: 0, top: 0, width: 1600, height: 900 }) };
+    office.simulatedExternally = true;
+    office.world = new LO.World();
+    return { office, LO, env };
+  }
+
+  it('F44.1: Office.render() executes full pipeline with Tilemap.load() and OffscreenCanvas', async () => {
+    const { office, LO } = buildCompleteOfficeEnv();
+    await LO.Tilemap.load();
+    assert.strictEqual(LO.Tilemap.isReady(), true, 'Tilemap must be ready after load');
+    assert.strictEqual(office.world.hasTilemap(), true, 'World must detect tilemap is ready');
+
+    office.ctx.drawCalls.length = 0;
+    office.render();
+    assert.ok(office.ctx.drawCalls.length > 0, 'office.render() must produce draw calls');
+    const drawImages = office.ctx.drawCalls.filter((c) => c.type === 'drawImage');
+    assert.ok(drawImages.length > 0, 'office.render() must blit scene bands or ground canvas');
+  });
+
+  it('F44.2: renderBanded failure falls back cleanly to direct world.render()', () => {
+    const { office } = buildCompleteOfficeEnv();
+    let directRenderCalled = false;
+    const origRender = office.world.render.bind(office.world);
+    office.world.render = (ctx) => {
+      if (ctx === office.ctx) directRenderCalled = true;
+      return origRender(ctx);
+    };
+
+    // Force renderBanded to fail by corrupting sceneCanvas
+    office.sceneCanvas = () => { throw new Error('Simulated OffscreenCanvas failure'); };
+    office.ctx.drawCalls.length = 0;
+
+    assert.doesNotThrow(() => {
+      office.render();
+    }, 'render() must not throw when renderBanded fails');
+    assert.strictEqual(directRenderCalled, true, 'render() must fall back to direct world.render(this.ctx)');
+  });
+
+  it('F44.3: invalid or malformed character objects in allChars do not crash render()', () => {
+    const { office } = buildCompleteOfficeEnv();
+    // Inject invalid character references (e.g. during state sync / connection drop)
+    office.residents.push(null);
+    office.residents.push(undefined);
+    office.residents.push({ name: 'corrupted_agent_without_depth' });
+
+    assert.doesNotThrow(() => {
+      office.render();
+    }, 'render() must safely filter characters without getDepth');
+  });
+
+  it('F44.4: start() animation loop schedules requestAnimationFrame in finally even if a frame errors', () => {
+    const { office, env } = buildCompleteOfficeEnv();
+    let scheduledLoop = null;
+    env.window.requestAnimationFrame = (cb) => { scheduledLoop = cb; return 1; };
+
+    office.lastTime = 1000;
+    office.start();
+    assert.strictEqual(typeof scheduledLoop, 'function', 'start() must schedule initial frame');
+
+    // Force next frame render to throw
+    office.render = () => { throw new Error('Transient frame render failure'); };
+    let nextScheduled = false;
+    env.window.requestAnimationFrame = (cb) => { nextScheduled = true; return 2; };
+
+    assert.doesNotThrow(() => {
+      scheduledLoop(1016);
+    }, 'frame callback must catch errors in try/catch');
+    assert.strictEqual(nextScheduled, true, 'requestAnimationFrame must still be called in finally');
+  });
+
+  it('F44.5: sceneCanvas falls back to document.createElement when OffscreenCanvas throws or is unavailable', () => {
+    const { office, env } = buildCompleteOfficeEnv();
+    // Simulate environment where OffscreenCanvas throws on construction
+    env.window.OffscreenCanvas = class {
+      constructor() { throw new Error('OffscreenCanvas disabled by browser policy'); }
+    };
+    office._scene = null;
+    office._sceneCtx = null;
+
+    const scene = office.sceneCanvas();
+    assert.ok(scene && scene.canvas && scene.ctx, 'sceneCanvas must return a valid canvas and context');
+    assert.strictEqual(scene.canvas.tagName, 'CANVAS', 'fallback must use document canvas element');
+  });
+});
