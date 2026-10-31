@@ -256,6 +256,19 @@ class MockCanvasElement extends MockElement {
   }
 }
 
+class MockOffscreenCanvas {
+  constructor(width = 1024, height = 576) {
+    this.width = width;
+    this.height = height;
+    this.ctx = new MockCanvasContext2D(this);
+  }
+
+  getContext(type) {
+    if (type === '2d') return this.ctx;
+    return null;
+  }
+}
+
 function createBrowserEnvironment() {
   const elements = new Map();
 
@@ -328,6 +341,7 @@ function createBrowserEnvironment() {
     URLSearchParams: class MockURLSearchParams {
       get() { return null; }
     },
+    OffscreenCanvas: MockOffscreenCanvas,
     AudioContext: class MockAudioContext {
       constructor() {
         this.destination = {};
@@ -373,5 +387,6 @@ module.exports = {
   createBrowserEnvironment,
   loadScriptIntoEnv,
   MockCanvasElement,
+  MockOffscreenCanvas,
   MockElement
 };

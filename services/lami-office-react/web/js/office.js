@@ -1412,13 +1412,17 @@
     // ---- Loop ----
     start() {
       const loop = (now) => {
-        const dt = Math.min((now - this.lastTime) / 1000, 0.1);
-        this.lastTime = now;
+        try {
+          const dt = Math.min((now - this.lastTime) / 1000, 0.1);
+          this.lastTime = now;
 
-        this.update(dt);
-        this.render();
-
-        requestAnimationFrame(loop);
+          this.update(dt);
+          this.render();
+        } catch (err) {
+          console.error('Office animation loop error:', err);
+        } finally {
+          requestAnimationFrame(loop);
+        }
       };
       requestAnimationFrame(loop);
     }
@@ -1585,131 +1589,170 @@
 
       this.ctx.imageSmoothingEnabled = false;
       this.ctx.save();
-      this.ctx.scale(dpr, dpr);
+      try {
+        this.ctx.scale(dpr, dpr);
 
-      // Confine drawing to the canvas box. With a top band reserved, a centred
-      // fit can sit slightly above the canvas, so clip instead of leaking over
-      // the HUD band.
-      this.ctx.beginPath();
-      this.ctx.rect(0, 0, w, h);
-      this.ctx.clip();
+        // Confine drawing to the canvas box. With a top band reserved, a centred
+        // fit can sit slightly above the canvas, so clip instead of leaking over
+        // the HUD band.
+        this.ctx.beginPath();
+        this.ctx.rect(0, 0, w, h);
+        this.ctx.clip();
 
-      const view = this.computeView(w, h);
+        const view = this.computeView(w, h);
 
-      // Background across the whole canvas: continue the outside lawn so the
-      // letterbox around the floorplan reads as full-bleed instead of black
-      // bars. Falls back to a solid colour before the tileset loads.
-      if (!(LO.Tilemap && LO.Tilemap.drawOutsideFill
-            && LO.Tilemap.drawOutsideFill(this.ctx, w, h, view.zoom))) {
-        this.ctx.fillStyle = '#2b3b2f';
-        this.ctx.fillRect(0, 0, w, h);
+        // Background across the whole canvas: continue the outside lawn so the
+        // letterbox around the floorplan reads as full-bleed instead of black
+        // bars. Falls back to a solid colour before the tileset loads.
+        if (!(LO.Tilemap && LO.Tilemap.drawOutsideFill
+              && LO.Tilemap.drawOutsideFill(this.ctx, w, h, view.zoom))) {
+          this.ctx.fillStyle = '#2b3b2f';
+          this.ctx.fillRect(0, 0, w, h);
+        }
+
+        // Keep the band behind the HUD dark: the header fades to transparent, and
+        // without this the lawn would show through it.
+        const hudBand = Math.max(0, this.topInsetFor(h) - this.stageTopGap());
+        if (hudBand > 0) {
+          this.ctx.fillStyle = '#181124';
+          this.ctx.fillRect(0, 0, w, hudBand);
+        }
+
+        this.ctx.translate(view.offsetX, view.offsetY);
+        this.ctx.scale(view.zoom, view.zoom);
+
+        const peers = this.peerAgents ? [...this.peerAgents.values()] : [];
+        const rawChars = [this.lami, ...this.residents, ...peers, ...this.subagents.values(), this.cat];
+        if (this.deliveryRider) rawChars.push(this.deliveryRider);
+        const allChars = rawChars.filter(c => c && typeof c.getDepth === 'function');
+        allChars.sort((a, b) => a.getDepth() - b.getDepth());
+
+        // 1-4. Floor, walls, props, characters and wall tops, composited in depth
+        //      bands so anything with height occludes whoever stands behind it.
+        if (!this.renderBanded(allChars)) {
+          // Fallback (no offscreen canvas available or banded render failed): the previous flat order.
+          this.world.render(this.ctx);
+          if (this.elevator && this.elevator.render) this.elevator.render(this.ctx);
+          for (const c of allChars) {
+            if (typeof c.render === 'function') c.render(this.ctx);
+          }
+          if (this.world.renderOverlay) this.world.renderOverlay(this.ctx);
+        }
+
+        // 5. Speech bubbles and emotes last, so no band can paint over them.
+        for (const c of allChars) {
+          if (typeof c.renderText === 'function') c.renderText(this.ctx);
+        }
+
+        // 6. The Server Room's VM monitor is a screen hanging in the walkway; it
+        //    must float above the crowd rather than being walked over.
+        if (this.world.renderVmMonitor) this.world.renderVmMonitor(this.ctx, LO.TILE_SIZE);
+      } finally {
+        this.ctx.restore();
       }
-
-      // Keep the band behind the HUD dark: the header fades to transparent, and
-      // without this the lawn would show through it.
-      const hudBand = Math.max(0, this.topInsetFor(h) - this.stageTopGap());
-      if (hudBand > 0) {
-        this.ctx.fillStyle = '#181124';
-        this.ctx.fillRect(0, 0, w, hudBand);
-      }
-
-      this.ctx.translate(view.offsetX, view.offsetY);
-      this.ctx.scale(view.zoom, view.zoom);
-
-      const peers = this.peerAgents ? [...this.peerAgents.values()] : [];
-      const allChars = [this.lami, ...this.residents, ...peers, ...this.subagents.values(), this.cat];
-      if (this.deliveryRider) allChars.push(this.deliveryRider);
-      allChars.sort((a, b) => a.getDepth() - b.getDepth());
-
-      // 1-4. Floor, walls, props, characters and wall tops, composited in depth
-      //      bands so anything with height occludes whoever stands behind it.
-      if (!this.renderBanded(allChars)) {
-        // Fallback (no offscreen canvas available): the previous flat order.
-        this.world.render(this.ctx);
-        if (this.elevator && this.elevator.render) this.elevator.render(this.ctx);
-        for (const c of allChars) c.render(this.ctx);
-        if (this.world.renderOverlay) this.world.renderOverlay(this.ctx);
-      }
-
-      // 5. Speech bubbles and emotes last, so no band can paint over them.
-      for (const c of allChars) {
-        if (typeof c.renderText === 'function') c.renderText(this.ctx);
-      }
-
-      // 6. The Server Room's VM monitor is a screen hanging in the walkway; it
-      //    must float above the crowd rather than being walked over.
-      if (this.world.renderVmMonitor) this.world.renderVmMonitor(this.ctx, LO.TILE_SIZE);
-
-      this.ctx.restore();
     }
 
     // Renders the static scene once into an offscreen canvas, then blits it in
     // horizontal bands around the depth-sorted characters. Returns false when no
-    // offscreen canvas is available.
+    // offscreen canvas is available or blitting fails.
     renderBanded(chars) {
-      const pad = LO.SCENE_TOP_PAD || 32;
-      const scene = this.sceneCanvas();
-      if (!scene || !scene.ctx) return false;
+      try {
+        const pad = LO.SCENE_TOP_PAD || 32;
+        const scene = this.sceneCanvas();
+        if (!scene || !scene.ctx || !scene.canvas) return false;
 
-      const sctx = scene.ctx;
-      sctx.setTransform(1, 0, 0, 1, 0, 0);
-      sctx.imageSmoothingEnabled = false;
-      sctx.clearRect(0, 0, scene.canvas.width, scene.canvas.height);
-      sctx.save();
-      sctx.translate(0, pad);
-      this.world.render(sctx);
-      if (this.elevator && this.elevator.render) this.elevator.render(sctx);
-      if (this.world.renderOverlay) this.world.renderOverlay(sctx);
-      sctx.restore();
+        const sctx = scene.ctx;
+        sctx.setTransform(1, 0, 0, 1, 0, 0);
+        sctx.imageSmoothingEnabled = false;
+        sctx.clearRect(0, 0, scene.canvas.width, scene.canvas.height);
+        sctx.save();
+        sctx.translate(0, pad);
+        this.world.render(sctx);
+        if (this.elevator && this.elevator.render) this.elevator.render(sctx);
+        if (this.world.renderOverlay) this.world.renderOverlay(sctx);
+        sctx.restore();
 
-      const TS = LO.TILE_SIZE;
-      const width = LO.CONTENT_W;
-      const bottom = LO.CONTENT_H;
-      // Snap the band edges to whole content pixels and overlap each band by one
-      // pixel. A fractional source rect makes drawImage skip or repeat a source
-      // row, which showed up as a thin horizontal seam at every character's feet
-      // - a line that appeared to follow whoever was walking.
-      const blit = (fromY, toY) => {
-        let y1 = Math.max(-pad, Math.round(fromY));
-        let y2 = Math.min(bottom, Math.round(toY));
-        if (y2 <= y1) return;
-        if (y2 < bottom) y2 += 1;   // one-pixel overlap hides the seam
-        const h = y2 - y1;
-        this.ctx.drawImage(scene.canvas, 0, y1 + pad, width, h, 0, y1, width, h);
-      };
+        const TS = LO.TILE_SIZE;
+        const width = LO.CONTENT_W;
+        const bottom = LO.CONTENT_H;
+        // Snap the band edges to whole content pixels and overlap each band by one
+        // pixel. A fractional source rect makes drawImage skip or repeat a source
+        // row, which showed up as a thin horizontal seam at every character's feet
+        // - a line that appeared to follow whoever was walking.
+        const blit = (fromY, toY) => {
+          let y1 = Math.max(-pad, Math.round(fromY));
+          let y2 = Math.min(bottom, Math.round(toY));
+          if (y2 <= y1) return;
+          if (y2 < bottom) y2 += 1;   // one-pixel overlap hides the seam
+          const h = y2 - y1;
+          this.ctx.drawImage(scene.canvas, 0, y1 + pad, width, h, 0, y1, width, h);
+        };
 
-      let drawnTo = -pad;
-      for (const c of chars) {
-        const row = c.row !== undefined ? c.row : c.y;
-        const footY = Math.max(-pad, Math.min(bottom, (row || 0) * TS));
-        if (footY > drawnTo) {
-          blit(drawnTo, footY);
-          drawnTo = footY;
+        let drawnTo = -pad;
+        for (const c of chars) {
+          const row = c.row !== undefined ? c.row : c.y;
+          const footY = Math.max(-pad, Math.min(bottom, (row || 0) * TS));
+          if (footY > drawnTo) {
+            blit(drawnTo, footY);
+            drawnTo = footY;
+          }
+          if (typeof c.render === 'function') c.render(this.ctx, { skipText: true });
         }
-        c.render(this.ctx, { skipText: true });
+        blit(drawnTo, bottom);
+        return true;
+      } catch (err) {
+        console.warn('renderBanded encountered an error, falling back to flat render:', err);
+        return false;
       }
-      blit(drawnTo, bottom);
-      return true;
     }
 
     // Persistent offscreen holding the static scene for the current frame.
     sceneCanvas() {
       const w = LO.CONTENT_W;
       const h = LO.CONTENT_H + (LO.SCENE_TOP_PAD || 32);
-      if (this._scene && this._scene.width === w && this._scene.height === h) {
+      if (this._scene && this._sceneCtx && this._scene.width === w && this._scene.height === h) {
         return { canvas: this._scene, ctx: this._sceneCtx };
       }
       let canvas = null;
       if (typeof OffscreenCanvas !== 'undefined') {
-        canvas = new OffscreenCanvas(w, h);
-      } else if (typeof document !== 'undefined' && document.createElement) {
-        canvas = document.createElement('canvas');
-        canvas.width = w;
-        canvas.height = h;
+        try {
+          canvas = new OffscreenCanvas(w, h);
+        } catch (_) {
+          canvas = null;
+        }
+      }
+      if (!canvas && typeof document !== 'undefined' && document.createElement) {
+        try {
+          canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+        } catch (_) {
+          canvas = null;
+        }
       }
       this._scene = canvas;
-      this._sceneCtx = canvas && canvas.getContext ? canvas.getContext('2d') : null;
-      return canvas ? { canvas, ctx: this._sceneCtx } : null;
+      this._sceneCtx = null;
+      if (canvas && canvas.getContext) {
+        try {
+          this._sceneCtx = canvas.getContext('2d');
+        } catch (_) {
+          this._sceneCtx = null;
+        }
+      }
+      // If OffscreenCanvas failed to provide a valid 2d context, fall back to standard DOM canvas
+      if (canvas && !this._sceneCtx && typeof document !== 'undefined' && document.createElement) {
+        try {
+          canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          this._scene = canvas;
+          this._sceneCtx = canvas.getContext('2d');
+        } catch (_) {
+          this._scene = null;
+          this._sceneCtx = null;
+        }
+      }
+      return (canvas && this._sceneCtx) ? { canvas, ctx: this._sceneCtx } : null;
     }
   }
 
