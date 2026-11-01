@@ -281,14 +281,30 @@ def build_map(cfg: dict) -> dict:
     # looked transparent, as if the walls had holes in them. Point the floor at
     # the neighbour the strip is visible from (the tile below), so the wall reads
     # as sitting on real floor.
-    for y in range(rows):
-        for x in range(cols):
-            if not walls[y][x] or walls[y][x] == "door_mid":
-                continue
-            below = walls[y + 1][x] if y + 1 < rows else None
-            below_solid = bool(below) and below != "door_mid" and below != "floor_outside"
-            if not below_solid and y + 1 < rows:
-                floor[y][x] = floor[y + 1][x]
+    # Walk out to the nearest real floor so a wall never shows the outdoor tile
+    # through the part of its row the raised face does not cover. Corners where a
+    # room divider meets an outer wall have no floor neighbour directly below, so
+    # a simple copy is not enough.
+    from collections import deque
+    outside_cells = [(x, y) for y in range(rows) for x in range(cols)
+                     if walls[y][x] and walls[y][x] != "door_mid" and floor[y][x] == "floor_outside"]
+    for sx, sy in outside_cells:
+        seen = {(sx, sy)}
+        q = deque([(sx, sy)])
+        found = None
+        while q and found is None:
+            cx, cy = q.popleft()
+            for dx, dy in ((0, 1), (0, -1), (1, 0), (-1, 0)):
+                nx, ny = cx + dx, cy + dy
+                if nx < 0 or ny < 0 or nx >= cols or ny >= rows or (nx, ny) in seen:
+                    continue
+                seen.add((nx, ny))
+                if floor[ny][nx] != "floor_outside":
+                    found = floor[ny][nx]
+                    break
+                q.append((nx, ny))
+        if found:
+            floor[sy][sx] = found
 
     return {
         "tileSize": cfg["tileSize"],

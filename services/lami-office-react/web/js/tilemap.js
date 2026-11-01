@@ -203,8 +203,14 @@
           drawTile(ctx, map, DOOR_TILE, x * ts, y * ts);
           continue;
         }
+        // A wall is drawn raised when its south side is open, OR when nothing
+        // stands above it - that second case is the corner where a vertical
+        // room divider meets the building's north wall. Those corners used to be
+        // painted flush while the rest of the top wall was raised, leaving a
+        // 14px notch of lawn in the wall band (a "hole" above each room joint).
         const belowSolid = isSolidWall(map, x, y + 1);
-        if (!belowSolid) {
+        const aboveWall = isSolidWall(map, x, y - 1);
+        if (!belowSolid || !aboveWall) {
           // south-facing wall: render the face raised, like a room divider
           const top = wallTopFor(name);
           drawTile(ctx, map, top, x * ts, y * ts - WALL_LIFT);

@@ -841,9 +841,10 @@ describe('Tier 1 — Feature 43: Walls sit on floor, never on the lawn', () => {
 
   it('F43.3: the generator derives that floor instead of hardcoding it', () => {
     const src = fs.readFileSync(path.join(REPO, 'scripts/generate_tilemap.py'), 'utf8');
-    assert.ok(/floor\[y\]\[x\] = floor\[y \+ 1\]\[x\]/.test(src),
-      'the wall row must inherit the floor it is seen against');
-    assert.ok(/below_solid/.test(src), 'the rule must follow how the wall is drawn');
+    // The generator walks out to the nearest real floor rather than copying the
+    // tile below, because a corner has no floor directly underneath it.
+    assert.ok(/floor\[sy\]\[sx\] = found/.test(src), 'the wall row must inherit a real floor');
+    assert.ok(/outside_cells/.test(src), 'it must specifically fix the outdoor cases');
   });
 });
 
@@ -864,5 +865,63 @@ describe('Tier 1 — Feature 45: No dark band under the walls', () => {
     const fn = src.slice(src.indexOf('  function paintGround(ctx) {'), src.indexOf('  function paintOverlay()'));
     assert.ok(/drawTile\(ctx, map, top, x \* ts, y \* ts - WALL_LIFT\)/.test(fn),
       'raised wall tops must still be drawn');
+  });
+});
+
+describe('Tier 1 — Feature 46: The top wall band has no notches', () => {
+  const TILEMAP = path.join(REPO, 'services/lami-office-react/web/js/tilemap.js');
+  const MAP = path.join(REPO, 'services/lami-office-react/web/assets/map/office.map.json');
+
+  it('F46.1: corners where a divider meets an outer wall are drawn raised too', () => {
+    const src = fs.readFileSync(TILEMAP, 'utf8');
+    const fn = src.slice(src.indexOf('  function paintGround(ctx) {'), src.indexOf('  function paintOverlay()'));
+    // Regression: the corner tiles kept the flush branch because the tile below
+    // them is another wall, so the raised band had a 14px notch of lawn at every
+    // room joint.
+    assert.ok(/const aboveWall = isSolidWall\(map, x, y - 1\)/.test(fn),
+      'the renderer must look at the tile above');
+    assert.ok(/if \(!belowSolid \|\| !aboveWall\)/.test(fn),
+      'a wall with nothing above it must be drawn raised');
+  });
+
+  it('F46.2: no wall anywhere is still standing on the outdoor tile', () => {
+    const m = JSON.parse(fs.readFileSync(MAP, 'utf8'));
+    const decode = (name) => {
+      const L = m.layers.find((l) => l.name === name);
+      const flat = [];
+      for (const [v, n] of L.data) for (let k = 0; k < n; k++) flat.push(v);
+      const grid = [];
+      for (let y = 0; y < m.rows; y++) grid.push(flat.slice(y * m.cols, (y + 1) * m.cols));
+      return grid;
+    };
+    const floor = decode('floor');
+    const walls = decode('walls');
+    const isWall = (n) => Boolean(n) && n !== 'door_mid' && n !== 'floor_outside';
+    const bad = [];
+    for (let y = 0; y < m.rows; y++) {
+      for (let x = 0; x < m.cols; x++) {
+        if (isWall(walls[y][x]) && floor[y][x] === 'floor_outside') bad.push(`${x},${y}`);
+      }
+    }
+    assert.deepStrictEqual(bad, [], `walls still on the lawn: ${bad.slice(0, 10).join(' ')}`);
+  });
+
+  it('F46.3: the room joints on the north wall carry a room floor', () => {
+    const m = JSON.parse(fs.readFileSync(MAP, 'utf8'));
+    const decode = (name) => {
+      const L = m.layers.find((l) => l.name === name);
+      const flat = [];
+      for (const [v, n] of L.data) for (let k = 0; k < n; k++) flat.push(v);
+      const grid = [];
+      for (let y = 0; y < m.rows; y++) grid.push(flat.slice(y * m.cols, (y + 1) * m.cols));
+      return grid;
+    };
+    const floor = decode('floor');
+    // The vertical dividers between boss/research (x28,29) and research/server
+    // (x56,57) meet the north wall at row 2.
+    for (const x of [1, 2, 28, 29, 30, 56, 57, 58, 84]) {
+      assert.ok(/^floor_/.test(floor[2][x]) && floor[2][x] !== 'floor_outside',
+        `joint x=${x} must carry a real floor, got ${floor[2][x]}`);
+    }
   });
 });
