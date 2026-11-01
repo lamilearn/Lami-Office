@@ -205,9 +205,15 @@
           const doorBelowSolid = isSolidWall(map, x, y + 1);
           const doorAboveWall = isSolidWall(map, x, y - 1);
           if (!doorBelowSolid || !doorAboveWall) {
+            // Sit the sill in the SAME frame as the wall band it interrupts:
+            // top face plus face, exactly like the wall. Drawn flush the sill
+            // hung below the band, and drawn only at face height it left a pale
+            // notch of lane floor above it.
+            drawTile(ctx, map, DOOR_TILE, x * ts, y * ts - WALL_LIFT);
             drawTile(ctx, map, DOOR_TILE, x * ts, y * ts - WALL_LIFT + 4);
+          } else {
+            drawTile(ctx, map, DOOR_TILE, x * ts, y * ts);
           }
-          drawTile(ctx, map, DOOR_TILE, x * ts, y * ts);
           continue;
         }
         // A wall is drawn raised when its south side is open, OR when nothing
