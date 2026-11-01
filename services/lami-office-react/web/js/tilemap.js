@@ -260,12 +260,20 @@
         if (!name || name === DOOR_TILE || name === OUTSIDE_TILE) continue;
         const px = x * ts;
         const py = y * ts;
+        // Follow the wall's own drawn extent. A raised wall's body ends at
+        // py + 6, not at the bottom of its row, so tracing the row box left a
+        // strip of lawn inside the building's outline at the south edge.
+        const belowSolid = isSolidWall(map, x, y + 1);
+        const aboveWall = isSolidWall(map, x, y - 1);
+        const raised = !belowSolid || !aboveWall;
+        const top = raised ? py - WALL_LIFT : py;
+        const bottom = raised ? py + 6 : py + ts;
         // The envelope is traced wherever a wall meets ground that is not part
         // of the building, so the structure never dissolves into the lawn.
-        if (!insideBuilding(map, x, y - 1)) ctx.fillRect(px, py - WALL_LIFT - thickness, ts, thickness);
-        if (!insideBuilding(map, x, y + 1)) ctx.fillRect(px, py + ts, ts, thickness);
-        if (!insideBuilding(map, x - 1, y)) ctx.fillRect(px - thickness, py - WALL_LIFT, thickness, ts + WALL_LIFT);
-        if (!insideBuilding(map, x + 1, y)) ctx.fillRect(px + ts, py - WALL_LIFT, thickness, ts + WALL_LIFT);
+        if (!insideBuilding(map, x, y - 1)) ctx.fillRect(px, top - thickness, ts, thickness);
+        if (!insideBuilding(map, x, y + 1)) ctx.fillRect(px, bottom, ts, thickness);
+        if (!insideBuilding(map, x - 1, y)) ctx.fillRect(px - thickness, top, thickness, bottom - top);
+        if (!insideBuilding(map, x + 1, y)) ctx.fillRect(px + ts, top, thickness, bottom - top);
       }
     }
   }
