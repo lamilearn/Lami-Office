@@ -278,10 +278,18 @@
         const name = walls[y][x];
         if (!name) continue;
         if (name === DOOR_TILE) continue; // threshold is floor: drawn below characters
-        if (isSolidWall(map, x, y + 1)) continue; // flush body already drawn in paintGround
+        // Same rule as paintGround: a wall is raised when its south side is open
+        // or when nothing stands above it. Skipping the corner tiles here left
+        // them without this second wall-top pass, so their face stayed taller
+        // than their neighbours and the band stepped at every room joint.
+        const belowSolid = isSolidWall(map, x, y + 1);
+        const aboveWall = isSolidWall(map, x, y - 1);
+        if (belowSolid && aboveWall) continue; // flush body already drawn in paintGround
         drawTile(ctx, map, wallTopFor(name), x * ts, y * ts - WALL_LIFT);
-        ctx.fillStyle = 'rgba(58, 40, 56, 0.35)';
-        ctx.fillRect(x * ts, y * ts + ts, ts, 1);
+        if (!belowSolid) {
+          ctx.fillStyle = 'rgba(58, 40, 56, 0.35)';
+          ctx.fillRect(x * ts, y * ts + ts, ts, 1);
+        }
       }
     }
 
