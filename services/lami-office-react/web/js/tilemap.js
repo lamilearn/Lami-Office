@@ -198,8 +198,15 @@
         const name = walls[y][x];
         if (!name) continue;
         if (name === DOOR_TILE) {
-          // Door thresholds are walkable floor: draw them below the characters
-          // so someone crossing the doorway is never hidden by the tile.
+          // Door thresholds are walkable floor, so they are drawn below the
+          // characters. They must also rise with the wall band around them:
+          // drawn flush only, the top of the doorway showed the lane floor as a
+          // pale notch above the sill.
+          const doorBelowSolid = isSolidWall(map, x, y + 1);
+          const doorAboveWall = isSolidWall(map, x, y - 1);
+          if (!doorBelowSolid || !doorAboveWall) {
+            drawTile(ctx, map, DOOR_TILE, x * ts, y * ts - WALL_LIFT + 4);
+          }
           drawTile(ctx, map, DOOR_TILE, x * ts, y * ts);
           continue;
         }
