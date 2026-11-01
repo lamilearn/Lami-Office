@@ -1006,3 +1006,41 @@ describe('Tier 4 — HTTP Integration: Render health', () => {
       'a render report must never become an agent on the floor');
   }, LONG);
 });
+
+describe('Tier 4 — HTTP Integration: One number for "agents online"', () => {
+  let srv = null;
+  let peer = null;
+
+  beforeAll(async () => {
+    peer = await H.startStubPeer({ protocol: 'custom' });
+    srv = await H.startServer({
+      env: {
+        A2A_PEERS: JSON.stringify([
+          { id: 'yuna', name: 'Yuna', host: '127.0.0.1', port: peer.port, room: 'research' }
+        ]),
+        A2A_POLL_INTERVAL: '1'
+      }
+    });
+    await H.sleep(1800);
+  });
+  afterAll(async () => {
+    if (srv) await srv.stop();
+    if (peer) await peer.stop();
+    srv = null; peer = null;
+  });
+
+  it('H12: /api/integration, /api/world and /api/a2a agree on how many agents are online', async () => {
+    if (!HAVE_PY) return;
+    const integ = await srv.get('/api/integration');
+    const world = await srv.get('/api/world');
+    const a2a = await srv.get('/api/a2a');
+
+    // Regression: integration counted only Hermes sub-agents, so a healthy mesh
+    // reported 0 there while the world reported 5 and A2A reported 5/5.
+    assert.strictEqual(integ.json.agents_online, world.json.status.agents_active,
+      'integration and world must report the same active-agent count');
+    assert.strictEqual(integ.json.agents_online, a2a.json.online,
+      'and it must match the A2A presence count');
+    assert.strictEqual(integ.json.sub_agents, 0, 'no Hermes sub-agent is running here');
+  }, LONG);
+});

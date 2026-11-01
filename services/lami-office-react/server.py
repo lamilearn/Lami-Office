@@ -1518,7 +1518,12 @@ class Handler(BaseHTTPRequestHandler):
                 "public_mode": CFG["public_mode"],
                 "events_total": HUB.events_total,
                 "last_event_age_s": round(time.time() - HUB.last_event_ts, 1) if HUB.last_event_ts else None,
-                "agents_online": len(HUB.agents),
+                # Same definition the world status uses: Hermes sub-agents plus
+                # reachable A2A peers. Reporting only len(HUB.agents) here made
+                # /api/integration say 0 while /api/world said 5 and /api/a2a said
+                # 5/5 online - three numbers for one fact.
+                "agents_online": len(HUB.agents) + sum(1 for p in A2A.snapshot() if p.get("online")),
+                "sub_agents": len(HUB.agents),
                 "world": {
                     "ticks": SIM_STATS["ticks"],
                     "last_tick_ms": SIM_STATS["last_tick_ms"],
