@@ -843,8 +843,9 @@ describe('Tier 1 — Feature 43: Walls sit on floor, never on the lawn', () => {
     const src = fs.readFileSync(path.join(REPO, 'scripts/generate_tilemap.py'), 'utf8');
     // The generator walks out to the nearest real floor rather than copying the
     // tile below, because a corner has no floor directly underneath it.
-    assert.ok(/floor\[sy\]\[sx\] = found/.test(src), 'the wall row must inherit a real floor');
-    assert.ok(/outside_cells/.test(src), 'it must specifically fix the outdoor cases');
+    assert.ok(/floor\[y\]\[x\] = found/.test(src), 'the wall row must inherit a real floor');
+    assert.ok(/if not below_wall:\n\s+continue/.test(src),
+      'the search must not cross the outdoor edge');
   });
 });
 
@@ -900,10 +901,14 @@ describe('Tier 1 — Feature 46: The top wall band has no notches', () => {
     const bad = [];
     for (let y = 0; y < m.rows; y++) {
       for (let x = 0; x < m.cols; x++) {
-        if (isWall(walls[y][x]) && floor[y][x] === 'floor_outside') bad.push(`${x},${y}`);
+        if (!isWall(walls[y][x]) || floor[y][x] !== 'floor_outside') continue;
+        // A wall may show the outdoor tile only where it is the building's own
+        // outer edge - there the strip below it really is outside.
+        const belowOutside = y + 1 >= m.rows || floor[y + 1][x] === 'floor_outside';
+        if (!belowOutside) bad.push(`${x},${y}`);
       }
     }
-    assert.deepStrictEqual(bad, [], `walls still on the lawn: ${bad.slice(0, 10).join(' ')}`);
+    assert.deepStrictEqual(bad, [], `walls over the lawn inside the building: ${bad.slice(0, 10).join(' ')}`);
   });
 
   it('F46.3: the room joints on the north wall carry a room floor', () => {

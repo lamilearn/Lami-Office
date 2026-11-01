@@ -286,25 +286,46 @@ def build_map(cfg: dict) -> dict:
     # room divider meets an outer wall have no floor neighbour directly below, so
     # a simple copy is not enough.
     from collections import deque
-    outside_cells = [(x, y) for y in range(rows) for x in range(cols)
-                     if walls[y][x] and walls[y][x] != "door_mid" and floor[y][x] == "floor_outside"]
-    for sx, sy in outside_cells:
-        seen = {(sx, sy)}
-        q = deque([(sx, sy)])
-        found = None
-        while q and found is None:
-            cx, cy = q.popleft()
-            for dx, dy in ((0, 1), (0, -1), (1, 0), (-1, 0)):
-                nx, ny = cx + dx, cy + dy
-                if nx < 0 or ny < 0 or nx >= cols or ny >= rows or (nx, ny) in seen:
-                    continue
-                seen.add((nx, ny))
-                if floor[ny][nx] != "floor_outside":
-                    found = floor[ny][nx]
-                    break
-                q.append((nx, ny))
-        if found:
-            floor[sy][sx] = found
+    # A wall is drawn raised, so the lower part of its own row shows the floor
+    # layer. That strip must show the floor of whatever the wall opens onto, and
+    # never the lawn:
+    #   - tile below is open floor  -> copy it
+    #   - tile below is another wall -> walk out through walls only, and take the
+    #     first real floor found (a room joint has no floor directly below)
+    #   - tile below is outdoors     -> leave it alone, so the building's outer
+    #     edge keeps grass under it instead of leaking room floor outside
+    for y in range(rows - 1, -1, -1):
+        for x in range(cols):
+            if not walls[y][x] or walls[y][x] == "door_mid":
+                continue
+            if floor[y][x] != "floor_outside" or y + 1 >= rows:
+                continue
+            below_wall = walls[y + 1][x]
+            if not below_wall and floor[y + 1][x] != "floor_outside":
+                floor[y][x] = floor[y + 1][x]
+                continue
+            if not below_wall:
+                continue  # the strip is outdoors; grass is correct there
+            seen = {(x, y)}
+            q = deque([(x, y)])
+            found = None
+            while q and found is None:
+                cx, cy = q.popleft()
+                for dx, dy in ((0, 1), (0, -1), (1, 0), (-1, 0)):
+                    nx, ny = cx + dx, cy + dy
+                    if nx < 0 or ny < 0 or nx >= cols or ny >= rows or (nx, ny) in seen:
+                        continue
+                    seen.add((nx, ny))
+                    if not walls[ny][nx]:
+                        if floor[ny][nx] != "floor_outside":
+                            found = floor[ny][nx]
+                            break
+                        continue
+                    if walls[ny][nx] == "door_mid":
+                        continue
+                    q.append((nx, ny))
+            if found:
+                floor[y][x] = found
 
     return {
         "tileSize": cfg["tileSize"],
