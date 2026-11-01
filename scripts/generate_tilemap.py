@@ -311,7 +311,11 @@ def build_map(cfg: dict) -> dict:
             found = None
             while q and found is None:
                 cx, cy = q.popleft()
-                for dx, dy in ((0, 1), (0, -1), (1, 0), (-1, 0)):
+                # Deliberately never search north: the tile above a junction is
+                # the hallway, and taking its floor painted a pale lane-coloured
+                # notch under the wall band. Walking sideways or south reaches the
+                # room floor the junction actually sits between.
+                for dx, dy in ((1, 0), (-1, 0), (0, 1)):
                     nx, ny = cx + dx, cy + dy
                     if nx < 0 or ny < 0 or nx >= cols or ny >= rows or (nx, ny) in seen:
                         continue

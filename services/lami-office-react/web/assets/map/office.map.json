@@ -5388,12 +5388,8 @@
      4
     ],
     [
-     "floor_hall_a",
-     1
-    ],
-    [
      "floor_lobby",
-     3
+     4
     ],
     [
      "floor_hall_b",
@@ -6348,12 +6344,8 @@
      4
     ],
     [
-     "floor_hall_a",
-     1
-    ],
-    [
      "floor_lobby",
-     3
+     4
     ],
     [
      "floor_hall_b",
@@ -6777,19 +6769,11 @@
     ],
     [
      "floor_engineering_b",
-     1
-    ],
-    [
-     "floor_hall_a",
-     1
-    ],
-    [
-     "floor_hall_b",
-     1
+     2
     ],
     [
      "floor_meeting_a",
-     1
+     2
     ],
     [
      "floor_meeting_b",
@@ -6889,19 +6873,11 @@
     ],
     [
      "floor_meeting_b",
-     1
-    ],
-    [
-     "floor_hall_a",
-     1
-    ],
-    [
-     "floor_hall_b",
-     1
+     2
     ],
     [
      "floor_pantry_a",
-     1
+     2
     ],
     [
      "floor_pantry_b",
