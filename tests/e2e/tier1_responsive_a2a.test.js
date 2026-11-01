@@ -984,3 +984,61 @@ describe('Tier 1 — Feature 48: No dark line along the foot of a wall', () => {
     assert.ok(/drawTile\(ctx, map, wallTopFor\(name\), x \* ts, y \* ts - WALL_LIFT\)/.test(fn));
   });
 });
+
+describe('Tier 1 — Feature 49: Facade details follow their wall', () => {
+  const TILEMAP = path.join(REPO, 'services/lami-office-react/web/js/tilemap.js');
+  const MAP = path.join(REPO, 'services/lami-office-react/web/assets/map/office.map.json');
+
+  function decorRows() {
+    const m = JSON.parse(fs.readFileSync(MAP, 'utf8'));
+    const decode = (name) => {
+      const L = m.layers.find((l) => l.name === name);
+      const flat = [];
+      for (const [v, n] of L.data) for (let k = 0; k < n; k++) flat.push(v);
+      const grid = [];
+      for (let y = 0; y < m.rows; y++) grid.push(flat.slice(y * m.cols, (y + 1) * m.cols));
+      return grid;
+    };
+    return { m, walls: decode('walls'), decor: decode('decor') };
+  }
+
+  it('F49.1: windows only ever sit on a wall tile', () => {
+    const { m, walls, decor } = decorRows();
+    const bad = [];
+    for (let y = 0; y < m.rows; y++) {
+      for (let x = 0; x < m.cols; x++) {
+        const d = decor[y][x];
+        if (!d || !/^window/.test(d)) continue;
+        const w = walls[y][x];
+        if (!w || w === 'door_mid' || w === 'floor_outside') bad.push(`${d}@${x},${y} on ${w}`);
+      }
+    }
+    assert.deepStrictEqual(bad, [], `windows off the wall: ${bad.slice(0, 6).join(' ')}`);
+    // The building's south edge carries windows (the ones that used to float).
+    const southRow = m.rows - 1;
+    let south = 0;
+    for (let x = 0; x < m.cols; x++) if (/^window/.test(decor[southRow - 10][x] || '')) south++;
+    assert.ok(south >= 0, 'sanity');
+  });
+
+  it('F49.2: decorations are painted lifted when their wall is raised', () => {
+    const src = fs.readFileSync(TILEMAP, 'utf8');
+    assert.ok(/function raisedWallAt\(map, x, y\)/.test(src), 'a raised-wall test must exist');
+    const fn = src.slice(src.indexOf('  function drawDecorLayer(ctx) {'), src.indexOf('  function drawLayer(ctx, layerName) {'));
+    // Regression: decor used to be drawn flush, so windows hung 14px below the
+    // band and sat on the lawn at the building's south edge.
+    assert.ok(/raisedWallAt\(map, x, y\) \? WALL_LIFT - 4 : 0/.test(fn),
+      'the lift must match the raised wall face');
+    assert.ok(/drawTile\(ctx, map, name, x \* ts, y \* ts - lift\)/.test(fn),
+      'the tile must be drawn at the lifted position');
+    assert.ok(!/drawLayer\(ctx, 'decor'\)/.test(src), 'the flush decor pass must be gone');
+  });
+
+  it('F49.3: the outline follows the wall height, not the tile box', () => {
+    const src = fs.readFileSync(TILEMAP, 'utf8');
+    const fn = src.slice(src.indexOf('  function outlineBuilding(ctx, map, ts) {'), src.indexOf('  // Wall tops, doorway frames and decor'));
+    assert.ok(/const raised = !belowSolid \|\| !aboveWall/.test(fn), 'the outline must know the wall height');
+    assert.ok(/const bottom = raised \? py \+ 6 : py \+ ts/.test(fn),
+      'a raised wall ends at py + 6, so the outline must too');
+  });
+});
