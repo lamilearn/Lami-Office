@@ -1019,7 +1019,8 @@
     // Detail card for one rack, placed directly under it.
     drawRackPanel(ctx, ts, agent, rack) {
       const w = 150;
-      const h = 58;
+      // No host/IP line: the card only reports name, state and gauges.
+      const h = 54;
       let x = Math.round((rack.x + rack.w / 2) * ts - w / 2);
       let y = Math.round((rack.y + rack.h) * ts + 11);
       x = Math.max(58 * ts + 2, Math.min(x, 84 * ts - w - 2));
@@ -1068,9 +1069,6 @@
           ctx.fillText('--', barX + barW + 4, ry + 7);
         }
       });
-
-      ctx.fillStyle = '#64748b';
-      ctx.fillText(String((agent && agent.host) || '').slice(0, 22), x + 5, y + h - 4);
     }
 
     // Interactive Prop: Multi-Mode Whiteboard
