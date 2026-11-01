@@ -347,7 +347,9 @@
   function raisedWallAt(map, x, y) {
     if (x < 0 || y < 0 || x >= map.cols || y >= map.rows) return false;
     const name = map.layers.walls[y][x];
-    if (!name || name === DOOR_TILE || name === OUTSIDE_TILE) return false;
+    // A doorway is part of the band too, so its jambs rise with it. Skipping the
+    // door tile left the jambs 10px below the sill they belong to.
+    if (!name || name === OUTSIDE_TILE) return false;
     const belowSolid = isSolidWall(map, x, y + 1);
     const aboveWall = isSolidWall(map, x, y - 1);
     return !belowSolid || !aboveWall;
