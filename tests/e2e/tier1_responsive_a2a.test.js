@@ -846,3 +846,23 @@ describe('Tier 1 — Feature 43: Walls sit on floor, never on the lawn', () => {
     assert.ok(/below_solid/.test(src), 'the rule must follow how the wall is drawn');
   });
 });
+
+describe('Tier 1 — Feature 45: No dark band under the walls', () => {
+  const TILEMAP = path.join(REPO, 'services/lami-office-react/web/js/tilemap.js');
+
+  it('F45.1: the ground pass paints no contact shadow under raised walls', () => {
+    const src = fs.readFileSync(TILEMAP, 'utf8');
+    const fn = src.slice(src.indexOf('  function paintGround(ctx) {'), src.indexOf('  function paintOverlay()'));
+    // The 6px band read as a dark line across every room once walls correctly
+    // sat on their own floor instead of on the outdoor tile.
+    assert.ok(!/rgba\(15,\s*10,\s*25/.test(fn), 'the contact-shadow band must be gone');
+    assert.ok(!/y \* ts \+ ts, ts, 6/.test(fn), 'nothing may be painted 6px under the wall row');
+  });
+
+  it('F45.2: the wall band itself is still drawn', () => {
+    const src = fs.readFileSync(TILEMAP, 'utf8');
+    const fn = src.slice(src.indexOf('  function paintGround(ctx) {'), src.indexOf('  function paintOverlay()'));
+    assert.ok(/drawTile\(ctx, map, top, x \* ts, y \* ts - WALL_LIFT\)/.test(fn),
+      'raised wall tops must still be drawn');
+  });
+});

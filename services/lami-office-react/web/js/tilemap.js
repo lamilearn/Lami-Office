@@ -210,8 +210,10 @@
           drawTile(ctx, map, top, x * ts, y * ts - WALL_LIFT);
           const isTopVariant = name.indexOf('wall_top') === 0;
           drawTile(ctx, map, isTopVariant ? top : name, x * ts, y * ts - WALL_LIFT + 4);
-          ctx.fillStyle = 'rgba(15, 10, 25, 0.22)';
-          ctx.fillRect(x * ts, y * ts + ts, ts, 6);
+          // No contact shadow here. A 6px dark band used to be painted under
+          // every raised wall; while the floor beneath a wall was the outdoor
+          // tile it blended away, but once a wall correctly sits on its own room
+          // floor the band turned into a grey line running across every room.
         } else {
           drawTile(ctx, map, name, x * ts, y * ts);
         }
