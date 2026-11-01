@@ -1147,3 +1147,50 @@ describe('Tier 1 — Feature 52: A room\'s colour stops at its own floor', () =>
   });
 });
 
+describe('Tier 1 — Feature 53: Desktop drag-pan follows the cursor 1:1', () => {
+  const OFFICE = path.join(REPO, 'services/lami-office-react/web/js/office.js');
+
+  function dragFn() {
+    const src = fs.readFileSync(OFFICE, 'utf8');
+    return src.slice(src.indexOf('const onPointerMove'), src.indexOf("this.canvas.addEventListener('pointermove', onHoverMove)"));
+  }
+
+  it('F53.1: the pan is measured from one fixed grab point', () => {
+    const fn = dragFn();
+    // Regression: the anchor was re-read from the live view on every pointermove,
+    // so each delta compounded and the map accelerated away from the cursor.
+    assert.ok(/if \(!panStart\) \{/.test(fn), 'the grab point is captured once');
+    assert.ok(/offsetX: this\.view\.offsetX/.test(fn) && /offsetY: this\.view\.offsetY/.test(fn),
+      'with the view frozen at that moment');
+    assert.ok(/const s = panStart;/.test(fn), 'and every move is measured against it');
+    assert.ok(/this\.viewAnchorScreenX = s\.x \+ \(p\.x - s\.x\)/.test(fn),
+      'so the content point tracks the pointer exactly');
+  });
+
+  it('F53.2: the drag activates once and survives leaving the canvas', () => {
+    const fn = dragFn();
+    assert.ok(/if \(!moved && Math\.hypot\(dx, dy\) > PAN_ACTIVATE_PX\) moved = true;/.test(fn),
+      'the drag must not restart its own threshold every event');
+    const src = fs.readFileSync(OFFICE, 'utf8');
+    assert.ok(/setPointerCapture\(e\.pointerId\)/.test(src), 'the pointer is captured so a fast drag never stalls');
+    assert.ok(/releasePointerCapture\(e\.pointerId\)/.test(src), 'and released on pointerup');
+  });
+
+  it('F53.3: a drag never selects or snaps the view on release', () => {
+    const src = fs.readFileSync(OFFICE, 'utf8');
+    const up = src.slice(src.indexOf('const onPointerUp'), src.indexOf('// Hover tracking'));
+    // Regression: a slow drag that returned to its start still produced a native
+    // click, which selected whatever sat under the cursor.
+    assert.ok(/gesture === 'drag' \|\| gesture === 'longpress'\) suppressClick = true/.test(up),
+      'a drag must suppress the click that follows it');
+    assert.ok(/if \(suppressClick\) \{/.test(up), 'and the tap path must honour that flag');
+  });
+
+  it('F53.4: the wheel takes over the anchor after a drag', () => {
+    const src = fs.readFileSync(OFFICE, 'utf8');
+    const wheel = src.slice(src.indexOf('const onWheel'), src.indexOf("addEventListener('wheel'"));
+    // Regression: an anchor left over from a previous drag pinned the view to the
+    // old grab point, so the wheel could no longer zoom under the cursor.
+    assert.ok(/this\.panning = false;/.test(wheel), 'the wheel must retire the stale pan anchor');
+  });
+});
