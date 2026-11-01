@@ -1741,3 +1741,79 @@ describe('Feature 44: Render failures are recorded, not swallowed', () => {
     assert.ok(/render_health/.test(server), 'the server must expose it');
   });
 });
+
+describe('Feature 47: Walking characters do not flicker', () => {
+  const OFFICE = path.join(REPO, 'services/lami-office-react/web/js/office.js');
+
+  function build() {
+    const harness = require('../harness');
+    const env = harness.createBrowserEnvironment();
+    const LO = harness.loadScriptIntoEnv(env, 'config.js');
+    harness.loadScriptIntoEnv(env, 'sprites.js');
+    harness.loadScriptIntoEnv(env, 'world.js');
+    harness.loadScriptIntoEnv(env, 'office.js');
+    env.window.LO = LO;
+    LO.audio = new Proxy({}, { get: () => () => {} });
+    harness.loadScriptIntoEnv(env, 'agents.js');
+    LO.ui = { updateStaffCount() {}, addTicker() {}, appendChatMessage() {}, triggerEventBanner() {},
+      setStatus() {}, recordDone() {}, setOfficeStatus() {}, setRoster() {} };
+    env.window.innerWidth = 1600;
+    env.window.matchMedia = () => ({ matches: false });
+    const office = new LO.Office(env.document.createElement('canvas'));
+    office.canvas = { clientWidth: 1600, clientHeight: 900,
+      getBoundingClientRect: () => ({ left: 0, top: 0, width: 1600, height: 900 }) };
+    office.simulatedExternally = true;
+    office.world = new LO.World();
+    return { office, LO };
+  }
+
+  it('F47.1: the animation frame is not copied straight from the 5 Hz stream', () => {
+    const src = fs.readFileSync(OFFICE, 'utf8');
+    const apply = src.slice(src.indexOf('    applyWorld(frame) {'), src.indexOf('    applyWorldTargets(dt) {'));
+    // Regression: `char.frame = data.frame` mirrored the server's two foot frames
+    // at 5 Hz, so a walking sprite flipped idle/walk on every render frame.
+    assert.ok(!/char\.frame = data\.frame/.test(apply), 'the frame must not be assigned from the stream');
+    assert.ok(/char\.serverFrame = data\.frame/.test(apply), 'the server frame is kept as a hint only');
+  });
+
+  it('F47.2: a steady gait runs locally while walking', () => {
+    const { office } = build();
+    const char = office.residents[0];
+    char.state = 'walk';
+    office.worldTargets = new Map([[char.id, { id: char.id, col: char.col, row: char.row, state: 'walk', frame: 'walk' }]]);
+
+    const frames = [];
+    // Simulate 3 seconds of render frames plus 5 Hz server updates that keep
+    // alternating the reported frame, exactly like the real stream.
+    for (let i = 0; i < 180; i++) {
+      if (i % 12 === 0) char.serverFrame = (i / 12) % 2 ? 'idle' : 'walk';
+      office.applyWorldTargets(1 / 60);
+      frames.push(char.frame);
+    }
+    const changes = frames.filter((f, i) => i && f !== frames[i - 1]).length;
+    // A 0.16s gait over 3s is about 18 flips; mirroring the stream would be ~15
+    // as well, so assert the stride is even rather than absent.
+    const runs = [];
+    for (const f of frames) if (!runs.length || runs[runs.length - 1] !== f) runs.push(f);
+    const lengths = [];
+    let count = 1;
+    for (let i = 1; i < frames.length; i++) {
+      if (frames[i] === frames[i - 1]) count++;
+      else { lengths.push(count); count = 1; }
+    }
+    assert.ok(changes >= 10, `the gait should animate, got ${changes} changes`);
+    const max = Math.max(...lengths);
+    const min = Math.min(...lengths.filter((n) => n > 1));
+    assert.ok(max - min <= 3, `stride lengths must be even (min ${min}, max ${max})`);
+  });
+
+  it('F47.3: a standing character keeps the frame the server sent', () => {
+    const { office } = build();
+    const char = office.residents[0];
+    char.state = 'work';
+    char.serverFrame = 'type';
+    office.worldTargets = new Map([[char.id, { id: char.id, col: char.col, row: char.row, state: 'work', frame: 'idle' }]]);
+    for (let i = 0; i < 60; i++) office.applyWorldTargets(1 / 60);
+    assert.strictEqual(char.frame, 'type', 'a still character must hold its server frame');
+  });
+});

@@ -1355,7 +1355,12 @@
         }
         char.facing = data.facing || char.facing;
         char.state = data.state || char.state;
-        char.frame = data.frame || char.frame;
+        // Do NOT copy the server's animation frame straight in. The server walks
+        // its two foot frames at 5 Hz, so a client that mirrors them shows
+        // idle/walk/idle/walk at render rate - the character appears to flicker.
+        // The frame is derived locally instead (see applyWorldTargets), keeping
+        // the gait smooth while the authoritative state still comes from above.
+        char.serverFrame = data.frame || char.serverFrame;
         char.bubble = data.bubble || null;
         char.bubbleTimer = data.bubble ? 1 : 0;
         char.emote = data.emote || null;
@@ -1411,6 +1416,22 @@
         // Timers count down locally so bubbles fade between 5 Hz frames.
         if (char.bubbleTimer > 0) char.bubbleTimer -= dt;
         if (char.emoteTimer > 0) char.emoteTimer -= dt;
+
+        // Gait: alternate the two foot frames at a steady rate while walking, and
+        // hold a still frame otherwise. Mirroring the 5 Hz server value made the
+        // sprite flicker between idle and walk every render frame.
+        if (char.state === 'walk') {
+          char._gaitT = (char._gaitT || 0) + dt;
+          if (char._gaitT >= 0.16) {
+            char._gaitT = 0;
+            char._gaitStep = !char._gaitStep;
+          }
+          char.frame = char._gaitStep ? 'walk' : 'idle';
+        } else {
+          char._gaitT = 0;
+          char._gaitStep = false;
+          if (char.serverFrame) char.frame = char.serverFrame;
+        }
       }
       if (this.cat && this.cat.bubbleTimer > 0) this.cat.bubbleTimer -= dt;
     }
