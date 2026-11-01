@@ -214,8 +214,12 @@
           // south-facing wall: render the face raised, like a room divider
           const top = wallTopFor(name);
           drawTile(ctx, map, top, x * ts, y * ts - WALL_LIFT);
-          const isTopVariant = name.indexOf('wall_top') === 0;
-          drawTile(ctx, map, isTopVariant ? top : name, x * ts, y * ts - WALL_LIFT + 4);
+          // The lower half of a raised wall is always its BRICK FACE. Corner
+          // tiles carry the `wall_top` variant (the tile below them is another
+          // wall), and drawing that variant here made the corner a flat block
+          // that stuck out of the band.
+          const face = name.indexOf('wall_top') === 0 ? name.replace('wall_top', 'wall_face') : name;
+          drawTile(ctx, map, face, x * ts, y * ts - WALL_LIFT + 4);
           // No contact shadow here. A 6px dark band used to be painted under
           // every raised wall; while the floor beneath a wall was the outdoor
           // tile it blended away, but once a wall correctly sits on its own room
