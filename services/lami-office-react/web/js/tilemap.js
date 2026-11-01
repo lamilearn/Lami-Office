@@ -225,7 +225,13 @@
         const aboveWall = isSolidWall(map, x, y - 1);
         if (!belowSolid || !aboveWall) {
           // south-facing wall: render the face raised, like a room divider
-          const top = wallTopFor(name);
+          // Use the wall's own family for the top. A corner tile whose tile
+          // below is another wall carries the wall_top variant, and asking for
+          // wall_top again painted that one column a shade brighter than the
+          // face-only tiles beside it - a step poking up at the joint.
+          const top = name.indexOf('wall_top') === 0
+            ? name
+            : (wallTopFor(name) === name ? name : wallTopFor(name));
           drawTile(ctx, map, top, x * ts, y * ts - WALL_LIFT);
           // The lower half of a raised wall is always its BRICK FACE. Corner
           // tiles carry the `wall_top` variant (the tile below them is another
