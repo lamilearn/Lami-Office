@@ -220,6 +220,10 @@
           // that stuck out of the band.
           const face = name.indexOf('wall_top') === 0 ? name.replace('wall_top', 'wall_face') : name;
           drawTile(ctx, map, face, x * ts, y * ts - WALL_LIFT + 4);
+          // Where a divider or an outer wall continues below, the rest of this
+          // row must stay wall too. Leaving it to the floor layer cut a pale
+          // band across the vertical run, so the wall looked broken at the joint.
+          if (belowSolid) drawTile(ctx, map, face, x * ts, y * ts);
           // No contact shadow here. A 6px dark band used to be painted under
           // every raised wall; while the floor beneath a wall was the outdoor
           // tile it blended away, but once a wall correctly sits on its own room
