@@ -295,7 +295,7 @@
       }
     }
 
-    drawLayer(ctx, 'decor');
+    drawDecorLayer(ctx);
   }
 
   // Fill an arbitrary screen rect with the outside terrain, so the letterbox
@@ -321,6 +321,37 @@
   }
 
   // Paint one tile layer across the whole map.
+  // True when the wall at this tile is painted raised, so decorations mounted on
+  // it must move up with it.
+  function raisedWallAt(map, x, y) {
+    if (x < 0 || y < 0 || x >= map.cols || y >= map.rows) return false;
+    const name = map.layers.walls[y][x];
+    if (!name || name === DOOR_TILE || name === OUTSIDE_TILE) return false;
+    const belowSolid = isSolidWall(map, x, y + 1);
+    const aboveWall = isSolidWall(map, x, y - 1);
+    return !belowSolid || !aboveWall;
+  }
+
+  // Decor (windows, sconces, plaques) sits on a wall, so it follows the wall up
+  // when that wall is raised. Drawing it flush left the windows sitting on the
+  // lawn at the building's south edge, 14px below the band they belong to.
+  function drawDecorLayer(ctx) {
+    if (!isReady()) return false;
+    const map = STATE.map;
+    const layer = map.layers.decor;
+    if (!layer) return false;
+    const ts = map.tileSize;
+    for (let y = 0; y < map.rows; y++) {
+      for (let x = 0; x < map.cols; x++) {
+        const name = layer[y][x];
+        if (!name) continue;
+        const lift = raisedWallAt(map, x, y) ? WALL_LIFT - 4 : 0;
+        drawTile(ctx, map, name, x * ts, y * ts - lift);
+      }
+    }
+    return true;
+  }
+
   function drawLayer(ctx, layerName) {
     if (!isReady()) return false;
     const map = STATE.map;
