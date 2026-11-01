@@ -289,11 +289,9 @@
         const belowSolid = isSolidWall(map, x, y + 1);
         const aboveWall = isSolidWall(map, x, y - 1);
         if (belowSolid && aboveWall) continue; // flush body already drawn in paintGround
+        // No base line either. A 1px dark strip at the foot of every wall read as
+        // a black line lying on the floor, distinct from the floor's own grid.
         drawTile(ctx, map, wallTopFor(name), x * ts, y * ts - WALL_LIFT);
-        if (!belowSolid) {
-          ctx.fillStyle = 'rgba(58, 40, 56, 0.35)';
-          ctx.fillRect(x * ts, y * ts + ts, ts, 1);
-        }
       }
     }
 

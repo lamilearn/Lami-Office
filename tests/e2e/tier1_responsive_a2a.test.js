@@ -964,3 +964,23 @@ describe('Tier 1 — Feature 46: The top wall band has no notches', () => {
     }
   });
 });
+
+describe('Tier 1 — Feature 48: No dark line along the foot of a wall', () => {
+  const TILEMAP = path.join(REPO, 'services/lami-office-react/web/js/tilemap.js');
+
+  it('F48.1: the overlay paints no 1px shadow at the wall base', () => {
+    const src = fs.readFileSync(TILEMAP, 'utf8');
+    const fn = src.slice(src.indexOf('  function paintOverlay(ctx) {'), src.indexOf("    drawLayer(ctx, 'decor');"));
+    // A 1px strip at y*ts+ts read as a black line lying on the floor, separate
+    // from the floor's own grid.
+    assert.ok(!/fillRect\(x \* ts, y \* ts \+ ts, ts, 1\)/.test(fn),
+      'the base line must be gone');
+    assert.ok(!/rgba\(58, 40, 56/.test(fn), 'no dark base colour may remain');
+  });
+
+  it('F48.2: the wall top is still drawn for raised walls', () => {
+    const src = fs.readFileSync(TILEMAP, 'utf8');
+    const fn = src.slice(src.indexOf('  function paintOverlay(ctx) {'), src.indexOf("    drawLayer(ctx, 'decor');"));
+    assert.ok(/drawTile\(ctx, map, wallTopFor\(name\), x \* ts, y \* ts - WALL_LIFT\)/.test(fn));
+  });
+});
