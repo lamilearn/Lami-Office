@@ -1670,3 +1670,74 @@ describe('Feature 44: Canvas Pipeline Hardening & Layout Display Resilience', ()
     assert.strictEqual(scene.canvas.tagName, 'CANVAS', 'fallback must use document canvas element');
   });
 });
+
+describe('Feature 44: Render failures are recorded, not swallowed', () => {
+  const OFFICE = path.join(REPO, 'services/lami-office-react/web/js/office.js');
+  const WORLD = path.join(REPO, 'services/lami-office-react/web/js/world.js');
+  const NET = path.join(REPO, 'services/lami-office-react/web/js/net.js');
+  const SERVER = path.join(REPO, 'services/lami-office-react/server.py');
+
+  function build() {
+    const harness = require('../harness');
+    const env = harness.createBrowserEnvironment();
+    const LO = harness.loadScriptIntoEnv(env, 'config.js');
+    harness.loadScriptIntoEnv(env, 'sprites.js');
+    harness.loadScriptIntoEnv(env, 'world.js');
+    harness.loadScriptIntoEnv(env, 'office.js');
+    env.window.LO = LO;
+    LO.audio = new Proxy({}, { get: () => () => {} });
+    harness.loadScriptIntoEnv(env, 'agents.js');
+    LO.ui = { updateStaffCount() {}, addTicker() {}, appendChatMessage() {}, triggerEventBanner() {},
+      setStatus() {}, recordDone() {}, setOfficeStatus() {}, setRoster() {} };
+    env.window.innerWidth = 1600;
+    env.window.matchMedia = () => ({ matches: false });
+    const office = new LO.Office(env.document.createElement('canvas'));
+    office.canvas = { clientWidth: 1600, clientHeight: 900,
+      getBoundingClientRect: () => ({ left: 0, top: 0, width: 1600, height: 900 }) };
+    office.simulatedExternally = true;
+    office.world = new LO.World();
+    return { office, LO, env };
+  }
+
+  it('F44.1: a failing prop is recorded on the office instead of vanishing', () => {
+    const { office, LO, env } = build();
+    env.window.LO.office = office;
+    // Make one prop explode, exactly like the ellipse arity bug did.
+    const original = office.world.drawDecorProp;
+    const bad = LO.DECOR_PROPS[0];
+    office.world.drawDecorProp = function (ctx, ts, p, theme) {
+      if (p === bad) throw new Error('boom');
+      return original.call(this, ctx, ts, p, theme);
+    };
+    office.ctx.drawCalls.length = 0;
+    office.world.drawDecorProps(office.ctx, 16, { type: 'day' });
+
+    assert.ok(office.renderErrorCount >= 1, 'the failure must be counted');
+    assert.ok(office.renderErrors.some((e) => /boom/.test(e)), 'the message must be kept');
+    assert.ok(office.renderErrors.some((e) => new RegExp(bad.kind).test(e)),
+      'the report must name which prop failed');
+    // The rest of the room still renders.
+    assert.ok(office.ctx.drawCalls.length > 0, 'one bad prop must not stop the others');
+  });
+
+  it('F44.2: the office exposes a recorder used by every guard', () => {
+    const src = fs.readFileSync(OFFICE, 'utf8');
+    assert.ok(/noteRenderError\(where, err\)/.test(src), 'a single recorder must exist');
+    const guards = src.match(/catch \(err\) \{[\s\S]{0,120}?\}/g) || [];
+    const silent = guards.filter((g) => /console\.warn/.test(g) && !/noteRenderError/.test(g));
+    assert.deepStrictEqual(silent, [], 'no render guard may only warn to the console');
+    const world = fs.readFileSync(WORLD, 'utf8');
+    assert.ok(/_drawPropSafely/.test(world), 'props must be drawn through the recorder');
+    assert.ok(/noteRenderError/.test(world), 'the world must report to the office');
+  });
+
+  it('F44.3: the client reports render health to the server', () => {
+    const net = fs.readFileSync(NET, 'utf8');
+    assert.ok(/reportRenderHealth\(\)/.test(net), 'the client must report render health');
+    assert.ok(/'render_report'/.test(net), 'the report type must be sent');
+    assert.ok(/lastRenderErrorCount/.test(net), 'reports must be de-duplicated');
+    const server = fs.readFileSync(SERVER, 'utf8');
+    assert.ok(/render_report/.test(server), 'the server must accept the report');
+    assert.ok(/render_health/.test(server), 'the server must expose it');
+  });
+});

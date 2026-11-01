@@ -44,7 +44,11 @@
       this.a2aTimer = setInterval(() => this.syncA2A(), 15000);
       // 5. Per-agent VM resources for the Server Room wall monitor
       this.syncResources();
-      this.resourceTimer = setInterval(() => this.syncResources(), 15000);
+      this.resourceTimer = setInterval(() => {
+        this.syncResources();
+        this.reportRenderHealth();
+      }, 15000);
+      this.lastRenderErrorCount = 0;
     }
 
     async syncA2A() {
@@ -62,6 +66,27 @@
       } catch (e) {
         /* peer presence is best-effort; the office keeps running */
       }
+    }
+
+    // Push rendering failures to the office so /api/integration can report them.
+    // Without this a broken prop only showed a console warning and disappeared.
+    reportRenderHealth() {
+      const office = this.office;
+      if (!office || !office.renderErrorCount) return;
+      const count = office.renderErrorCount;
+      if (count === this.lastRenderErrorCount) return;
+      this.lastRenderErrorCount = count;
+      const body = {
+        type: 'render_report',
+        agentId: 'client',
+        count,
+        errors: (office.renderErrors || []).slice(-5),
+      };
+      fetch('/api/event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      }).catch(() => { /* health reporting is best-effort */ });
     }
 
     // Real CPU/RAM per agent host, shown on the Server Room monitor.
@@ -255,6 +280,11 @@
 
         case 'world':
           if (typeof this.office.applyWorld === 'function') this.office.applyWorld(data);
+          break;
+
+        case 'render_report':
+          // The server's answer to our last report; keep it for diagnostics.
+          this.renderReport = data;
           break;
       }
     }

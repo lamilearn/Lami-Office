@@ -221,9 +221,11 @@ def clean_text(value, limit: int | None = None) -> str:
 ALLOWED_KEYS = {"type", "agentId", "parentId", "task", "tool", "summary", "ok", "status", "result", "text", "name", "ts",
                 "who", "role", "icon", "color", "title", "desc",
                 # context window report (from the bridge, measured from Hermes)
-                "percent", "usedTokens", "limitTokens", "messages", "model", "session"}
+                "percent", "usedTokens", "limitTokens", "messages", "model", "session",
+                # render health report (from a browser that hit a draw error)
+                "count", "errors"}
 ALLOWED_TYPES = {"agent_spawn", "tool_start", "tool_end", "agent_status", "agent_done", "message",
-                 "ticker", "event_banner", "context"}
+                 "ticker", "event_banner", "context", "render_report"}
 
 
 def sanitize_event(ev: dict) -> dict | None:
@@ -246,11 +248,14 @@ def sanitize_event(ev: dict) -> dict | None:
                 out[k] = float(v)
             except (TypeError, ValueError):
                 pass
-        elif k in ("percent", "usedTokens", "limitTokens", "messages"):
+        elif k in ("percent", "usedTokens", "limitTokens", "messages", "count"):
             try:
                 out[k] = float(v)
             except (TypeError, ValueError):
                 pass
+        elif k == "errors":
+            if isinstance(v, list):
+                out[k] = [clean_text(x, 120) for x in v[:5] if isinstance(x, (str, int, float))]
         else:
             out[k] = v
     out.setdefault("ts", time.time())
@@ -283,6 +288,9 @@ class Hub:
         self.history: list[dict] = []
         # Latest context-window report measured by the bridge from Hermes itself.
         self.context: dict = {}
+        # Latest render-failure report from a browser, so a broken prop shows up
+        # in /api/integration instead of only in someone's console.
+        self.render_health: dict = {"count": 0, "errors": []}
         self.state_path = Path(state_path).expanduser() if state_path else None
         self._dirty = False
         self._load_state()
@@ -397,6 +405,13 @@ class Hub:
 
     def _apply(self, ev: dict):
         today = date.today().isoformat()
+        if ev.get("type") == "render_report":
+            self.render_health = {
+                "count": int(ev.get("count") or 0),
+                "errors": list(ev.get("errors") or [])[:5],
+                "ts": ev.get("ts"),
+            }
+            return
         if ev.get("type") == "context":
             self.context = {
                 "percent": ev.get("percent"),
@@ -1511,6 +1526,7 @@ class Handler(BaseHTTPRequestHandler):
                     "narrated": SIM_STATS["narrated"],
                     "characters": len(SIM.all_moving()),
                 },
+                "render_health": dict(HUB.render_health),
                 "clients": len(HUB.subs),
                 "ingest_token_required": bool(CFG["ingest_token"]),
             }

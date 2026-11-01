@@ -426,18 +426,26 @@
       const props = LO.DECOR_PROPS || [];
       for (const p of props) {
         if (p.kind !== 'rug') continue;
-        try {
-          this.drawDecorProp(ctx, ts, p, theme);
-        } catch (err) {
-          console.warn('Failed to draw decor rug prop:', p, err);
-        }
+        this._drawPropSafely(ctx, ts, p, theme);
       }
       for (const p of props) {
         if (p.kind === 'rug') continue;
-        try {
-          this.drawDecorProp(ctx, ts, p, theme);
-        } catch (err) {
-          console.warn('Failed to draw decor prop:', p, err);
+        this._drawPropSafely(ctx, ts, p, theme);
+      }
+    }
+
+    // One failing prop must not take the whole room down, but it must not vanish
+    // silently either: the failure is recorded on the office so the health
+    // endpoint can surface it (see Office.noteRenderError).
+    _drawPropSafely(ctx, ts, p, theme) {
+      try {
+        this.drawDecorProp(ctx, ts, p, theme);
+      } catch (err) {
+        const office = (typeof window !== 'undefined') ? window.LO?.office : null;
+        if (office && typeof office.noteRenderError === 'function') {
+          office.noteRenderError(`decor ${p.kind}@${p.x},${p.y}`, err);
+        } else {
+          console.warn('[render] decor', p.kind, err);
         }
       }
     }

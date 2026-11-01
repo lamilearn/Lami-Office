@@ -979,3 +979,30 @@ describe('Tier 4 — HTTP Integration: Live context window', () => {
     assert.strictEqual(world.json.chars.filter((c) => c.id === 'context').length, 0);
   }, LONG);
 });
+
+describe('Tier 4 — HTTP Integration: Render health', () => {
+  let srv = null;
+  beforeAll(async () => { srv = await H.startServer(); });
+  afterAll(async () => { if (srv) await srv.stop(); srv = null; });
+
+  it('H11: a render report reaches /api/integration without creating an agent', async () => {
+    if (!HAVE_PY) return;
+    const before = await srv.get('/api/integration');
+    assert.strictEqual(before.json.render_health.count, 0, 'a fresh office has no render errors');
+
+    await srv.post('/api/event', {
+      type: 'render_report', agentId: 'client', count: 2,
+      errors: ['decor plant@3,17: boom', 'renderBanded: boom']
+    });
+    await H.sleep(300);
+
+    const after = await srv.get('/api/integration');
+    assert.strictEqual(after.json.render_health.count, 2);
+    assert.strictEqual(after.json.render_health.errors.length, 2);
+    assert.ok(/plant/.test(after.json.render_health.errors[0]), 'the failing prop must be named');
+
+    const agents = await srv.get('/api/agents');
+    assert.ok(!agents.json.agents.some((a) => a.id === 'client'),
+      'a render report must never become an agent on the floor');
+  }, LONG);
+});

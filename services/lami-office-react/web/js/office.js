@@ -85,6 +85,12 @@
       this.viewAnchorScreenX = null;
       this.viewAnchorScreenY = null;
       this.panOffset = { x: 0, y: 0 };
+      // Render failures captured for /api/integration. Swallowing them into the
+      // console meant an object could vanish from the office with nothing in the
+      // health data to show for it.
+      this.renderErrors = [];
+      this.renderErrorCount = 0;
+
       // Offscreen canvas holding the static scene for depth-band compositing.
       this._scene = null;
       this._sceneCtx = null;
@@ -1634,13 +1640,13 @@
           try {
             this.world.render(this.ctx);
           } catch (err) {
-            console.warn('Fallback world.render encountered an error:', err);
+            this.noteRenderError('fallback world.render', err);
           }
           if (this.elevator && this.elevator.render) {
             try {
               this.elevator.render(this.ctx);
             } catch (err) {
-              console.warn('Fallback elevator.render encountered an error:', err);
+              this.noteRenderError('fallback elevator.render', err);
             }
           }
           for (const c of allChars) {
@@ -1648,7 +1654,7 @@
               try {
                 c.render(this.ctx);
               } catch (err) {
-                console.warn('Fallback character render encountered an error:', err);
+                this.noteRenderError(`fallback character ${c.id || '?'}`, err);
               }
             }
           }
@@ -1656,7 +1662,7 @@
             try {
               this.world.renderOverlay(this.ctx);
             } catch (err) {
-              console.warn('Fallback world.renderOverlay encountered an error:', err);
+              this.noteRenderError('fallback world.renderOverlay', err);
             }
           }
         }
@@ -1672,6 +1678,17 @@
       } finally {
         this.ctx.restore();
       }
+    }
+
+    // Record a rendering failure. Keeps the last few messages so the health
+    // endpoint can report them, and counts every occurrence.
+    noteRenderError(where, err) {
+      this.renderErrorCount += 1;
+      const message = `${where}: ${(err && err.message) || err}`;
+      console.warn('[render]', message);
+      this.renderErrors.push(message);
+      if (this.renderErrors.length > 5) this.renderErrors.shift();
+      this.lastRenderErrorAt = Date.now();
     }
 
     // Renders the static scene once into an offscreen canvas, then blits it in
@@ -1723,7 +1740,7 @@
         blit(drawnTo, bottom);
         return true;
       } catch (err) {
-        console.warn('renderBanded encountered an error, falling back to flat render:', err);
+        this.noteRenderError('renderBanded', err);
         return false;
       }
     }
