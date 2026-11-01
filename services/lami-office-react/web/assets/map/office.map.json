@@ -12050,7 +12050,7 @@
      177
     ],
     [
-     "wall_top_boss",
+     "wall_top",
      1
     ],
     [
@@ -12082,7 +12082,7 @@
      26
     ],
     [
-     "wall_top_server",
+     "wall_top",
      1
     ],
     [
@@ -12730,7 +12730,7 @@
      4
     ],
     [
-     "wall_side_l_boss",
+     "wall_side_l",
      1
     ],
     [
@@ -12770,7 +12770,7 @@
      12
     ],
     [
-     "wall_side_r_server",
+     "wall_side_r",
      1
     ],
     [
@@ -12818,7 +12818,7 @@
      4
     ],
     [
-     "wall_side_l_engineering",
+     "wall_side_l",
      1
     ],
     [
@@ -12874,7 +12874,7 @@
      12
     ],
     [
-     "wall_side_r_pantry",
+     "wall_side_r",
      1
     ],
     [
@@ -13522,8 +13522,12 @@
      4
     ],
     [
+     "wall_face",
+     1
+    ],
+    [
      "wall_face_engineering",
-     28
+     27
     ],
     [
      "wall_face_meeting",
@@ -13531,7 +13535,11 @@
     ],
     [
      "wall_face_pantry",
-     28
+     27
+    ],
+    [
+     "wall_face",
+     1
     ],
     [
      null,

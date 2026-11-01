@@ -1082,3 +1082,68 @@ describe('Tier 1 — Feature 51: A raised corner matches its neighbours', () => 
       'and its lower half must stay the brick face');
   });
 });
+
+describe('Tier 1 — Feature 52: A room\'s colour stops at its own floor', () => {
+  const MAP = path.join(REPO, 'services/lami-office-react/web/assets/map/office.map.json');
+  const GENERATOR = path.join(REPO, 'scripts/generate_tilemap.py');
+
+  function decodeAll() {
+    const raw = JSON.parse(fs.readFileSync(MAP, 'utf8'));
+    const cols = raw.cols, rows = raw.rows;
+    const grids = {};
+    for (const layer of raw.layers) {
+      const flat = new Array(cols * rows);
+      let i = 0;
+      for (const [value, run] of layer.data) {
+        for (let k = 0; k < run && i < cols * rows; k++) flat[i++] = value === undefined ? null : value;
+      }
+      const grid = [];
+      for (let y = 0; y < rows; y++) grid.push(flat.slice(y * cols, (y + 1) * cols));
+      grids[layer.name] = grid;
+    }
+    return { grids, cols, rows };
+  }
+
+  it('F52.1: the server room corner at the east wall is neutral, not purple', () => {
+    const { grids } = decodeAll();
+    const grid = grids.walls;
+    // Regression: the ring corner (84,19) - diagonal to the room floor where the
+    // side wall meets the end wall - kept wall_side_r_server, so the server-purple
+    // brick ran down the east wall past the room onto the hallway.
+    assert.strictEqual(grid[19][84], 'wall_side_r', 'the east perimeter corner must use the neutral variant');
+    assert.strictEqual(grid[3][84], 'wall_face_server', 'the wall beside the server floor keeps its palette');
+    assert.strictEqual(grid[18][84], 'wall_face_server', 'and so does the one above the corner');
+  });
+
+  it('F52.2: every room-coloured wall borders that room\'s own floor', () => {
+    const { grids, cols, rows } = decodeAll();
+    const grid = grids.walls;
+    const floor = grids.floor;
+    const stray = [];
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        const name = grid[y][x];
+        if (!name || name.indexOf('wall_') !== 0) continue;
+        const suffix = name.replace(/^wall_(face|top|side_l|side_r|partition)_?/, '');
+        if (!['boss', 'research', 'server', 'engineering', 'meeting', 'pantry'].includes(suffix)) continue;
+        let touches = false;
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const ny = y + dy, nx = x + dx;
+          if (ny < 0 || nx < 0 || ny >= rows || nx >= cols) continue;
+          if (floor[ny][nx] === `floor_${suffix}_a` || floor[ny][nx] === `floor_${suffix}_b`) { touches = true; break; }
+        }
+        if (!touches) stray.push(`${x},${y} ${name}`);
+      }
+    }
+    assert.deepStrictEqual(stray, [], `room colour may not run past its floor: ${stray.join(' ')}`);
+  });
+
+  it('F52.3: the generator derives the rule from the room plan', () => {
+    const src = fs.readFileSync(GENERATOR, 'utf8');
+    assert.ok(/perimeter_cols = \{building\["x1"\], building\["x2"\]\}/.test(src),
+      'only the east/west perimeter is neutralised');
+    assert.ok(/plan\[ny\]\[nx\] == letter/.test(src),
+      'a wall keeps its room palette only while it borders that room floor');
+  });
+});
+

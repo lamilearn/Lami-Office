@@ -182,6 +182,31 @@ def build_map(cfg: dict) -> dict:
             decor[y][x] = "door_mid"
 
     # ---- wall variants (top caps, sides, corners, partition columns)
+    # A room's palette stops at the room's own floor. Where a room's side wall
+    # runs along the building's east or west edge, its outer corner (the tile
+    # diagonal to the floor, where the side wall meets the end wall) borders no
+    # floor of its own, so leaving the room tag on it let the colour run past the
+    # room: at the server room's hallway corner the server-purple brick kept
+    # going down the east wall below the room. Those perimeter corners fall back
+    # to the neutral variant. Corners inside the building keep their room colour
+    # so a shared north/south wall run stays continuous across a room boundary.
+    perimeter_cols = {building["x1"], building["x2"]}
+    room_letter = {room: letter for letter, room in letter_to_room.items()}
+    for y in range(rows):
+        for x in range(cols):
+            rid = wall_room[y][x]
+            if not rid or x not in perimeter_cols:
+                continue
+            letter = room_letter.get(rid)
+            touches = False
+            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < cols and 0 <= ny < rows and plan[ny][nx] == letter:
+                    touches = True
+                    break
+            if not touches:
+                wall_room[y][x] = None
+
     for y in range(rows):
         for x in range(cols):
             if walls[y][x] is None or walls[y][x] == "door_mid":
