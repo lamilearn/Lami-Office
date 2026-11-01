@@ -1066,3 +1066,19 @@ describe('Tier 1 — Feature 50: Doorways sit in the wall band', () => {
     assert.ok(/name === OUTSIDE_TILE/.test(fn), 'only the outdoor tile is excluded');
   });
 });
+
+describe('Tier 1 — Feature 51: A raised corner matches its neighbours', () => {
+  const TILEMAP = path.join(REPO, 'services/lami-office-react/web/js/tilemap.js');
+
+  it('F51.1: the top face uses the tile\'s own family', () => {
+    const src = fs.readFileSync(TILEMAP, 'utf8');
+    const fn = src.slice(src.indexOf('  function paintGround(ctx) {'), src.indexOf('  function paintOverlay()'));
+    // Regression: corner tiles already carry wall_top; asking for wallTopFor()
+    // again painted that one column brighter than its face-only neighbours,
+    // which read as the server room's wall stepping up at the hallway.
+    assert.ok(/name\.indexOf\('wall_top'\) === 0\s*\n\s*\? name/.test(fn),
+      'a corner must keep its own top variant');
+    assert.ok(/const face = name\.indexOf\('wall_top'\) === 0 \? name\.replace\('wall_top', 'wall_face'\) : name/.test(fn),
+      'and its lower half must stay the brick face');
+  });
+});
