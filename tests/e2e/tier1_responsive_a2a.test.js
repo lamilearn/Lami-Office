@@ -1042,3 +1042,27 @@ describe('Tier 1 — Feature 49: Facade details follow their wall', () => {
       'a raised wall ends at py + 6, so the outline must too');
   });
 });
+
+describe('Tier 1 — Feature 50: Doorways sit in the wall band', () => {
+  const TILEMAP = path.join(REPO, 'services/lami-office-react/web/js/tilemap.js');
+
+  it('F50.1: a raised doorway sill uses the same frame as the wall', () => {
+    const src = fs.readFileSync(TILEMAP, 'utf8');
+    const fn = src.slice(src.indexOf('  function paintGround(ctx) {'), src.indexOf('  function paintOverlay()'));
+    const door = fn.slice(fn.indexOf('if (name === DOOR_TILE)'), fn.indexOf('const doorBelowSolid'));
+    // Regression: flush only, the sill hung below the band; face height only, it
+    // left a pale notch of lane floor above it.
+    assert.ok(/drawTile\(ctx, map, DOOR_TILE, x \* ts, y \* ts - WALL_LIFT\)/.test(fn),
+      'the sill needs the band top position');
+    assert.ok(/drawTile\(ctx, map, DOOR_TILE, x \* ts, y \* ts - WALL_LIFT \+ 4\)/.test(fn),
+      'and the band face position');
+  });
+
+  it('F50.2: the doorway jambs rise with the sill', () => {
+    const src = fs.readFileSync(TILEMAP, 'utf8');
+    const fn = src.slice(src.indexOf('  function raisedWallAt(map, x, y) {'), src.indexOf('  function drawDecorLayer(ctx) {'));
+    // Regression: the door tile was excluded, so its jambs stayed 10px low.
+    assert.ok(!/name === DOOR_TILE/.test(fn), 'a doorway must count as part of the band');
+    assert.ok(/name === OUTSIDE_TILE/.test(fn), 'only the outdoor tile is excluded');
+  });
+});
