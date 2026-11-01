@@ -929,4 +929,38 @@ describe('Tier 1 — Feature 46: The top wall band has no notches', () => {
         `joint x=${x} must carry a real floor, got ${floor[2][x]}`);
     }
   });
+
+  it('F46.4: a joint shows the floor of the room it sits between', () => {
+    const m = JSON.parse(fs.readFileSync(MAP, 'utf8'));
+    const decode = (name) => {
+      const L = m.layers.find((l) => l.name === name);
+      const flat = [];
+      for (const [v, n] of L.data) for (let k = 0; k < n; k++) flat.push(v);
+      const grid = [];
+      for (let y = 0; y < m.rows; y++) grid.push(flat.slice(y * m.cols, (y + 1) * m.cols));
+      return grid;
+    };
+    const floor = decode('floor');
+    const joins = [28, 29, 56, 57];
+
+    // North band (row 2): the strip sits inside the rooms.
+    for (const x of joins) {
+      assert.ok(!/hall/.test(floor[2][x]) && floor[2][x] !== 'floor_outside',
+        `row 2 joint ${x} must not borrow the lane, got ${floor[2][x]}`);
+    }
+    // The middle band's north side (row 23) is inside the bottom rooms.
+    for (const x of joins) {
+      assert.ok(!/hall/.test(floor[23][x]) && floor[23][x] !== 'floor_outside',
+        `row 23 joint ${x} must not borrow the lane, got ${floor[23][x]}`);
+    }
+    // The south side of the top rooms (row 19) faces the hallway, so the lane is
+    // the correct floor there.
+    for (const x of joins) {
+      assert.ok(/hall/.test(floor[19][x]), `row 19 joint ${x} should face the hallway`);
+    }
+    // The building's outer edge stays outdoors.
+    for (const x of joins) {
+      assert.strictEqual(floor[40][x], 'floor_outside', 'the outer edge keeps grass under it');
+    }
+  });
 });
