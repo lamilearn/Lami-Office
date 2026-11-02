@@ -198,20 +198,55 @@
         const name = walls[y][x];
         if (!name) continue;
         if (name === DOOR_TILE) {
-          // Door thresholds are walkable floor: draw them below the characters
-          // so someone crossing the doorway is never hidden by the tile.
-          drawTile(ctx, map, DOOR_TILE, x * ts, y * ts);
+          // Door thresholds are walkable floor, so they are drawn below the
+          // characters. They must also rise with the wall band around them:
+          // drawn flush only, the top of the doorway showed the lane floor as a
+          // pale notch above the sill.
+          const doorBelowSolid = isSolidWall(map, x, y + 1);
+          const doorAboveWall = isSolidWall(map, x, y - 1);
+          if (!doorBelowSolid || !doorAboveWall) {
+            // Sit the sill in the SAME frame as the wall band it interrupts:
+            // top face plus face, exactly like the wall. Drawn flush the sill
+            // hung below the band, and drawn only at face height it left a pale
+            // notch of lane floor above it.
+            drawTile(ctx, map, DOOR_TILE, x * ts, y * ts - WALL_LIFT);
+            drawTile(ctx, map, DOOR_TILE, x * ts, y * ts - WALL_LIFT + 4);
+          } else {
+            drawTile(ctx, map, DOOR_TILE, x * ts, y * ts);
+          }
           continue;
         }
+        // A wall is drawn raised when its south side is open, OR when nothing
+        // stands above it - that second case is the corner where a vertical
+        // room divider meets the building's north wall. Those corners used to be
+        // painted flush while the rest of the top wall was raised, leaving a
+        // 14px notch of lawn in the wall band (a "hole" above each room joint).
         const belowSolid = isSolidWall(map, x, y + 1);
-        if (!belowSolid) {
+        const aboveWall = isSolidWall(map, x, y - 1);
+        if (!belowSolid || !aboveWall) {
           // south-facing wall: render the face raised, like a room divider
-          const top = wallTopFor(name);
+          // Use the wall's own family for the top. A corner tile whose tile
+          // below is another wall carries the wall_top variant, and asking for
+          // wall_top again painted that one column a shade brighter than the
+          // face-only tiles beside it - a step poking up at the joint.
+          const top = name.indexOf('wall_top') === 0
+            ? name
+            : (wallTopFor(name) === name ? name : wallTopFor(name));
           drawTile(ctx, map, top, x * ts, y * ts - WALL_LIFT);
-          const isTopVariant = name.indexOf('wall_top') === 0;
-          drawTile(ctx, map, isTopVariant ? top : name, x * ts, y * ts - WALL_LIFT + 4);
-          ctx.fillStyle = 'rgba(15, 10, 25, 0.22)';
-          ctx.fillRect(x * ts, y * ts + ts, ts, 6);
+          // The lower half of a raised wall is always its BRICK FACE. Corner
+          // tiles carry the `wall_top` variant (the tile below them is another
+          // wall), and drawing that variant here made the corner a flat block
+          // that stuck out of the band.
+          const face = name.indexOf('wall_top') === 0 ? name.replace('wall_top', 'wall_face') : name;
+          drawTile(ctx, map, face, x * ts, y * ts - WALL_LIFT + 4);
+          // Where a divider or an outer wall continues below, the rest of this
+          // row must stay wall too. Leaving it to the floor layer cut a pale
+          // band across the vertical run, so the wall looked broken at the joint.
+          if (belowSolid) drawTile(ctx, map, face, x * ts, y * ts);
+          // No contact shadow here. A 6px dark band used to be painted under
+          // every raised wall; while the floor beneath a wall was the outdoor
+          // tile it blended away, but once a wall correctly sits on its own room
+          // floor the band turned into a grey line running across every room.
         } else {
           drawTile(ctx, map, name, x * ts, y * ts);
         }
@@ -244,12 +279,20 @@
         if (!name || name === DOOR_TILE || name === OUTSIDE_TILE) continue;
         const px = x * ts;
         const py = y * ts;
+        // Follow the wall's own drawn extent. A raised wall's body ends at
+        // py + 6, not at the bottom of its row, so tracing the row box left a
+        // strip of lawn inside the building's outline at the south edge.
+        const belowSolid = isSolidWall(map, x, y + 1);
+        const aboveWall = isSolidWall(map, x, y - 1);
+        const raised = !belowSolid || !aboveWall;
+        const top = raised ? py - WALL_LIFT : py;
+        const bottom = raised ? py + 6 : py + ts;
         // The envelope is traced wherever a wall meets ground that is not part
         // of the building, so the structure never dissolves into the lawn.
-        if (!insideBuilding(map, x, y - 1)) ctx.fillRect(px, py - WALL_LIFT - thickness, ts, thickness);
-        if (!insideBuilding(map, x, y + 1)) ctx.fillRect(px, py + ts, ts, thickness);
-        if (!insideBuilding(map, x - 1, y)) ctx.fillRect(px - thickness, py - WALL_LIFT, thickness, ts + WALL_LIFT);
-        if (!insideBuilding(map, x + 1, y)) ctx.fillRect(px + ts, py - WALL_LIFT, thickness, ts + WALL_LIFT);
+        if (!insideBuilding(map, x, y - 1)) ctx.fillRect(px, top - thickness, ts, thickness);
+        if (!insideBuilding(map, x, y + 1)) ctx.fillRect(px, bottom, ts, thickness);
+        if (!insideBuilding(map, x - 1, y)) ctx.fillRect(px - thickness, top, thickness, bottom - top);
+        if (!insideBuilding(map, x + 1, y)) ctx.fillRect(px + ts, top, thickness, bottom - top);
       }
     }
   }
@@ -266,14 +309,20 @@
         const name = walls[y][x];
         if (!name) continue;
         if (name === DOOR_TILE) continue; // threshold is floor: drawn below characters
-        if (isSolidWall(map, x, y + 1)) continue; // flush body already drawn in paintGround
+        // Same rule as paintGround: a wall is raised when its south side is open
+        // or when nothing stands above it. Skipping the corner tiles here left
+        // them without this second wall-top pass, so their face stayed taller
+        // than their neighbours and the band stepped at every room joint.
+        const belowSolid = isSolidWall(map, x, y + 1);
+        const aboveWall = isSolidWall(map, x, y - 1);
+        if (belowSolid && aboveWall) continue; // flush body already drawn in paintGround
+        // No base line either. A 1px dark strip at the foot of every wall read as
+        // a black line lying on the floor, distinct from the floor's own grid.
         drawTile(ctx, map, wallTopFor(name), x * ts, y * ts - WALL_LIFT);
-        ctx.fillStyle = 'rgba(58, 40, 56, 0.35)';
-        ctx.fillRect(x * ts, y * ts + ts, ts, 1);
       }
     }
 
-    drawLayer(ctx, 'decor');
+    drawDecorLayer(ctx);
   }
 
   // Fill an arbitrary screen rect with the outside terrain, so the letterbox
@@ -299,6 +348,39 @@
   }
 
   // Paint one tile layer across the whole map.
+  // True when the wall at this tile is painted raised, so decorations mounted on
+  // it must move up with it.
+  function raisedWallAt(map, x, y) {
+    if (x < 0 || y < 0 || x >= map.cols || y >= map.rows) return false;
+    const name = map.layers.walls[y][x];
+    // A doorway is part of the band too, so its jambs rise with it. Skipping the
+    // door tile left the jambs 10px below the sill they belong to.
+    if (!name || name === OUTSIDE_TILE) return false;
+    const belowSolid = isSolidWall(map, x, y + 1);
+    const aboveWall = isSolidWall(map, x, y - 1);
+    return !belowSolid || !aboveWall;
+  }
+
+  // Decor (windows, sconces, plaques) sits on a wall, so it follows the wall up
+  // when that wall is raised. Drawing it flush left the windows sitting on the
+  // lawn at the building's south edge, 14px below the band they belong to.
+  function drawDecorLayer(ctx) {
+    if (!isReady()) return false;
+    const map = STATE.map;
+    const layer = map.layers.decor;
+    if (!layer) return false;
+    const ts = map.tileSize;
+    for (let y = 0; y < map.rows; y++) {
+      for (let x = 0; x < map.cols; x++) {
+        const name = layer[y][x];
+        if (!name) continue;
+        const lift = raisedWallAt(map, x, y) ? WALL_LIFT - 4 : 0;
+        drawTile(ctx, map, name, x * ts, y * ts - lift);
+      }
+    }
+    return true;
+  }
+
   function drawLayer(ctx, layerName) {
     if (!isReady()) return false;
     const map = STATE.map;

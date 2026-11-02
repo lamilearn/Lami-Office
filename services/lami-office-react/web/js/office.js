@@ -85,6 +85,12 @@
       this.viewAnchorScreenX = null;
       this.viewAnchorScreenY = null;
       this.panOffset = { x: 0, y: 0 };
+      // Render failures captured for /api/integration. Swallowing them into the
+      // console meant an object could vanish from the office with nothing in the
+      // health data to show for it.
+      this.renderErrors = [];
+      this.renderErrorCount = 0;
+
       // Offscreen canvas holding the static scene for depth-band compositing.
       this._scene = null;
       this._sceneCtx = null;
@@ -672,14 +678,32 @@
         return { x: e.clientX - rect.left, y: e.clientY - rect.top, clientX: e.clientX, clientY: e.clientY };
       };
 
+      // Drag-pan bookkeeping. The pan is driven from the grabbed content point,
+      // not from an "anchor screen" that is recomputed per event: recomputing it
+      // made every step accelerate (each event's delta was measured against a
+      // different reference). `panStart` is captured once when the drag begins,
+      // so the floorplan follows the cursor 1:1.
+      let panStart = null;
+      let suppressClick = false;
+      const PAN_ACTIVATE_PX = LO.TAP_MAX_DISTANCE || 8;
+
       const onPointerDown = (e) => {
         const p = localPoint(e);
         pointers.set(e.pointerId, p);
         moved = false;
+        // The mouse can leave the canvas mid-drag; capture keeps the events
+        // coming so the floorplan never stalls under a fast pointer.
+        try {
+          if (this.canvas.setPointerCapture && e.pointerType === 'mouse') {
+            this.canvas.setPointerCapture(e.pointerId);
+          }
+        } catch (_) { /* capture is a nicety, not a requirement */ }
         if (pointers.size === 1) {
           dragStart = { ...p, time: Date.now(), camX: this.camera.x, camY: this.camera.y };
+          panStart = null;
         } else if (pointers.size === 2) {
           const [a, b] = [...pointers.values()];
+          panStart = null;
           pinchStart = {
             distance: Math.hypot(a.x - b.x, a.y - b.y) || 1,
             zoom: this.camera.zoom || this.view.zoom,
@@ -706,18 +730,30 @@
         if (!dragStart) return;
         const dx = p.x - dragStart.x;
         const dy = p.y - dragStart.y;
-        if (Math.hypot(dx, dy) > (LO.TAP_MAX_DISTANCE || 8)) moved = true;
+        if (!moved && Math.hypot(dx, dy) > PAN_ACTIVATE_PX) moved = true;
         if (moved && !this.isPhoneMode()) {
-          // Desktop: drag the floorplan around. Convert the pixel delta into
-          // content pixels and anchor the view at the drag origin.
-          const zoom = this.view.zoom || 1;
-          const start = dragStart;
-          const anchorX = (start.x - this.view.offsetX) / zoom;
-          const anchorY = (start.y - this.view.offsetY) / zoom;
-          this.setViewAnchor(anchorX, anchorY);
-          this.viewZoom = zoom;
-          this.viewAnchorScreenX = p.x;
-          this.viewAnchorScreenY = p.y;
+          // Desktop: drag the floorplan around. The grab point and the view at
+          // the moment the drag activates are captured once; afterwards every
+          // move only moves the view by the pixel delta since that point, so the
+          // pan tracks the cursor exactly. (The old code re-read the anchor from
+          // the live view on every event, which compounded each delta and made
+          // the map accelerate away from the cursor.)
+          if (!panStart) {
+            const zoom = this.view.zoom || 1;
+            panStart = {
+              x: dragStart.x,
+              y: dragStart.y,
+              zoom,
+              offsetX: this.view.offsetX,
+              offsetY: this.view.offsetY
+            };
+            this.panning = true;
+            this.viewZoom = zoom;
+          }
+          const s = panStart;
+          this.setViewAnchor((s.x - s.offsetX) / s.zoom, (s.y - s.offsetY) / s.zoom);
+          this.viewAnchorScreenX = s.x + (p.x - s.x);
+          this.viewAnchorScreenY = s.y + (p.y - s.y);
           return;
         }
         if (moved && this.isPhoneMode()) {
@@ -741,9 +777,32 @@
 
         pointers.delete(e.pointerId);
         if (pointers.size < 2) pinchStart = null;
-        if (pointers.size === 0) dragStart = null;
+        if (pointers.size === 0) {
+          dragStart = null;
+          panStart = null;
+          this.panning = false;
+        }
+        try {
+          if (this.canvas.releasePointerCapture && e.pointerType === 'mouse') {
+            this.canvas.releasePointerCapture(e.pointerId);
+          }
+        } catch (_) { /* already released */ }
+
+        // Any real drag (even one that returned to its start, hence a native
+        // click) must never select. Set before the tap classification below, so
+        // the click that follows this pointerup is ignored.
+        if (moved || gesture === 'drag' || gesture === 'longpress') suppressClick = true;
 
         if (moved || gesture !== 'tap') return;
+
+        // A drag that ends back on (nearly) its starting point still produces a
+        // native `click`. That click used to select whatever was under the
+        // cursor, so a slow, short pan opened a card and snapped the view on
+        // release - the last jerk of the gesture. Swallow exactly that click.
+        if (suppressClick) {
+          suppressClick = false;
+          return;
+        }
 
         const now = Date.now();
         if (now - lastTap < 320) {
@@ -772,6 +831,9 @@
       const onWheel = (e) => {
         if (this.isPhoneMode()) return;
         e.preventDefault();
+        // A pan anchor left over from a previous drag would pin the view to the
+        // old grab point, so the wheel could not choose its own anchor.
+        this.panning = false;
         const factor = Math.exp(-(e.deltaY || 0) * 0.0015);
         const current = (this.view && this.view.zoom) || 1;
         this.zoomAt(current * factor, e.clientX, e.clientY);
@@ -798,6 +860,10 @@
           activateAt(e.clientX, e.clientY);
         });
       }
+
+      // If the pointer stream is interrupted (window blur, capture lost) the
+      // pending suppress flag would otherwise swallow a later genuine click.
+      this.canvas.addEventListener('pointercancel', () => { suppressClick = false; });
 
       // Keep the view correct across resizes, rotations and drawer changes.
       const onResize = () => this.recompute();
@@ -1349,7 +1415,12 @@
         }
         char.facing = data.facing || char.facing;
         char.state = data.state || char.state;
-        char.frame = data.frame || char.frame;
+        // Do NOT copy the server's animation frame straight in. The server walks
+        // its two foot frames at 5 Hz, so a client that mirrors them shows
+        // idle/walk/idle/walk at render rate - the character appears to flicker.
+        // The frame is derived locally instead (see applyWorldTargets), keeping
+        // the gait smooth while the authoritative state still comes from above.
+        char.serverFrame = data.frame || char.serverFrame;
         char.bubble = data.bubble || null;
         char.bubbleTimer = data.bubble ? 1 : 0;
         char.emote = data.emote || null;
@@ -1405,6 +1476,22 @@
         // Timers count down locally so bubbles fade between 5 Hz frames.
         if (char.bubbleTimer > 0) char.bubbleTimer -= dt;
         if (char.emoteTimer > 0) char.emoteTimer -= dt;
+
+        // Gait: alternate the two foot frames at a steady rate while walking, and
+        // hold a still frame otherwise. Mirroring the 5 Hz server value made the
+        // sprite flicker between idle and walk every render frame.
+        if (char.state === 'walk') {
+          char._gaitT = (char._gaitT || 0) + dt;
+          if (char._gaitT >= 0.16) {
+            char._gaitT = 0;
+            char._gaitStep = !char._gaitStep;
+          }
+          char.frame = char._gaitStep ? 'walk' : 'idle';
+        } else {
+          char._gaitT = 0;
+          char._gaitStep = false;
+          if (char.serverFrame) char.frame = char.serverFrame;
+        }
       }
       if (this.cat && this.cat.bubbleTimer > 0) this.cat.bubbleTimer -= dt;
     }
@@ -1634,13 +1721,13 @@
           try {
             this.world.render(this.ctx);
           } catch (err) {
-            console.warn('Fallback world.render encountered an error:', err);
+            this.noteRenderError('fallback world.render', err);
           }
           if (this.elevator && this.elevator.render) {
             try {
               this.elevator.render(this.ctx);
             } catch (err) {
-              console.warn('Fallback elevator.render encountered an error:', err);
+              this.noteRenderError('fallback elevator.render', err);
             }
           }
           for (const c of allChars) {
@@ -1648,7 +1735,7 @@
               try {
                 c.render(this.ctx);
               } catch (err) {
-                console.warn('Fallback character render encountered an error:', err);
+                this.noteRenderError(`fallback character ${c.id || '?'}`, err);
               }
             }
           }
@@ -1656,7 +1743,7 @@
             try {
               this.world.renderOverlay(this.ctx);
             } catch (err) {
-              console.warn('Fallback world.renderOverlay encountered an error:', err);
+              this.noteRenderError('fallback world.renderOverlay', err);
             }
           }
         }
@@ -1672,6 +1759,17 @@
       } finally {
         this.ctx.restore();
       }
+    }
+
+    // Record a rendering failure. Keeps the last few messages so the health
+    // endpoint can report them, and counts every occurrence.
+    noteRenderError(where, err) {
+      this.renderErrorCount += 1;
+      const message = `${where}: ${(err && err.message) || err}`;
+      console.warn('[render]', message);
+      this.renderErrors.push(message);
+      if (this.renderErrors.length > 5) this.renderErrors.shift();
+      this.lastRenderErrorAt = Date.now();
     }
 
     // Renders the static scene once into an offscreen canvas, then blits it in
@@ -1723,7 +1821,7 @@
         blit(drawnTo, bottom);
         return true;
       } catch (err) {
-        console.warn('renderBanded encountered an error, falling back to flat render:', err);
+        this.noteRenderError('renderBanded', err);
         return false;
       }
     }

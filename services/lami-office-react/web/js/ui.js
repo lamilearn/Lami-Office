@@ -574,7 +574,7 @@
         return `<li class="vm-item ${online ? '' : 'offline'}">
           <div class="vm-name">
             <span style="color:${a.color || '#94a3b8'}">${a.icon || '🖥️'}</span>
-            <span><b>${a.name || a.id}</b><small>${online ? 'online' : 'offline'} · ${a.host || ''}</small></span>
+            <span><b>${a.name || a.id}</b><small>${online ? 'online' : 'offline'}</small></span>
           </div>
           ${gauge('CPU', a.cpu_percent, a.cpu_cores ? `${a.cpu_cores} core` : '')}
           ${gauge('RAM', a.mem_percent, a.mem_used_mb != null ? `${a.mem_used_mb}MB` : '')}

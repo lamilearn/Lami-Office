@@ -13,11 +13,11 @@
    "data": [
     [
      "floor_outside",
-     178
+     177
     ],
     [
      "floor_boss_b",
-     1
+     2
     ],
     [
      "floor_boss_a",
@@ -117,658 +117,10 @@
     ],
     [
      "floor_boss_a",
-     1
-    ],
-    [
-     "floor_outside",
      2
     ],
     [
      "floor_research_b",
-     1
-    ],
-    [
-     "floor_research_a",
-     1
-    ],
-    [
-     "floor_research_b",
-     1
-    ],
-    [
-     "floor_research_a",
-     1
-    ],
-    [
-     "floor_research_b",
-     1
-    ],
-    [
-     "floor_research_a",
-     1
-    ],
-    [
-     "floor_research_b",
-     1
-    ],
-    [
-     "floor_research_a",
-     1
-    ],
-    [
-     "floor_research_b",
-     1
-    ],
-    [
-     "floor_research_a",
-     1
-    ],
-    [
-     "floor_research_b",
-     1
-    ],
-    [
-     "floor_research_a",
-     1
-    ],
-    [
-     "floor_research_b",
-     1
-    ],
-    [
-     "floor_research_a",
-     1
-    ],
-    [
-     "floor_research_b",
-     1
-    ],
-    [
-     "floor_research_a",
-     1
-    ],
-    [
-     "floor_research_b",
-     1
-    ],
-    [
-     "floor_research_a",
-     1
-    ],
-    [
-     "floor_research_b",
-     1
-    ],
-    [
-     "floor_research_a",
-     1
-    ],
-    [
-     "floor_research_b",
-     1
-    ],
-    [
-     "floor_research_a",
-     1
-    ],
-    [
-     "floor_research_b",
-     1
-    ],
-    [
-     "floor_research_a",
-     1
-    ],
-    [
-     "floor_research_b",
-     1
-    ],
-    [
-     "floor_research_a",
-     1
-    ],
-    [
-     "floor_outside",
-     2
-    ],
-    [
-     "floor_server_b",
-     1
-    ],
-    [
-     "floor_server_a",
-     1
-    ],
-    [
-     "floor_server_b",
-     1
-    ],
-    [
-     "floor_server_a",
-     1
-    ],
-    [
-     "floor_server_b",
-     1
-    ],
-    [
-     "floor_server_a",
-     1
-    ],
-    [
-     "floor_server_b",
-     1
-    ],
-    [
-     "floor_server_a",
-     1
-    ],
-    [
-     "floor_server_b",
-     1
-    ],
-    [
-     "floor_server_a",
-     1
-    ],
-    [
-     "floor_server_b",
-     1
-    ],
-    [
-     "floor_server_a",
-     1
-    ],
-    [
-     "floor_server_b",
-     1
-    ],
-    [
-     "floor_server_a",
-     1
-    ],
-    [
-     "floor_server_b",
-     1
-    ],
-    [
-     "floor_server_a",
-     1
-    ],
-    [
-     "floor_server_b",
-     1
-    ],
-    [
-     "floor_server_a",
-     1
-    ],
-    [
-     "floor_server_b",
-     1
-    ],
-    [
-     "floor_server_a",
-     1
-    ],
-    [
-     "floor_server_b",
-     1
-    ],
-    [
-     "floor_server_a",
-     1
-    ],
-    [
-     "floor_server_b",
-     1
-    ],
-    [
-     "floor_server_a",
-     1
-    ],
-    [
-     "floor_server_b",
-     1
-    ],
-    [
-     "floor_server_a",
-     1
-    ],
-    [
-     "floor_outside",
-     6
-    ],
-    [
-     "floor_boss_b",
-     1
-    ],
-    [
-     "floor_boss_a",
-     1
-    ],
-    [
-     "floor_boss_b",
-     1
-    ],
-    [
-     "floor_boss_a",
-     1
-    ],
-    [
-     "floor_boss_b",
-     1
-    ],
-    [
-     "floor_boss_a",
-     1
-    ],
-    [
-     "floor_boss_b",
-     1
-    ],
-    [
-     "floor_boss_a",
-     1
-    ],
-    [
-     "floor_boss_b",
-     1
-    ],
-    [
-     "floor_boss_a",
-     1
-    ],
-    [
-     "floor_boss_b",
-     1
-    ],
-    [
-     "floor_boss_a",
-     1
-    ],
-    [
-     "floor_boss_b",
-     1
-    ],
-    [
-     "floor_boss_a",
-     1
-    ],
-    [
-     "floor_boss_b",
-     1
-    ],
-    [
-     "floor_boss_a",
-     1
-    ],
-    [
-     "floor_boss_b",
-     1
-    ],
-    [
-     "floor_boss_a",
-     1
-    ],
-    [
-     "floor_boss_b",
-     1
-    ],
-    [
-     "floor_boss_a",
-     1
-    ],
-    [
-     "floor_boss_b",
-     1
-    ],
-    [
-     "floor_boss_a",
-     1
-    ],
-    [
-     "floor_boss_b",
-     1
-    ],
-    [
-     "floor_boss_a",
-     1
-    ],
-    [
-     "floor_boss_b",
-     1
-    ],
-    [
-     "floor_boss_a",
-     1
-    ],
-    [
-     "floor_outside",
-     2
-    ],
-    [
-     "floor_research_b",
-     1
-    ],
-    [
-     "floor_research_a",
-     1
-    ],
-    [
-     "floor_research_b",
-     1
-    ],
-    [
-     "floor_research_a",
-     1
-    ],
-    [
-     "floor_research_b",
-     1
-    ],
-    [
-     "floor_research_a",
-     1
-    ],
-    [
-     "floor_research_b",
-     1
-    ],
-    [
-     "floor_research_a",
-     1
-    ],
-    [
-     "floor_research_b",
-     1
-    ],
-    [
-     "floor_research_a",
-     1
-    ],
-    [
-     "floor_research_b",
-     1
-    ],
-    [
-     "floor_research_a",
-     1
-    ],
-    [
-     "floor_research_b",
-     1
-    ],
-    [
-     "floor_research_a",
-     1
-    ],
-    [
-     "floor_research_b",
-     1
-    ],
-    [
-     "floor_research_a",
-     1
-    ],
-    [
-     "floor_research_b",
-     1
-    ],
-    [
-     "floor_research_a",
-     1
-    ],
-    [
-     "floor_research_b",
-     1
-    ],
-    [
-     "floor_research_a",
-     1
-    ],
-    [
-     "floor_research_b",
-     1
-    ],
-    [
-     "floor_research_a",
-     1
-    ],
-    [
-     "floor_research_b",
-     1
-    ],
-    [
-     "floor_research_a",
-     1
-    ],
-    [
-     "floor_research_b",
-     1
-    ],
-    [
-     "floor_research_a",
-     1
-    ],
-    [
-     "floor_outside",
-     2
-    ],
-    [
-     "floor_server_b",
-     1
-    ],
-    [
-     "floor_server_a",
-     1
-    ],
-    [
-     "floor_server_b",
-     1
-    ],
-    [
-     "floor_server_a",
-     1
-    ],
-    [
-     "floor_server_b",
-     1
-    ],
-    [
-     "floor_server_a",
-     1
-    ],
-    [
-     "floor_server_b",
-     1
-    ],
-    [
-     "floor_server_a",
-     1
-    ],
-    [
-     "floor_server_b",
-     1
-    ],
-    [
-     "floor_server_a",
-     1
-    ],
-    [
-     "floor_server_b",
-     1
-    ],
-    [
-     "floor_server_a",
-     1
-    ],
-    [
-     "floor_server_b",
-     1
-    ],
-    [
-     "floor_server_a",
-     1
-    ],
-    [
-     "floor_server_b",
-     1
-    ],
-    [
-     "floor_server_a",
-     1
-    ],
-    [
-     "floor_server_b",
-     1
-    ],
-    [
-     "floor_server_a",
-     1
-    ],
-    [
-     "floor_server_b",
-     1
-    ],
-    [
-     "floor_server_a",
-     1
-    ],
-    [
-     "floor_server_b",
-     1
-    ],
-    [
-     "floor_server_a",
-     1
-    ],
-    [
-     "floor_server_b",
-     1
-    ],
-    [
-     "floor_server_a",
-     1
-    ],
-    [
-     "floor_server_b",
-     1
-    ],
-    [
-     "floor_server_a",
-     1
-    ],
-    [
-     "floor_outside",
-     6
-    ],
-    [
-     "floor_boss_a",
-     1
-    ],
-    [
-     "floor_boss_b",
-     1
-    ],
-    [
-     "floor_boss_a",
-     1
-    ],
-    [
-     "floor_boss_b",
-     1
-    ],
-    [
-     "floor_boss_a",
-     1
-    ],
-    [
-     "floor_boss_b",
-     1
-    ],
-    [
-     "floor_boss_a",
-     1
-    ],
-    [
-     "floor_boss_b",
-     1
-    ],
-    [
-     "floor_boss_a",
-     1
-    ],
-    [
-     "floor_boss_b",
-     1
-    ],
-    [
-     "floor_boss_a",
-     1
-    ],
-    [
-     "floor_boss_b",
-     1
-    ],
-    [
-     "floor_boss_a",
-     1
-    ],
-    [
-     "floor_boss_b",
-     1
-    ],
-    [
-     "floor_boss_a",
-     1
-    ],
-    [
-     "floor_boss_b",
-     1
-    ],
-    [
-     "floor_boss_a",
-     1
-    ],
-    [
-     "floor_boss_b",
-     1
-    ],
-    [
-     "floor_boss_a",
-     1
-    ],
-    [
-     "floor_boss_b",
-     1
-    ],
-    [
-     "floor_boss_a",
-     1
-    ],
-    [
-     "floor_boss_b",
-     1
-    ],
-    [
-     "floor_boss_a",
-     1
-    ],
-    [
-     "floor_boss_b",
-     1
-    ],
-    [
-     "floor_boss_a",
-     1
-    ],
-    [
-     "floor_boss_b",
-     1
-    ],
-    [
-     "floor_outside",
      2
     ],
     [
@@ -869,14 +221,10 @@
     ],
     [
      "floor_research_a",
-     1
+     2
     ],
     [
-     "floor_research_b",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_server_b",
      2
     ],
     [
@@ -977,19 +325,15 @@
     ],
     [
      "floor_server_a",
-     1
-    ],
-    [
-     "floor_server_b",
-     1
+     2
     ],
     [
      "floor_outside",
-     6
+     4
     ],
     [
      "floor_boss_b",
-     1
+     2
     ],
     [
      "floor_boss_a",
@@ -1089,334 +433,10 @@
     ],
     [
      "floor_boss_a",
-     1
-    ],
-    [
-     "floor_outside",
      2
     ],
     [
      "floor_research_b",
-     1
-    ],
-    [
-     "floor_research_a",
-     1
-    ],
-    [
-     "floor_research_b",
-     1
-    ],
-    [
-     "floor_research_a",
-     1
-    ],
-    [
-     "floor_research_b",
-     1
-    ],
-    [
-     "floor_research_a",
-     1
-    ],
-    [
-     "floor_research_b",
-     1
-    ],
-    [
-     "floor_research_a",
-     1
-    ],
-    [
-     "floor_research_b",
-     1
-    ],
-    [
-     "floor_research_a",
-     1
-    ],
-    [
-     "floor_research_b",
-     1
-    ],
-    [
-     "floor_research_a",
-     1
-    ],
-    [
-     "floor_research_b",
-     1
-    ],
-    [
-     "floor_research_a",
-     1
-    ],
-    [
-     "floor_research_b",
-     1
-    ],
-    [
-     "floor_research_a",
-     1
-    ],
-    [
-     "floor_research_b",
-     1
-    ],
-    [
-     "floor_research_a",
-     1
-    ],
-    [
-     "floor_research_b",
-     1
-    ],
-    [
-     "floor_research_a",
-     1
-    ],
-    [
-     "floor_research_b",
-     1
-    ],
-    [
-     "floor_research_a",
-     1
-    ],
-    [
-     "floor_research_b",
-     1
-    ],
-    [
-     "floor_research_a",
-     1
-    ],
-    [
-     "floor_research_b",
-     1
-    ],
-    [
-     "floor_research_a",
-     1
-    ],
-    [
-     "floor_outside",
-     2
-    ],
-    [
-     "floor_server_b",
-     1
-    ],
-    [
-     "floor_server_a",
-     1
-    ],
-    [
-     "floor_server_b",
-     1
-    ],
-    [
-     "floor_server_a",
-     1
-    ],
-    [
-     "floor_server_b",
-     1
-    ],
-    [
-     "floor_server_a",
-     1
-    ],
-    [
-     "floor_server_b",
-     1
-    ],
-    [
-     "floor_server_a",
-     1
-    ],
-    [
-     "floor_server_b",
-     1
-    ],
-    [
-     "floor_server_a",
-     1
-    ],
-    [
-     "floor_server_b",
-     1
-    ],
-    [
-     "floor_server_a",
-     1
-    ],
-    [
-     "floor_server_b",
-     1
-    ],
-    [
-     "floor_server_a",
-     1
-    ],
-    [
-     "floor_server_b",
-     1
-    ],
-    [
-     "floor_server_a",
-     1
-    ],
-    [
-     "floor_server_b",
-     1
-    ],
-    [
-     "floor_server_a",
-     1
-    ],
-    [
-     "floor_server_b",
-     1
-    ],
-    [
-     "floor_server_a",
-     1
-    ],
-    [
-     "floor_server_b",
-     1
-    ],
-    [
-     "floor_server_a",
-     1
-    ],
-    [
-     "floor_server_b",
-     1
-    ],
-    [
-     "floor_server_a",
-     1
-    ],
-    [
-     "floor_server_b",
-     1
-    ],
-    [
-     "floor_server_a",
-     1
-    ],
-    [
-     "floor_outside",
-     6
-    ],
-    [
-     "floor_boss_a",
-     1
-    ],
-    [
-     "floor_boss_b",
-     1
-    ],
-    [
-     "floor_boss_a",
-     1
-    ],
-    [
-     "floor_boss_b",
-     1
-    ],
-    [
-     "floor_boss_a",
-     1
-    ],
-    [
-     "floor_boss_b",
-     1
-    ],
-    [
-     "floor_boss_a",
-     1
-    ],
-    [
-     "floor_boss_b",
-     1
-    ],
-    [
-     "floor_boss_a",
-     1
-    ],
-    [
-     "floor_boss_b",
-     1
-    ],
-    [
-     "floor_boss_a",
-     1
-    ],
-    [
-     "floor_boss_b",
-     1
-    ],
-    [
-     "floor_boss_a",
-     1
-    ],
-    [
-     "floor_boss_b",
-     1
-    ],
-    [
-     "floor_boss_a",
-     1
-    ],
-    [
-     "floor_boss_b",
-     1
-    ],
-    [
-     "floor_boss_a",
-     1
-    ],
-    [
-     "floor_boss_b",
-     1
-    ],
-    [
-     "floor_boss_a",
-     1
-    ],
-    [
-     "floor_boss_b",
-     1
-    ],
-    [
-     "floor_boss_a",
-     1
-    ],
-    [
-     "floor_boss_b",
-     1
-    ],
-    [
-     "floor_boss_a",
-     1
-    ],
-    [
-     "floor_boss_b",
-     1
-    ],
-    [
-     "floor_boss_a",
-     1
-    ],
-    [
-     "floor_boss_b",
-     1
-    ],
-    [
-     "floor_outside",
      2
     ],
     [
@@ -1517,14 +537,10 @@
     ],
     [
      "floor_research_a",
-     1
+     2
     ],
     [
-     "floor_research_b",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_server_b",
      2
     ],
     [
@@ -1625,15 +641,15 @@
     ],
     [
      "floor_server_a",
-     1
-    ],
-    [
-     "floor_server_b",
-     1
+     2
     ],
     [
      "floor_outside",
-     6
+     4
+    ],
+    [
+     "floor_boss_a",
+     2
     ],
     [
      "floor_boss_b",
@@ -1733,14 +749,10 @@
     ],
     [
      "floor_boss_b",
-     1
+     2
     ],
     [
-     "floor_boss_a",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_research_a",
      2
     ],
     [
@@ -1841,14 +853,10 @@
     ],
     [
      "floor_research_b",
-     1
+     2
     ],
     [
-     "floor_research_a",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_server_a",
      2
     ],
     [
@@ -1949,15 +957,15 @@
     ],
     [
      "floor_server_b",
-     1
-    ],
-    [
-     "floor_server_a",
-     1
+     2
     ],
     [
      "floor_outside",
-     6
+     4
+    ],
+    [
+     "floor_boss_b",
+     2
     ],
     [
      "floor_boss_a",
@@ -2057,14 +1065,10 @@
     ],
     [
      "floor_boss_a",
-     1
+     2
     ],
     [
-     "floor_boss_b",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_research_b",
      2
     ],
     [
@@ -2165,14 +1169,10 @@
     ],
     [
      "floor_research_a",
-     1
+     2
     ],
     [
-     "floor_research_b",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_server_b",
      2
     ],
     [
@@ -2273,15 +1273,15 @@
     ],
     [
      "floor_server_a",
-     1
-    ],
-    [
-     "floor_server_b",
-     1
+     2
     ],
     [
      "floor_outside",
-     6
+     4
+    ],
+    [
+     "floor_boss_a",
+     2
     ],
     [
      "floor_boss_b",
@@ -2381,14 +1381,10 @@
     ],
     [
      "floor_boss_b",
-     1
+     2
     ],
     [
-     "floor_boss_a",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_research_a",
      2
     ],
     [
@@ -2489,14 +1485,10 @@
     ],
     [
      "floor_research_b",
-     1
+     2
     ],
     [
-     "floor_research_a",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_server_a",
      2
     ],
     [
@@ -2597,15 +1589,15 @@
     ],
     [
      "floor_server_b",
-     1
-    ],
-    [
-     "floor_server_a",
-     1
+     2
     ],
     [
      "floor_outside",
-     6
+     4
+    ],
+    [
+     "floor_boss_b",
+     2
     ],
     [
      "floor_boss_a",
@@ -2705,14 +1697,10 @@
     ],
     [
      "floor_boss_a",
-     1
+     2
     ],
     [
-     "floor_boss_b",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_research_b",
      2
     ],
     [
@@ -2813,14 +1801,10 @@
     ],
     [
      "floor_research_a",
-     1
+     2
     ],
     [
-     "floor_research_b",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_server_b",
      2
     ],
     [
@@ -2921,15 +1905,15 @@
     ],
     [
      "floor_server_a",
-     1
-    ],
-    [
-     "floor_server_b",
-     1
+     2
     ],
     [
      "floor_outside",
-     6
+     4
+    ],
+    [
+     "floor_boss_a",
+     2
     ],
     [
      "floor_boss_b",
@@ -3029,14 +2013,10 @@
     ],
     [
      "floor_boss_b",
-     1
+     2
     ],
     [
-     "floor_boss_a",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_research_a",
      2
     ],
     [
@@ -3137,14 +2117,10 @@
     ],
     [
      "floor_research_b",
-     1
+     2
     ],
     [
-     "floor_research_a",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_server_a",
      2
     ],
     [
@@ -3245,15 +2221,15 @@
     ],
     [
      "floor_server_b",
-     1
-    ],
-    [
-     "floor_server_a",
-     1
+     2
     ],
     [
      "floor_outside",
-     6
+     4
+    ],
+    [
+     "floor_boss_b",
+     2
     ],
     [
      "floor_boss_a",
@@ -3353,14 +2329,10 @@
     ],
     [
      "floor_boss_a",
-     1
+     2
     ],
     [
-     "floor_boss_b",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_research_b",
      2
     ],
     [
@@ -3461,14 +2433,10 @@
     ],
     [
      "floor_research_a",
-     1
+     2
     ],
     [
-     "floor_research_b",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_server_b",
      2
     ],
     [
@@ -3569,15 +2537,15 @@
     ],
     [
      "floor_server_a",
-     1
-    ],
-    [
-     "floor_server_b",
-     1
+     2
     ],
     [
      "floor_outside",
-     6
+     4
+    ],
+    [
+     "floor_boss_a",
+     2
     ],
     [
      "floor_boss_b",
@@ -3677,14 +2645,10 @@
     ],
     [
      "floor_boss_b",
-     1
+     2
     ],
     [
-     "floor_boss_a",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_research_a",
      2
     ],
     [
@@ -3785,14 +2749,10 @@
     ],
     [
      "floor_research_b",
-     1
+     2
     ],
     [
-     "floor_research_a",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_server_a",
      2
     ],
     [
@@ -3893,15 +2853,15 @@
     ],
     [
      "floor_server_b",
-     1
-    ],
-    [
-     "floor_server_a",
-     1
+     2
     ],
     [
      "floor_outside",
-     6
+     4
+    ],
+    [
+     "floor_boss_b",
+     2
     ],
     [
      "floor_boss_a",
@@ -4001,14 +2961,10 @@
     ],
     [
      "floor_boss_a",
-     1
+     2
     ],
     [
-     "floor_boss_b",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_research_b",
      2
     ],
     [
@@ -4109,14 +3065,10 @@
     ],
     [
      "floor_research_a",
-     1
+     2
     ],
     [
-     "floor_research_b",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_server_b",
      2
     ],
     [
@@ -4217,15 +3169,15 @@
     ],
     [
      "floor_server_a",
-     1
-    ],
-    [
-     "floor_server_b",
-     1
+     2
     ],
     [
      "floor_outside",
-     6
+     4
+    ],
+    [
+     "floor_boss_a",
+     2
     ],
     [
      "floor_boss_b",
@@ -4325,14 +3277,10 @@
     ],
     [
      "floor_boss_b",
-     1
+     2
     ],
     [
-     "floor_boss_a",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_research_a",
      2
     ],
     [
@@ -4433,14 +3381,10 @@
     ],
     [
      "floor_research_b",
-     1
+     2
     ],
     [
-     "floor_research_a",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_server_a",
      2
     ],
     [
@@ -4541,15 +3485,15 @@
     ],
     [
      "floor_server_b",
-     1
-    ],
-    [
-     "floor_server_a",
-     1
+     2
     ],
     [
      "floor_outside",
-     6
+     4
+    ],
+    [
+     "floor_boss_b",
+     2
     ],
     [
      "floor_boss_a",
@@ -4649,14 +3593,10 @@
     ],
     [
      "floor_boss_a",
-     1
+     2
     ],
     [
-     "floor_boss_b",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_research_b",
      2
     ],
     [
@@ -4757,14 +3697,10 @@
     ],
     [
      "floor_research_a",
-     1
+     2
     ],
     [
-     "floor_research_b",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_server_b",
      2
     ],
     [
@@ -4865,15 +3801,15 @@
     ],
     [
      "floor_server_a",
-     1
-    ],
-    [
-     "floor_server_b",
-     1
+     2
     ],
     [
      "floor_outside",
-     6
+     4
+    ],
+    [
+     "floor_boss_a",
+     2
     ],
     [
      "floor_boss_b",
@@ -4973,14 +3909,10 @@
     ],
     [
      "floor_boss_b",
-     1
+     2
     ],
     [
-     "floor_boss_a",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_research_a",
      2
     ],
     [
@@ -5081,14 +4013,10 @@
     ],
     [
      "floor_research_b",
-     1
+     2
     ],
     [
-     "floor_research_a",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_server_a",
      2
     ],
     [
@@ -5189,15 +4117,15 @@
     ],
     [
      "floor_server_b",
-     1
-    ],
-    [
-     "floor_server_a",
-     1
+     2
     ],
     [
      "floor_outside",
-     6
+     4
+    ],
+    [
+     "floor_boss_b",
+     2
     ],
     [
      "floor_boss_a",
@@ -5297,14 +4225,10 @@
     ],
     [
      "floor_boss_a",
-     1
+     2
     ],
     [
-     "floor_boss_b",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_research_b",
      2
     ],
     [
@@ -5405,14 +4329,10 @@
     ],
     [
      "floor_research_a",
-     1
+     2
     ],
     [
-     "floor_research_b",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_server_b",
      2
     ],
     [
@@ -5513,6 +4433,230 @@
     ],
     [
      "floor_server_a",
+     2
+    ],
+    [
+     "floor_outside",
+     4
+    ],
+    [
+     "floor_boss_a",
+     2
+    ],
+    [
+     "floor_boss_b",
+     1
+    ],
+    [
+     "floor_boss_a",
+     1
+    ],
+    [
+     "floor_boss_b",
+     1
+    ],
+    [
+     "floor_boss_a",
+     1
+    ],
+    [
+     "floor_boss_b",
+     1
+    ],
+    [
+     "floor_boss_a",
+     1
+    ],
+    [
+     "floor_boss_b",
+     1
+    ],
+    [
+     "floor_boss_a",
+     1
+    ],
+    [
+     "floor_boss_b",
+     1
+    ],
+    [
+     "floor_boss_a",
+     1
+    ],
+    [
+     "floor_boss_b",
+     1
+    ],
+    [
+     "floor_boss_a",
+     1
+    ],
+    [
+     "floor_boss_b",
+     1
+    ],
+    [
+     "floor_boss_a",
+     1
+    ],
+    [
+     "floor_boss_b",
+     1
+    ],
+    [
+     "floor_boss_a",
+     1
+    ],
+    [
+     "floor_boss_b",
+     1
+    ],
+    [
+     "floor_boss_a",
+     1
+    ],
+    [
+     "floor_boss_b",
+     1
+    ],
+    [
+     "floor_boss_a",
+     1
+    ],
+    [
+     "floor_boss_b",
+     1
+    ],
+    [
+     "floor_boss_a",
+     1
+    ],
+    [
+     "floor_boss_b",
+     1
+    ],
+    [
+     "floor_boss_a",
+     1
+    ],
+    [
+     "floor_boss_b",
+     2
+    ],
+    [
+     "floor_research_a",
+     2
+    ],
+    [
+     "floor_research_b",
+     1
+    ],
+    [
+     "floor_research_a",
+     1
+    ],
+    [
+     "floor_research_b",
+     1
+    ],
+    [
+     "floor_research_a",
+     1
+    ],
+    [
+     "floor_research_b",
+     1
+    ],
+    [
+     "floor_research_a",
+     1
+    ],
+    [
+     "floor_research_b",
+     1
+    ],
+    [
+     "floor_research_a",
+     1
+    ],
+    [
+     "floor_research_b",
+     1
+    ],
+    [
+     "floor_research_a",
+     1
+    ],
+    [
+     "floor_research_b",
+     1
+    ],
+    [
+     "floor_research_a",
+     1
+    ],
+    [
+     "floor_research_b",
+     1
+    ],
+    [
+     "floor_research_a",
+     1
+    ],
+    [
+     "floor_research_b",
+     1
+    ],
+    [
+     "floor_research_a",
+     1
+    ],
+    [
+     "floor_research_b",
+     1
+    ],
+    [
+     "floor_research_a",
+     1
+    ],
+    [
+     "floor_research_b",
+     1
+    ],
+    [
+     "floor_research_a",
+     1
+    ],
+    [
+     "floor_research_b",
+     1
+    ],
+    [
+     "floor_research_a",
+     1
+    ],
+    [
+     "floor_research_b",
+     1
+    ],
+    [
+     "floor_research_a",
+     1
+    ],
+    [
+     "floor_research_b",
+     2
+    ],
+    [
+     "floor_server_a",
+     2
+    ],
+    [
+     "floor_server_b",
+     1
+    ],
+    [
+     "floor_server_a",
      1
     ],
     [
@@ -5520,12 +4664,732 @@
      1
     ],
     [
+     "floor_server_a",
+     1
+    ],
+    [
+     "floor_server_b",
+     1
+    ],
+    [
+     "floor_server_a",
+     1
+    ],
+    [
+     "floor_server_b",
+     1
+    ],
+    [
+     "floor_server_a",
+     1
+    ],
+    [
+     "floor_server_b",
+     1
+    ],
+    [
+     "floor_server_a",
+     1
+    ],
+    [
+     "floor_server_b",
+     1
+    ],
+    [
+     "floor_server_a",
+     1
+    ],
+    [
+     "floor_server_b",
+     1
+    ],
+    [
+     "floor_server_a",
+     1
+    ],
+    [
+     "floor_server_b",
+     1
+    ],
+    [
+     "floor_server_a",
+     1
+    ],
+    [
+     "floor_server_b",
+     1
+    ],
+    [
+     "floor_server_a",
+     1
+    ],
+    [
+     "floor_server_b",
+     1
+    ],
+    [
+     "floor_server_a",
+     1
+    ],
+    [
+     "floor_server_b",
+     1
+    ],
+    [
+     "floor_server_a",
+     1
+    ],
+    [
+     "floor_server_b",
+     1
+    ],
+    [
+     "floor_server_a",
+     1
+    ],
+    [
+     "floor_server_b",
+     2
+    ],
+    [
      "floor_outside",
-     6
+     4
+    ],
+    [
+     "floor_boss_b",
+     2
+    ],
+    [
+     "floor_boss_a",
+     1
+    ],
+    [
+     "floor_boss_b",
+     1
+    ],
+    [
+     "floor_boss_a",
+     1
+    ],
+    [
+     "floor_boss_b",
+     1
+    ],
+    [
+     "floor_boss_a",
+     1
+    ],
+    [
+     "floor_boss_b",
+     1
+    ],
+    [
+     "floor_boss_a",
+     1
+    ],
+    [
+     "floor_boss_b",
+     1
+    ],
+    [
+     "floor_boss_a",
+     1
+    ],
+    [
+     "floor_boss_b",
+     1
+    ],
+    [
+     "floor_boss_a",
+     1
+    ],
+    [
+     "floor_boss_b",
+     1
+    ],
+    [
+     "floor_boss_a",
+     1
+    ],
+    [
+     "floor_boss_b",
+     1
+    ],
+    [
+     "floor_boss_a",
+     1
+    ],
+    [
+     "floor_boss_b",
+     1
+    ],
+    [
+     "floor_boss_a",
+     1
+    ],
+    [
+     "floor_boss_b",
+     1
+    ],
+    [
+     "floor_boss_a",
+     1
+    ],
+    [
+     "floor_boss_b",
+     1
+    ],
+    [
+     "floor_boss_a",
+     1
+    ],
+    [
+     "floor_boss_b",
+     1
+    ],
+    [
+     "floor_boss_a",
+     1
+    ],
+    [
+     "floor_boss_b",
+     1
+    ],
+    [
+     "floor_boss_a",
+     2
+    ],
+    [
+     "floor_research_b",
+     2
+    ],
+    [
+     "floor_research_a",
+     1
+    ],
+    [
+     "floor_research_b",
+     1
+    ],
+    [
+     "floor_research_a",
+     1
+    ],
+    [
+     "floor_research_b",
+     1
+    ],
+    [
+     "floor_research_a",
+     1
+    ],
+    [
+     "floor_research_b",
+     1
+    ],
+    [
+     "floor_research_a",
+     1
+    ],
+    [
+     "floor_research_b",
+     1
+    ],
+    [
+     "floor_research_a",
+     1
+    ],
+    [
+     "floor_research_b",
+     1
+    ],
+    [
+     "floor_research_a",
+     1
+    ],
+    [
+     "floor_research_b",
+     1
+    ],
+    [
+     "floor_research_a",
+     1
+    ],
+    [
+     "floor_research_b",
+     1
+    ],
+    [
+     "floor_research_a",
+     1
+    ],
+    [
+     "floor_research_b",
+     1
+    ],
+    [
+     "floor_research_a",
+     1
+    ],
+    [
+     "floor_research_b",
+     1
+    ],
+    [
+     "floor_research_a",
+     1
+    ],
+    [
+     "floor_research_b",
+     1
+    ],
+    [
+     "floor_research_a",
+     1
+    ],
+    [
+     "floor_research_b",
+     1
+    ],
+    [
+     "floor_research_a",
+     1
+    ],
+    [
+     "floor_research_b",
+     1
+    ],
+    [
+     "floor_research_a",
+     2
+    ],
+    [
+     "floor_server_b",
+     2
+    ],
+    [
+     "floor_server_a",
+     1
+    ],
+    [
+     "floor_server_b",
+     1
+    ],
+    [
+     "floor_server_a",
+     1
+    ],
+    [
+     "floor_server_b",
+     1
+    ],
+    [
+     "floor_server_a",
+     1
+    ],
+    [
+     "floor_server_b",
+     1
+    ],
+    [
+     "floor_server_a",
+     1
+    ],
+    [
+     "floor_server_b",
+     1
+    ],
+    [
+     "floor_server_a",
+     1
+    ],
+    [
+     "floor_server_b",
+     1
+    ],
+    [
+     "floor_server_a",
+     1
+    ],
+    [
+     "floor_server_b",
+     1
+    ],
+    [
+     "floor_server_a",
+     1
+    ],
+    [
+     "floor_server_b",
+     1
+    ],
+    [
+     "floor_server_a",
+     1
+    ],
+    [
+     "floor_server_b",
+     1
+    ],
+    [
+     "floor_server_a",
+     1
+    ],
+    [
+     "floor_server_b",
+     1
+    ],
+    [
+     "floor_server_a",
+     1
+    ],
+    [
+     "floor_server_b",
+     1
+    ],
+    [
+     "floor_server_a",
+     1
+    ],
+    [
+     "floor_server_b",
+     1
+    ],
+    [
+     "floor_server_a",
+     1
+    ],
+    [
+     "floor_server_b",
+     1
+    ],
+    [
+     "floor_server_a",
+     2
+    ],
+    [
+     "floor_outside",
+     4
+    ],
+    [
+     "floor_boss_a",
+     2
+    ],
+    [
+     "floor_boss_b",
+     1
+    ],
+    [
+     "floor_boss_a",
+     1
+    ],
+    [
+     "floor_boss_b",
+     1
+    ],
+    [
+     "floor_boss_a",
+     1
+    ],
+    [
+     "floor_boss_b",
+     1
+    ],
+    [
+     "floor_boss_a",
+     1
+    ],
+    [
+     "floor_boss_b",
+     1
+    ],
+    [
+     "floor_boss_a",
+     1
+    ],
+    [
+     "floor_boss_b",
+     1
+    ],
+    [
+     "floor_boss_a",
+     1
+    ],
+    [
+     "floor_boss_b",
+     1
+    ],
+    [
+     "floor_boss_a",
+     1
+    ],
+    [
+     "floor_boss_b",
+     1
+    ],
+    [
+     "floor_boss_a",
+     1
+    ],
+    [
+     "floor_boss_b",
+     1
+    ],
+    [
+     "floor_boss_a",
+     1
+    ],
+    [
+     "floor_boss_b",
+     1
+    ],
+    [
+     "floor_boss_a",
+     1
+    ],
+    [
+     "floor_boss_b",
+     1
+    ],
+    [
+     "floor_boss_a",
+     1
+    ],
+    [
+     "floor_boss_b",
+     1
+    ],
+    [
+     "floor_boss_a",
+     1
+    ],
+    [
+     "floor_boss_b",
+     1
+    ],
+    [
+     "floor_boss_a",
+     1
+    ],
+    [
+     "floor_boss_b",
+     2
+    ],
+    [
+     "floor_research_a",
+     2
+    ],
+    [
+     "floor_research_b",
+     1
+    ],
+    [
+     "floor_research_a",
+     1
+    ],
+    [
+     "floor_research_b",
+     1
+    ],
+    [
+     "floor_research_a",
+     1
+    ],
+    [
+     "floor_research_b",
+     1
+    ],
+    [
+     "floor_research_a",
+     1
+    ],
+    [
+     "floor_research_b",
+     1
+    ],
+    [
+     "floor_research_a",
+     1
+    ],
+    [
+     "floor_research_b",
+     1
+    ],
+    [
+     "floor_research_a",
+     1
+    ],
+    [
+     "floor_research_b",
+     1
+    ],
+    [
+     "floor_research_a",
+     1
+    ],
+    [
+     "floor_research_b",
+     1
+    ],
+    [
+     "floor_research_a",
+     1
+    ],
+    [
+     "floor_research_b",
+     1
+    ],
+    [
+     "floor_research_a",
+     1
+    ],
+    [
+     "floor_research_b",
+     1
+    ],
+    [
+     "floor_research_a",
+     1
+    ],
+    [
+     "floor_research_b",
+     1
+    ],
+    [
+     "floor_research_a",
+     1
+    ],
+    [
+     "floor_research_b",
+     1
+    ],
+    [
+     "floor_research_a",
+     1
+    ],
+    [
+     "floor_research_b",
+     1
+    ],
+    [
+     "floor_research_a",
+     1
+    ],
+    [
+     "floor_research_b",
+     2
+    ],
+    [
+     "floor_server_a",
+     2
+    ],
+    [
+     "floor_server_b",
+     1
+    ],
+    [
+     "floor_server_a",
+     1
+    ],
+    [
+     "floor_server_b",
+     1
+    ],
+    [
+     "floor_server_a",
+     1
+    ],
+    [
+     "floor_server_b",
+     1
+    ],
+    [
+     "floor_server_a",
+     1
+    ],
+    [
+     "floor_server_b",
+     1
+    ],
+    [
+     "floor_server_a",
+     1
+    ],
+    [
+     "floor_server_b",
+     1
+    ],
+    [
+     "floor_server_a",
+     1
+    ],
+    [
+     "floor_server_b",
+     1
+    ],
+    [
+     "floor_server_a",
+     1
+    ],
+    [
+     "floor_server_b",
+     1
+    ],
+    [
+     "floor_server_a",
+     1
+    ],
+    [
+     "floor_server_b",
+     1
+    ],
+    [
+     "floor_server_a",
+     1
+    ],
+    [
+     "floor_server_b",
+     1
+    ],
+    [
+     "floor_server_a",
+     1
+    ],
+    [
+     "floor_server_b",
+     1
+    ],
+    [
+     "floor_server_a",
+     1
+    ],
+    [
+     "floor_server_b",
+     1
+    ],
+    [
+     "floor_server_a",
+     1
+    ],
+    [
+     "floor_server_b",
+     1
+    ],
+    [
+     "floor_server_a",
+     1
+    ],
+    [
+     "floor_server_b",
+     2
+    ],
+    [
+     "floor_outside",
+     4
     ],
     [
      "floor_lobby",
-     3
+     4
     ],
     [
      "floor_hall_b",
@@ -5817,11 +5681,11 @@
     ],
     [
      "floor_hall_b",
-     1
+     2
     ],
     [
      "floor_outside",
-     5
+     4
     ],
     [
      "floor_hall_a",
@@ -6145,11 +6009,11 @@
     ],
     [
      "floor_hall_b",
-     1
+     2
     ],
     [
      "floor_outside",
-     5
+     4
     ],
     [
      "floor_hall_a",
@@ -6473,15 +6337,15 @@
     ],
     [
      "floor_hall_a",
-     1
+     2
     ],
     [
      "floor_outside",
-     6
+     4
     ],
     [
      "floor_lobby",
-     3
+     4
     ],
     [
      "floor_hall_b",
@@ -6797,15 +6661,15 @@
     ],
     [
      "floor_hall_b",
-     1
+     2
     ],
     [
      "floor_outside",
-     6
+     4
     ],
     [
      "floor_engineering_a",
-     1
+     2
     ],
     [
      "floor_engineering_b",
@@ -6905,15 +6769,11 @@
     ],
     [
      "floor_engineering_b",
-     1
-    ],
-    [
-     "floor_outside",
      2
     ],
     [
      "floor_meeting_a",
-     1
+     2
     ],
     [
      "floor_meeting_b",
@@ -7013,15 +6873,11 @@
     ],
     [
      "floor_meeting_b",
-     1
-    ],
-    [
-     "floor_outside",
      2
     ],
     [
      "floor_pantry_a",
-     1
+     2
     ],
     [
      "floor_pantry_b",
@@ -7121,15 +6977,15 @@
     ],
     [
      "floor_pantry_b",
-     1
+     2
     ],
     [
      "floor_outside",
-     6
+     4
     ],
     [
      "floor_engineering_a",
-     1
+     2
     ],
     [
      "floor_engineering_b",
@@ -7229,334 +7085,10 @@
     ],
     [
      "floor_engineering_b",
-     1
-    ],
-    [
-     "floor_outside",
      2
     ],
     [
      "floor_meeting_a",
-     1
-    ],
-    [
-     "floor_meeting_b",
-     1
-    ],
-    [
-     "floor_meeting_a",
-     1
-    ],
-    [
-     "floor_meeting_b",
-     1
-    ],
-    [
-     "floor_meeting_a",
-     1
-    ],
-    [
-     "floor_meeting_b",
-     1
-    ],
-    [
-     "floor_meeting_a",
-     1
-    ],
-    [
-     "floor_meeting_b",
-     1
-    ],
-    [
-     "floor_meeting_a",
-     1
-    ],
-    [
-     "floor_meeting_b",
-     1
-    ],
-    [
-     "floor_meeting_a",
-     1
-    ],
-    [
-     "floor_meeting_b",
-     1
-    ],
-    [
-     "floor_meeting_a",
-     1
-    ],
-    [
-     "floor_meeting_b",
-     1
-    ],
-    [
-     "floor_meeting_a",
-     1
-    ],
-    [
-     "floor_meeting_b",
-     1
-    ],
-    [
-     "floor_meeting_a",
-     1
-    ],
-    [
-     "floor_meeting_b",
-     1
-    ],
-    [
-     "floor_meeting_a",
-     1
-    ],
-    [
-     "floor_meeting_b",
-     1
-    ],
-    [
-     "floor_meeting_a",
-     1
-    ],
-    [
-     "floor_meeting_b",
-     1
-    ],
-    [
-     "floor_meeting_a",
-     1
-    ],
-    [
-     "floor_meeting_b",
-     1
-    ],
-    [
-     "floor_meeting_a",
-     1
-    ],
-    [
-     "floor_meeting_b",
-     1
-    ],
-    [
-     "floor_outside",
-     2
-    ],
-    [
-     "floor_pantry_a",
-     1
-    ],
-    [
-     "floor_pantry_b",
-     1
-    ],
-    [
-     "floor_pantry_a",
-     1
-    ],
-    [
-     "floor_pantry_b",
-     1
-    ],
-    [
-     "floor_pantry_a",
-     1
-    ],
-    [
-     "floor_pantry_b",
-     1
-    ],
-    [
-     "floor_pantry_a",
-     1
-    ],
-    [
-     "floor_pantry_b",
-     1
-    ],
-    [
-     "floor_pantry_a",
-     1
-    ],
-    [
-     "floor_pantry_b",
-     1
-    ],
-    [
-     "floor_pantry_a",
-     1
-    ],
-    [
-     "floor_pantry_b",
-     1
-    ],
-    [
-     "floor_pantry_a",
-     1
-    ],
-    [
-     "floor_pantry_b",
-     1
-    ],
-    [
-     "floor_pantry_a",
-     1
-    ],
-    [
-     "floor_pantry_b",
-     1
-    ],
-    [
-     "floor_pantry_a",
-     1
-    ],
-    [
-     "floor_pantry_b",
-     1
-    ],
-    [
-     "floor_pantry_a",
-     1
-    ],
-    [
-     "floor_pantry_b",
-     1
-    ],
-    [
-     "floor_pantry_a",
-     1
-    ],
-    [
-     "floor_pantry_b",
-     1
-    ],
-    [
-     "floor_pantry_a",
-     1
-    ],
-    [
-     "floor_pantry_b",
-     1
-    ],
-    [
-     "floor_pantry_a",
-     1
-    ],
-    [
-     "floor_pantry_b",
-     1
-    ],
-    [
-     "floor_outside",
-     6
-    ],
-    [
-     "floor_engineering_b",
-     1
-    ],
-    [
-     "floor_engineering_a",
-     1
-    ],
-    [
-     "floor_engineering_b",
-     1
-    ],
-    [
-     "floor_engineering_a",
-     1
-    ],
-    [
-     "floor_engineering_b",
-     1
-    ],
-    [
-     "floor_engineering_a",
-     1
-    ],
-    [
-     "floor_engineering_b",
-     1
-    ],
-    [
-     "floor_engineering_a",
-     1
-    ],
-    [
-     "floor_engineering_b",
-     1
-    ],
-    [
-     "floor_engineering_a",
-     1
-    ],
-    [
-     "floor_engineering_b",
-     1
-    ],
-    [
-     "floor_engineering_a",
-     1
-    ],
-    [
-     "floor_engineering_b",
-     1
-    ],
-    [
-     "floor_engineering_a",
-     1
-    ],
-    [
-     "floor_engineering_b",
-     1
-    ],
-    [
-     "floor_engineering_a",
-     1
-    ],
-    [
-     "floor_engineering_b",
-     1
-    ],
-    [
-     "floor_engineering_a",
-     1
-    ],
-    [
-     "floor_engineering_b",
-     1
-    ],
-    [
-     "floor_engineering_a",
-     1
-    ],
-    [
-     "floor_engineering_b",
-     1
-    ],
-    [
-     "floor_engineering_a",
-     1
-    ],
-    [
-     "floor_engineering_b",
-     1
-    ],
-    [
-     "floor_engineering_a",
-     1
-    ],
-    [
-     "floor_engineering_b",
-     1
-    ],
-    [
-     "floor_engineering_a",
-     1
-    ],
-    [
-     "floor_outside",
      2
     ],
     [
@@ -7657,14 +7189,10 @@
     ],
     [
      "floor_meeting_b",
-     1
+     2
     ],
     [
-     "floor_meeting_a",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_pantry_a",
      2
     ],
     [
@@ -7765,15 +7293,15 @@
     ],
     [
      "floor_pantry_b",
-     1
-    ],
-    [
-     "floor_pantry_a",
-     1
+     2
     ],
     [
      "floor_outside",
-     6
+     4
+    ],
+    [
+     "floor_engineering_b",
+     2
     ],
     [
      "floor_engineering_a",
@@ -7873,14 +7401,10 @@
     ],
     [
      "floor_engineering_a",
-     1
+     2
     ],
     [
-     "floor_engineering_b",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_meeting_b",
      2
     ],
     [
@@ -7981,14 +7505,10 @@
     ],
     [
      "floor_meeting_a",
-     1
+     2
     ],
     [
-     "floor_meeting_b",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_pantry_b",
      2
     ],
     [
@@ -8089,15 +7609,15 @@
     ],
     [
      "floor_pantry_a",
-     1
-    ],
-    [
-     "floor_pantry_b",
-     1
+     2
     ],
     [
      "floor_outside",
-     6
+     4
+    ],
+    [
+     "floor_engineering_a",
+     2
     ],
     [
      "floor_engineering_b",
@@ -8197,14 +7717,10 @@
     ],
     [
      "floor_engineering_b",
-     1
+     2
     ],
     [
-     "floor_engineering_a",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_meeting_a",
      2
     ],
     [
@@ -8305,14 +7821,10 @@
     ],
     [
      "floor_meeting_b",
-     1
+     2
     ],
     [
-     "floor_meeting_a",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_pantry_a",
      2
     ],
     [
@@ -8413,15 +7925,15 @@
     ],
     [
      "floor_pantry_b",
-     1
-    ],
-    [
-     "floor_pantry_a",
-     1
+     2
     ],
     [
      "floor_outside",
-     6
+     4
+    ],
+    [
+     "floor_engineering_b",
+     2
     ],
     [
      "floor_engineering_a",
@@ -8521,14 +8033,10 @@
     ],
     [
      "floor_engineering_a",
-     1
+     2
     ],
     [
-     "floor_engineering_b",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_meeting_b",
      2
     ],
     [
@@ -8629,14 +8137,10 @@
     ],
     [
      "floor_meeting_a",
-     1
+     2
     ],
     [
-     "floor_meeting_b",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_pantry_b",
      2
     ],
     [
@@ -8737,15 +8241,15 @@
     ],
     [
      "floor_pantry_a",
-     1
-    ],
-    [
-     "floor_pantry_b",
-     1
+     2
     ],
     [
      "floor_outside",
-     6
+     4
+    ],
+    [
+     "floor_engineering_a",
+     2
     ],
     [
      "floor_engineering_b",
@@ -8845,14 +8349,10 @@
     ],
     [
      "floor_engineering_b",
-     1
+     2
     ],
     [
-     "floor_engineering_a",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_meeting_a",
      2
     ],
     [
@@ -8953,14 +8453,10 @@
     ],
     [
      "floor_meeting_b",
-     1
+     2
     ],
     [
-     "floor_meeting_a",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_pantry_a",
      2
     ],
     [
@@ -9061,15 +8557,15 @@
     ],
     [
      "floor_pantry_b",
-     1
-    ],
-    [
-     "floor_pantry_a",
-     1
+     2
     ],
     [
      "floor_outside",
-     6
+     4
+    ],
+    [
+     "floor_engineering_b",
+     2
     ],
     [
      "floor_engineering_a",
@@ -9169,14 +8665,10 @@
     ],
     [
      "floor_engineering_a",
-     1
+     2
     ],
     [
-     "floor_engineering_b",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_meeting_b",
      2
     ],
     [
@@ -9277,14 +8769,10 @@
     ],
     [
      "floor_meeting_a",
-     1
+     2
     ],
     [
-     "floor_meeting_b",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_pantry_b",
      2
     ],
     [
@@ -9385,15 +8873,15 @@
     ],
     [
      "floor_pantry_a",
-     1
-    ],
-    [
-     "floor_pantry_b",
-     1
+     2
     ],
     [
      "floor_outside",
-     6
+     4
+    ],
+    [
+     "floor_engineering_a",
+     2
     ],
     [
      "floor_engineering_b",
@@ -9493,14 +8981,10 @@
     ],
     [
      "floor_engineering_b",
-     1
+     2
     ],
     [
-     "floor_engineering_a",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_meeting_a",
      2
     ],
     [
@@ -9601,14 +9085,10 @@
     ],
     [
      "floor_meeting_b",
-     1
+     2
     ],
     [
-     "floor_meeting_a",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_pantry_a",
      2
     ],
     [
@@ -9709,15 +9189,15 @@
     ],
     [
      "floor_pantry_b",
-     1
-    ],
-    [
-     "floor_pantry_a",
-     1
+     2
     ],
     [
      "floor_outside",
-     6
+     4
+    ],
+    [
+     "floor_engineering_b",
+     2
     ],
     [
      "floor_engineering_a",
@@ -9817,14 +9297,10 @@
     ],
     [
      "floor_engineering_a",
-     1
+     2
     ],
     [
-     "floor_engineering_b",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_meeting_b",
      2
     ],
     [
@@ -9925,14 +9401,10 @@
     ],
     [
      "floor_meeting_a",
-     1
+     2
     ],
     [
-     "floor_meeting_b",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_pantry_b",
      2
     ],
     [
@@ -10033,15 +9505,15 @@
     ],
     [
      "floor_pantry_a",
-     1
-    ],
-    [
-     "floor_pantry_b",
-     1
+     2
     ],
     [
      "floor_outside",
-     6
+     4
+    ],
+    [
+     "floor_engineering_a",
+     2
     ],
     [
      "floor_engineering_b",
@@ -10141,14 +9613,10 @@
     ],
     [
      "floor_engineering_b",
-     1
+     2
     ],
     [
-     "floor_engineering_a",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_meeting_a",
      2
     ],
     [
@@ -10249,14 +9717,10 @@
     ],
     [
      "floor_meeting_b",
-     1
+     2
     ],
     [
-     "floor_meeting_a",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_pantry_a",
      2
     ],
     [
@@ -10357,15 +9821,15 @@
     ],
     [
      "floor_pantry_b",
-     1
-    ],
-    [
-     "floor_pantry_a",
-     1
+     2
     ],
     [
      "floor_outside",
-     6
+     4
+    ],
+    [
+     "floor_engineering_b",
+     2
     ],
     [
      "floor_engineering_a",
@@ -10465,14 +9929,10 @@
     ],
     [
      "floor_engineering_a",
-     1
+     2
     ],
     [
-     "floor_engineering_b",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_meeting_b",
      2
     ],
     [
@@ -10573,14 +10033,10 @@
     ],
     [
      "floor_meeting_a",
-     1
+     2
     ],
     [
-     "floor_meeting_b",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_pantry_b",
      2
     ],
     [
@@ -10681,15 +10137,15 @@
     ],
     [
      "floor_pantry_a",
-     1
-    ],
-    [
-     "floor_pantry_b",
-     1
+     2
     ],
     [
      "floor_outside",
-     6
+     4
+    ],
+    [
+     "floor_engineering_a",
+     2
     ],
     [
      "floor_engineering_b",
@@ -10789,14 +10245,10 @@
     ],
     [
      "floor_engineering_b",
-     1
+     2
     ],
     [
-     "floor_engineering_a",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_meeting_a",
      2
     ],
     [
@@ -10897,14 +10349,10 @@
     ],
     [
      "floor_meeting_b",
-     1
+     2
     ],
     [
-     "floor_meeting_a",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_pantry_a",
      2
     ],
     [
@@ -11005,15 +10453,15 @@
     ],
     [
      "floor_pantry_b",
-     1
-    ],
-    [
-     "floor_pantry_a",
-     1
+     2
     ],
     [
      "floor_outside",
-     6
+     4
+    ],
+    [
+     "floor_engineering_b",
+     2
     ],
     [
      "floor_engineering_a",
@@ -11113,14 +10561,10 @@
     ],
     [
      "floor_engineering_a",
-     1
+     2
     ],
     [
-     "floor_engineering_b",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_meeting_b",
      2
     ],
     [
@@ -11221,14 +10665,10 @@
     ],
     [
      "floor_meeting_a",
-     1
+     2
     ],
     [
-     "floor_meeting_b",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_pantry_b",
      2
     ],
     [
@@ -11329,15 +10769,15 @@
     ],
     [
      "floor_pantry_a",
-     1
-    ],
-    [
-     "floor_pantry_b",
-     1
+     2
     ],
     [
      "floor_outside",
-     6
+     4
+    ],
+    [
+     "floor_engineering_a",
+     2
     ],
     [
      "floor_engineering_b",
@@ -11437,14 +10877,10 @@
     ],
     [
      "floor_engineering_b",
-     1
+     2
     ],
     [
-     "floor_engineering_a",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_meeting_a",
      2
     ],
     [
@@ -11545,14 +10981,10 @@
     ],
     [
      "floor_meeting_b",
-     1
+     2
     ],
     [
-     "floor_meeting_a",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_pantry_a",
      2
     ],
     [
@@ -11653,15 +11085,15 @@
     ],
     [
      "floor_pantry_b",
-     1
-    ],
-    [
-     "floor_pantry_a",
-     1
+     2
     ],
     [
      "floor_outside",
-     6
+     4
+    ],
+    [
+     "floor_engineering_b",
+     2
     ],
     [
      "floor_engineering_a",
@@ -11761,14 +11193,10 @@
     ],
     [
      "floor_engineering_a",
-     1
+     2
     ],
     [
-     "floor_engineering_b",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_meeting_b",
      2
     ],
     [
@@ -11869,14 +11297,10 @@
     ],
     [
      "floor_meeting_a",
-     1
+     2
     ],
     [
-     "floor_meeting_b",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_pantry_b",
      2
     ],
     [
@@ -11977,15 +11401,15 @@
     ],
     [
      "floor_pantry_a",
-     1
-    ],
-    [
-     "floor_pantry_b",
-     1
+     2
     ],
     [
      "floor_outside",
-     6
+     4
+    ],
+    [
+     "floor_engineering_a",
+     2
     ],
     [
      "floor_engineering_b",
@@ -12085,14 +11509,10 @@
     ],
     [
      "floor_engineering_b",
-     1
+     2
     ],
     [
-     "floor_engineering_a",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_meeting_a",
      2
     ],
     [
@@ -12193,14 +11613,10 @@
     ],
     [
      "floor_meeting_b",
-     1
+     2
     ],
     [
-     "floor_meeting_a",
-     1
-    ],
-    [
-     "floor_outside",
+     "floor_pantry_a",
      2
     ],
     [
@@ -12301,6 +11717,230 @@
     ],
     [
      "floor_pantry_b",
+     2
+    ],
+    [
+     "floor_outside",
+     4
+    ],
+    [
+     "floor_engineering_b",
+     2
+    ],
+    [
+     "floor_engineering_a",
+     1
+    ],
+    [
+     "floor_engineering_b",
+     1
+    ],
+    [
+     "floor_engineering_a",
+     1
+    ],
+    [
+     "floor_engineering_b",
+     1
+    ],
+    [
+     "floor_engineering_a",
+     1
+    ],
+    [
+     "floor_engineering_b",
+     1
+    ],
+    [
+     "floor_engineering_a",
+     1
+    ],
+    [
+     "floor_engineering_b",
+     1
+    ],
+    [
+     "floor_engineering_a",
+     1
+    ],
+    [
+     "floor_engineering_b",
+     1
+    ],
+    [
+     "floor_engineering_a",
+     1
+    ],
+    [
+     "floor_engineering_b",
+     1
+    ],
+    [
+     "floor_engineering_a",
+     1
+    ],
+    [
+     "floor_engineering_b",
+     1
+    ],
+    [
+     "floor_engineering_a",
+     1
+    ],
+    [
+     "floor_engineering_b",
+     1
+    ],
+    [
+     "floor_engineering_a",
+     1
+    ],
+    [
+     "floor_engineering_b",
+     1
+    ],
+    [
+     "floor_engineering_a",
+     1
+    ],
+    [
+     "floor_engineering_b",
+     1
+    ],
+    [
+     "floor_engineering_a",
+     1
+    ],
+    [
+     "floor_engineering_b",
+     1
+    ],
+    [
+     "floor_engineering_a",
+     1
+    ],
+    [
+     "floor_engineering_b",
+     1
+    ],
+    [
+     "floor_engineering_a",
+     2
+    ],
+    [
+     "floor_meeting_b",
+     2
+    ],
+    [
+     "floor_meeting_a",
+     1
+    ],
+    [
+     "floor_meeting_b",
+     1
+    ],
+    [
+     "floor_meeting_a",
+     1
+    ],
+    [
+     "floor_meeting_b",
+     1
+    ],
+    [
+     "floor_meeting_a",
+     1
+    ],
+    [
+     "floor_meeting_b",
+     1
+    ],
+    [
+     "floor_meeting_a",
+     1
+    ],
+    [
+     "floor_meeting_b",
+     1
+    ],
+    [
+     "floor_meeting_a",
+     1
+    ],
+    [
+     "floor_meeting_b",
+     1
+    ],
+    [
+     "floor_meeting_a",
+     1
+    ],
+    [
+     "floor_meeting_b",
+     1
+    ],
+    [
+     "floor_meeting_a",
+     1
+    ],
+    [
+     "floor_meeting_b",
+     1
+    ],
+    [
+     "floor_meeting_a",
+     1
+    ],
+    [
+     "floor_meeting_b",
+     1
+    ],
+    [
+     "floor_meeting_a",
+     1
+    ],
+    [
+     "floor_meeting_b",
+     1
+    ],
+    [
+     "floor_meeting_a",
+     1
+    ],
+    [
+     "floor_meeting_b",
+     1
+    ],
+    [
+     "floor_meeting_a",
+     1
+    ],
+    [
+     "floor_meeting_b",
+     1
+    ],
+    [
+     "floor_meeting_a",
+     1
+    ],
+    [
+     "floor_meeting_b",
+     1
+    ],
+    [
+     "floor_meeting_a",
+     2
+    ],
+    [
+     "floor_pantry_b",
+     2
+    ],
+    [
+     "floor_pantry_a",
+     1
+    ],
+    [
+     "floor_pantry_b",
      1
     ],
     [
@@ -12308,8 +11948,96 @@
      1
     ],
     [
+     "floor_pantry_b",
+     1
+    ],
+    [
+     "floor_pantry_a",
+     1
+    ],
+    [
+     "floor_pantry_b",
+     1
+    ],
+    [
+     "floor_pantry_a",
+     1
+    ],
+    [
+     "floor_pantry_b",
+     1
+    ],
+    [
+     "floor_pantry_a",
+     1
+    ],
+    [
+     "floor_pantry_b",
+     1
+    ],
+    [
+     "floor_pantry_a",
+     1
+    ],
+    [
+     "floor_pantry_b",
+     1
+    ],
+    [
+     "floor_pantry_a",
+     1
+    ],
+    [
+     "floor_pantry_b",
+     1
+    ],
+    [
+     "floor_pantry_a",
+     1
+    ],
+    [
+     "floor_pantry_b",
+     1
+    ],
+    [
+     "floor_pantry_a",
+     1
+    ],
+    [
+     "floor_pantry_b",
+     1
+    ],
+    [
+     "floor_pantry_a",
+     1
+    ],
+    [
+     "floor_pantry_b",
+     1
+    ],
+    [
+     "floor_pantry_a",
+     1
+    ],
+    [
+     "floor_pantry_b",
+     1
+    ],
+    [
+     "floor_pantry_a",
+     1
+    ],
+    [
+     "floor_pantry_b",
+     1
+    ],
+    [
+     "floor_pantry_a",
+     2
+    ],
+    [
      "floor_outside",
-     884
+     883
     ]
    ]
   },
@@ -12322,7 +12050,7 @@
      177
     ],
     [
-     "wall_top_boss",
+     "wall_top",
      1
     ],
     [
@@ -12354,7 +12082,7 @@
      26
     ],
     [
-     "wall_top_server",
+     "wall_top",
      1
     ],
     [
@@ -13002,7 +12730,7 @@
      4
     ],
     [
-     "wall_side_l_boss",
+     "wall_side_l",
      1
     ],
     [
@@ -13042,7 +12770,7 @@
      12
     ],
     [
-     "wall_side_r_server",
+     "wall_side_r",
      1
     ],
     [
@@ -13090,7 +12818,7 @@
      4
     ],
     [
-     "wall_side_l_engineering",
+     "wall_side_l",
      1
     ],
     [
@@ -13146,7 +12874,7 @@
      12
     ],
     [
-     "wall_side_r_pantry",
+     "wall_side_r",
      1
     ],
     [
@@ -13794,8 +13522,12 @@
      4
     ],
     [
+     "wall_face",
+     1
+    ],
+    [
      "wall_face_engineering",
-     28
+     27
     ],
     [
      "wall_face_meeting",
@@ -13803,7 +13535,11 @@
     ],
     [
      "wall_face_pantry",
-     28
+     27
+    ],
+    [
+     "wall_face",
+     1
     ],
     [
      null,

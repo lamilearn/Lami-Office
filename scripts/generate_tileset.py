@@ -169,9 +169,15 @@ def floor_outside(base):
 
 
 def wall_face(base, mortar):
+    """Brick face of a wall.
+
+    The bottom course line is deliberately omitted: it lands exactly on the foot
+    of a raised wall, where it reads as a black line lying on the floor rather
+    than as part of the brickwork.
+    """
     tile = Tile()
     tile.rect(0, 0, T, T, base)
-    for course, y in enumerate(range(0, T, 4)):
+    for course, y in enumerate(range(0, T - 4, 4)):
         tile.hline(y + 3, 0, T - 1, mortar)
         offset = 0 if course % 2 == 0 else 4
         for x in range(offset, T, 8):

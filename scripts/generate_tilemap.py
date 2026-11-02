@@ -182,6 +182,31 @@ def build_map(cfg: dict) -> dict:
             decor[y][x] = "door_mid"
 
     # ---- wall variants (top caps, sides, corners, partition columns)
+    # A room's palette stops at the room's own floor. Where a room's side wall
+    # runs along the building's east or west edge, its outer corner (the tile
+    # diagonal to the floor, where the side wall meets the end wall) borders no
+    # floor of its own, so leaving the room tag on it let the colour run past the
+    # room: at the server room's hallway corner the server-purple brick kept
+    # going down the east wall below the room. Those perimeter corners fall back
+    # to the neutral variant. Corners inside the building keep their room colour
+    # so a shared north/south wall run stays continuous across a room boundary.
+    perimeter_cols = {building["x1"], building["x2"]}
+    room_letter = {room: letter for letter, room in letter_to_room.items()}
+    for y in range(rows):
+        for x in range(cols):
+            rid = wall_room[y][x]
+            if not rid or x not in perimeter_cols:
+                continue
+            letter = room_letter.get(rid)
+            touches = False
+            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < cols and 0 <= ny < rows and plan[ny][nx] == letter:
+                    touches = True
+                    break
+            if not touches:
+                wall_room[y][x] = None
+
     for y in range(rows):
         for x in range(cols):
             if walls[y][x] is None or walls[y][x] == "door_mid":
@@ -281,14 +306,55 @@ def build_map(cfg: dict) -> dict:
     # looked transparent, as if the walls had holes in them. Point the floor at
     # the neighbour the strip is visible from (the tile below), so the wall reads
     # as sitting on real floor.
-    for y in range(rows):
+    # Walk out to the nearest real floor so a wall never shows the outdoor tile
+    # through the part of its row the raised face does not cover. Corners where a
+    # room divider meets an outer wall have no floor neighbour directly below, so
+    # a simple copy is not enough.
+    from collections import deque
+    # A wall is drawn raised, so the lower part of its own row shows the floor
+    # layer. That strip must show the floor of whatever the wall opens onto, and
+    # never the lawn:
+    #   - tile below is open floor  -> copy it
+    #   - tile below is another wall -> walk out through walls only, and take the
+    #     first real floor found (a room joint has no floor directly below)
+    #   - tile below is outdoors     -> leave it alone, so the building's outer
+    #     edge keeps grass under it instead of leaking room floor outside
+    for y in range(rows - 1, -1, -1):
         for x in range(cols):
             if not walls[y][x] or walls[y][x] == "door_mid":
                 continue
-            below = walls[y + 1][x] if y + 1 < rows else None
-            below_solid = bool(below) and below != "door_mid" and below != "floor_outside"
-            if not below_solid and y + 1 < rows:
+            if floor[y][x] != "floor_outside" or y + 1 >= rows:
+                continue
+            below_wall = walls[y + 1][x]
+            if not below_wall and floor[y + 1][x] != "floor_outside":
                 floor[y][x] = floor[y + 1][x]
+                continue
+            if not below_wall:
+                continue  # the strip is outdoors; grass is correct there
+            seen = {(x, y)}
+            q = deque([(x, y)])
+            found = None
+            while q and found is None:
+                cx, cy = q.popleft()
+                # Deliberately never search north: the tile above a junction is
+                # the hallway, and taking its floor painted a pale lane-coloured
+                # notch under the wall band. Walking sideways or south reaches the
+                # room floor the junction actually sits between.
+                for dx, dy in ((1, 0), (-1, 0), (0, 1)):
+                    nx, ny = cx + dx, cy + dy
+                    if nx < 0 or ny < 0 or nx >= cols or ny >= rows or (nx, ny) in seen:
+                        continue
+                    seen.add((nx, ny))
+                    if not walls[ny][nx]:
+                        if floor[ny][nx] != "floor_outside":
+                            found = floor[ny][nx]
+                            break
+                        continue
+                    if walls[ny][nx] == "door_mid":
+                        continue
+                    q.append((nx, ny))
+            if found:
+                floor[y][x] = found
 
     return {
         "tileSize": cfg["tileSize"],

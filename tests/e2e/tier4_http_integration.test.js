@@ -979,3 +979,68 @@ describe('Tier 4 — HTTP Integration: Live context window', () => {
     assert.strictEqual(world.json.chars.filter((c) => c.id === 'context').length, 0);
   }, LONG);
 });
+
+describe('Tier 4 — HTTP Integration: Render health', () => {
+  let srv = null;
+  beforeAll(async () => { srv = await H.startServer(); });
+  afterAll(async () => { if (srv) await srv.stop(); srv = null; });
+
+  it('H11: a render report reaches /api/integration without creating an agent', async () => {
+    if (!HAVE_PY) return;
+    const before = await srv.get('/api/integration');
+    assert.strictEqual(before.json.render_health.count, 0, 'a fresh office has no render errors');
+
+    await srv.post('/api/event', {
+      type: 'render_report', agentId: 'client', count: 2,
+      errors: ['decor plant@3,17: boom', 'renderBanded: boom']
+    });
+    await H.sleep(300);
+
+    const after = await srv.get('/api/integration');
+    assert.strictEqual(after.json.render_health.count, 2);
+    assert.strictEqual(after.json.render_health.errors.length, 2);
+    assert.ok(/plant/.test(after.json.render_health.errors[0]), 'the failing prop must be named');
+
+    const agents = await srv.get('/api/agents');
+    assert.ok(!agents.json.agents.some((a) => a.id === 'client'),
+      'a render report must never become an agent on the floor');
+  }, LONG);
+});
+
+describe('Tier 4 — HTTP Integration: One number for "agents online"', () => {
+  let srv = null;
+  let peer = null;
+
+  beforeAll(async () => {
+    peer = await H.startStubPeer({ protocol: 'custom' });
+    srv = await H.startServer({
+      env: {
+        A2A_PEERS: JSON.stringify([
+          { id: 'yuna', name: 'Yuna', host: '127.0.0.1', port: peer.port, room: 'research' }
+        ]),
+        A2A_POLL_INTERVAL: '1'
+      }
+    });
+    await H.sleep(1800);
+  });
+  afterAll(async () => {
+    if (srv) await srv.stop();
+    if (peer) await peer.stop();
+    srv = null; peer = null;
+  });
+
+  it('H12: /api/integration, /api/world and /api/a2a agree on how many agents are online', async () => {
+    if (!HAVE_PY) return;
+    const integ = await srv.get('/api/integration');
+    const world = await srv.get('/api/world');
+    const a2a = await srv.get('/api/a2a');
+
+    // Regression: integration counted only Hermes sub-agents, so a healthy mesh
+    // reported 0 there while the world reported 5 and A2A reported 5/5.
+    assert.strictEqual(integ.json.agents_online, world.json.status.agents_active,
+      'integration and world must report the same active-agent count');
+    assert.strictEqual(integ.json.agents_online, a2a.json.online,
+      'and it must match the A2A presence count');
+    assert.strictEqual(integ.json.sub_agents, 0, 'no Hermes sub-agent is running here');
+  }, LONG);
+});

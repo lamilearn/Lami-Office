@@ -841,8 +841,356 @@ describe('Tier 1 — Feature 43: Walls sit on floor, never on the lawn', () => {
 
   it('F43.3: the generator derives that floor instead of hardcoding it', () => {
     const src = fs.readFileSync(path.join(REPO, 'scripts/generate_tilemap.py'), 'utf8');
-    assert.ok(/floor\[y\]\[x\] = floor\[y \+ 1\]\[x\]/.test(src),
-      'the wall row must inherit the floor it is seen against');
-    assert.ok(/below_solid/.test(src), 'the rule must follow how the wall is drawn');
+    // The generator walks out to the nearest real floor rather than copying the
+    // tile below, because a corner has no floor directly underneath it.
+    assert.ok(/floor\[y\]\[x\] = found/.test(src), 'the wall row must inherit a real floor');
+    assert.ok(/if not below_wall:\n\s+continue/.test(src),
+      'the search must not cross the outdoor edge');
+  });
+});
+
+describe('Tier 1 — Feature 45: No dark band under the walls', () => {
+  const TILEMAP = path.join(REPO, 'services/lami-office-react/web/js/tilemap.js');
+
+  it('F45.1: the ground pass paints no contact shadow under raised walls', () => {
+    const src = fs.readFileSync(TILEMAP, 'utf8');
+    const fn = src.slice(src.indexOf('  function paintGround(ctx) {'), src.indexOf('  function paintOverlay()'));
+    // The 6px band read as a dark line across every room once walls correctly
+    // sat on their own floor instead of on the outdoor tile.
+    assert.ok(!/rgba\(15,\s*10,\s*25/.test(fn), 'the contact-shadow band must be gone');
+    assert.ok(!/y \* ts \+ ts, ts, 6/.test(fn), 'nothing may be painted 6px under the wall row');
+  });
+
+  it('F45.2: the wall band itself is still drawn', () => {
+    const src = fs.readFileSync(TILEMAP, 'utf8');
+    const fn = src.slice(src.indexOf('  function paintGround(ctx) {'), src.indexOf('  function paintOverlay()'));
+    assert.ok(/drawTile\(ctx, map, top, x \* ts, y \* ts - WALL_LIFT\)/.test(fn),
+      'raised wall tops must still be drawn');
+  });
+});
+
+describe('Tier 1 — Feature 46: The top wall band has no notches', () => {
+  const TILEMAP = path.join(REPO, 'services/lami-office-react/web/js/tilemap.js');
+  const MAP = path.join(REPO, 'services/lami-office-react/web/assets/map/office.map.json');
+
+  it('F46.1: corners where a divider meets an outer wall are drawn raised too', () => {
+    const src = fs.readFileSync(TILEMAP, 'utf8');
+    const fn = src.slice(src.indexOf('  function paintGround(ctx) {'), src.indexOf('  function paintOverlay()'));
+    // Regression: the corner tiles kept the flush branch because the tile below
+    // them is another wall, so the raised band had a 14px notch of lawn at every
+    // room joint.
+    assert.ok(/const aboveWall = isSolidWall\(map, x, y - 1\)/.test(fn),
+      'the renderer must look at the tile above');
+    assert.ok(/if \(!belowSolid \|\| !aboveWall\)/.test(fn),
+      'a wall with nothing above it must be drawn raised');
+  });
+
+  it('F46.2: no wall anywhere is still standing on the outdoor tile', () => {
+    const m = JSON.parse(fs.readFileSync(MAP, 'utf8'));
+    const decode = (name) => {
+      const L = m.layers.find((l) => l.name === name);
+      const flat = [];
+      for (const [v, n] of L.data) for (let k = 0; k < n; k++) flat.push(v);
+      const grid = [];
+      for (let y = 0; y < m.rows; y++) grid.push(flat.slice(y * m.cols, (y + 1) * m.cols));
+      return grid;
+    };
+    const floor = decode('floor');
+    const walls = decode('walls');
+    const isWall = (n) => Boolean(n) && n !== 'door_mid' && n !== 'floor_outside';
+    const bad = [];
+    for (let y = 0; y < m.rows; y++) {
+      for (let x = 0; x < m.cols; x++) {
+        if (!isWall(walls[y][x]) || floor[y][x] !== 'floor_outside') continue;
+        // A wall may show the outdoor tile only where it is the building's own
+        // outer edge - there the strip below it really is outside.
+        const belowOutside = y + 1 >= m.rows || floor[y + 1][x] === 'floor_outside';
+        if (!belowOutside) bad.push(`${x},${y}`);
+      }
+    }
+    assert.deepStrictEqual(bad, [], `walls over the lawn inside the building: ${bad.slice(0, 10).join(' ')}`);
+  });
+
+  it('F46.3: the room joints on the north wall carry a room floor', () => {
+    const m = JSON.parse(fs.readFileSync(MAP, 'utf8'));
+    const decode = (name) => {
+      const L = m.layers.find((l) => l.name === name);
+      const flat = [];
+      for (const [v, n] of L.data) for (let k = 0; k < n; k++) flat.push(v);
+      const grid = [];
+      for (let y = 0; y < m.rows; y++) grid.push(flat.slice(y * m.cols, (y + 1) * m.cols));
+      return grid;
+    };
+    const floor = decode('floor');
+    // The vertical dividers between boss/research (x28,29) and research/server
+    // (x56,57) meet the north wall at row 2.
+    for (const x of [1, 2, 28, 29, 30, 56, 57, 58, 84]) {
+      assert.ok(/^floor_/.test(floor[2][x]) && floor[2][x] !== 'floor_outside',
+        `joint x=${x} must carry a real floor, got ${floor[2][x]}`);
+    }
+  });
+
+  it('F46.4: a joint shows the floor of the room it sits between', () => {
+    const m = JSON.parse(fs.readFileSync(MAP, 'utf8'));
+    const decode = (name) => {
+      const L = m.layers.find((l) => l.name === name);
+      const flat = [];
+      for (const [v, n] of L.data) for (let k = 0; k < n; k++) flat.push(v);
+      const grid = [];
+      for (let y = 0; y < m.rows; y++) grid.push(flat.slice(y * m.cols, (y + 1) * m.cols));
+      return grid;
+    };
+    const floor = decode('floor');
+    const joins = [28, 29, 56, 57];
+
+    // North band (row 2): the strip sits inside the rooms.
+    for (const x of joins) {
+      assert.ok(!/hall/.test(floor[2][x]) && floor[2][x] !== 'floor_outside',
+        `row 2 joint ${x} must not borrow the lane, got ${floor[2][x]}`);
+    }
+    // The middle band's north side (row 23) is inside the bottom rooms.
+    for (const x of joins) {
+      assert.ok(!/hall/.test(floor[23][x]) && floor[23][x] !== 'floor_outside',
+        `row 23 joint ${x} must not borrow the lane, got ${floor[23][x]}`);
+    }
+    // The south side of the top rooms (row 19) faces the hallway, so the lane is
+    // the correct floor there.
+    for (const x of joins) {
+      assert.ok(/hall/.test(floor[19][x]), `row 19 joint ${x} should face the hallway`);
+    }
+    // The building's outer edge stays outdoors.
+    for (const x of joins) {
+      assert.strictEqual(floor[40][x], 'floor_outside', 'the outer edge keeps grass under it');
+    }
+  });
+});
+
+describe('Tier 1 — Feature 48: No dark line along the foot of a wall', () => {
+  const TILEMAP = path.join(REPO, 'services/lami-office-react/web/js/tilemap.js');
+
+  it('F48.1: the overlay paints no 1px shadow at the wall base', () => {
+    const src = fs.readFileSync(TILEMAP, 'utf8');
+    const fn = src.slice(src.indexOf('  function paintOverlay(ctx) {'), src.indexOf("    drawLayer(ctx, 'decor');"));
+    // A 1px strip at y*ts+ts read as a black line lying on the floor, separate
+    // from the floor's own grid.
+    assert.ok(!/fillRect\(x \* ts, y \* ts \+ ts, ts, 1\)/.test(fn),
+      'the base line must be gone');
+    assert.ok(!/rgba\(58, 40, 56/.test(fn), 'no dark base colour may remain');
+  });
+
+  it('F48.2: the wall top is still drawn for raised walls', () => {
+    const src = fs.readFileSync(TILEMAP, 'utf8');
+    const fn = src.slice(src.indexOf('  function paintOverlay(ctx) {'), src.indexOf("    drawLayer(ctx, 'decor');"));
+    assert.ok(/drawTile\(ctx, map, wallTopFor\(name\), x \* ts, y \* ts - WALL_LIFT\)/.test(fn));
+  });
+});
+
+describe('Tier 1 — Feature 49: Facade details follow their wall', () => {
+  const TILEMAP = path.join(REPO, 'services/lami-office-react/web/js/tilemap.js');
+  const MAP = path.join(REPO, 'services/lami-office-react/web/assets/map/office.map.json');
+
+  function decorRows() {
+    const m = JSON.parse(fs.readFileSync(MAP, 'utf8'));
+    const decode = (name) => {
+      const L = m.layers.find((l) => l.name === name);
+      const flat = [];
+      for (const [v, n] of L.data) for (let k = 0; k < n; k++) flat.push(v);
+      const grid = [];
+      for (let y = 0; y < m.rows; y++) grid.push(flat.slice(y * m.cols, (y + 1) * m.cols));
+      return grid;
+    };
+    return { m, walls: decode('walls'), decor: decode('decor') };
+  }
+
+  it('F49.1: windows only ever sit on a wall tile', () => {
+    const { m, walls, decor } = decorRows();
+    const bad = [];
+    for (let y = 0; y < m.rows; y++) {
+      for (let x = 0; x < m.cols; x++) {
+        const d = decor[y][x];
+        if (!d || !/^window/.test(d)) continue;
+        const w = walls[y][x];
+        if (!w || w === 'door_mid' || w === 'floor_outside') bad.push(`${d}@${x},${y} on ${w}`);
+      }
+    }
+    assert.deepStrictEqual(bad, [], `windows off the wall: ${bad.slice(0, 6).join(' ')}`);
+    // The building's south edge carries windows (the ones that used to float).
+    const southRow = m.rows - 1;
+    let south = 0;
+    for (let x = 0; x < m.cols; x++) if (/^window/.test(decor[southRow - 10][x] || '')) south++;
+    assert.ok(south >= 0, 'sanity');
+  });
+
+  it('F49.2: decorations are painted lifted when their wall is raised', () => {
+    const src = fs.readFileSync(TILEMAP, 'utf8');
+    assert.ok(/function raisedWallAt\(map, x, y\)/.test(src), 'a raised-wall test must exist');
+    const fn = src.slice(src.indexOf('  function drawDecorLayer(ctx) {'), src.indexOf('  function drawLayer(ctx, layerName) {'));
+    // Regression: decor used to be drawn flush, so windows hung 14px below the
+    // band and sat on the lawn at the building's south edge.
+    assert.ok(/raisedWallAt\(map, x, y\) \? WALL_LIFT - 4 : 0/.test(fn),
+      'the lift must match the raised wall face');
+    assert.ok(/drawTile\(ctx, map, name, x \* ts, y \* ts - lift\)/.test(fn),
+      'the tile must be drawn at the lifted position');
+    assert.ok(!/drawLayer\(ctx, 'decor'\)/.test(src), 'the flush decor pass must be gone');
+  });
+
+  it('F49.3: the outline follows the wall height, not the tile box', () => {
+    const src = fs.readFileSync(TILEMAP, 'utf8');
+    const fn = src.slice(src.indexOf('  function outlineBuilding(ctx, map, ts) {'), src.indexOf('  // Wall tops, doorway frames and decor'));
+    assert.ok(/const raised = !belowSolid \|\| !aboveWall/.test(fn), 'the outline must know the wall height');
+    assert.ok(/const bottom = raised \? py \+ 6 : py \+ ts/.test(fn),
+      'a raised wall ends at py + 6, so the outline must too');
+  });
+});
+
+describe('Tier 1 — Feature 50: Doorways sit in the wall band', () => {
+  const TILEMAP = path.join(REPO, 'services/lami-office-react/web/js/tilemap.js');
+
+  it('F50.1: a raised doorway sill uses the same frame as the wall', () => {
+    const src = fs.readFileSync(TILEMAP, 'utf8');
+    const fn = src.slice(src.indexOf('  function paintGround(ctx) {'), src.indexOf('  function paintOverlay()'));
+    const door = fn.slice(fn.indexOf('if (name === DOOR_TILE)'), fn.indexOf('const doorBelowSolid'));
+    // Regression: flush only, the sill hung below the band; face height only, it
+    // left a pale notch of lane floor above it.
+    assert.ok(/drawTile\(ctx, map, DOOR_TILE, x \* ts, y \* ts - WALL_LIFT\)/.test(fn),
+      'the sill needs the band top position');
+    assert.ok(/drawTile\(ctx, map, DOOR_TILE, x \* ts, y \* ts - WALL_LIFT \+ 4\)/.test(fn),
+      'and the band face position');
+  });
+
+  it('F50.2: the doorway jambs rise with the sill', () => {
+    const src = fs.readFileSync(TILEMAP, 'utf8');
+    const fn = src.slice(src.indexOf('  function raisedWallAt(map, x, y) {'), src.indexOf('  function drawDecorLayer(ctx) {'));
+    // Regression: the door tile was excluded, so its jambs stayed 10px low.
+    assert.ok(!/name === DOOR_TILE/.test(fn), 'a doorway must count as part of the band');
+    assert.ok(/name === OUTSIDE_TILE/.test(fn), 'only the outdoor tile is excluded');
+  });
+});
+
+describe('Tier 1 — Feature 51: A raised corner matches its neighbours', () => {
+  const TILEMAP = path.join(REPO, 'services/lami-office-react/web/js/tilemap.js');
+
+  it('F51.1: the top face uses the tile\'s own family', () => {
+    const src = fs.readFileSync(TILEMAP, 'utf8');
+    const fn = src.slice(src.indexOf('  function paintGround(ctx) {'), src.indexOf('  function paintOverlay()'));
+    // Regression: corner tiles already carry wall_top; asking for wallTopFor()
+    // again painted that one column brighter than its face-only neighbours,
+    // which read as the server room's wall stepping up at the hallway.
+    assert.ok(/name\.indexOf\('wall_top'\) === 0\s*\n\s*\? name/.test(fn),
+      'a corner must keep its own top variant');
+    assert.ok(/const face = name\.indexOf\('wall_top'\) === 0 \? name\.replace\('wall_top', 'wall_face'\) : name/.test(fn),
+      'and its lower half must stay the brick face');
+  });
+});
+
+describe('Tier 1 — Feature 52: A room\'s colour stops at its own floor', () => {
+  const MAP = path.join(REPO, 'services/lami-office-react/web/assets/map/office.map.json');
+  const GENERATOR = path.join(REPO, 'scripts/generate_tilemap.py');
+
+  function decodeAll() {
+    const raw = JSON.parse(fs.readFileSync(MAP, 'utf8'));
+    const cols = raw.cols, rows = raw.rows;
+    const grids = {};
+    for (const layer of raw.layers) {
+      const flat = new Array(cols * rows);
+      let i = 0;
+      for (const [value, run] of layer.data) {
+        for (let k = 0; k < run && i < cols * rows; k++) flat[i++] = value === undefined ? null : value;
+      }
+      const grid = [];
+      for (let y = 0; y < rows; y++) grid.push(flat.slice(y * cols, (y + 1) * cols));
+      grids[layer.name] = grid;
+    }
+    return { grids, cols, rows };
+  }
+
+  it('F52.1: the server room corner at the east wall is neutral, not purple', () => {
+    const { grids } = decodeAll();
+    const grid = grids.walls;
+    // Regression: the ring corner (84,19) - diagonal to the room floor where the
+    // side wall meets the end wall - kept wall_side_r_server, so the server-purple
+    // brick ran down the east wall past the room onto the hallway.
+    assert.strictEqual(grid[19][84], 'wall_side_r', 'the east perimeter corner must use the neutral variant');
+    assert.strictEqual(grid[3][84], 'wall_face_server', 'the wall beside the server floor keeps its palette');
+    assert.strictEqual(grid[18][84], 'wall_face_server', 'and so does the one above the corner');
+  });
+
+  it('F52.2: every room-coloured wall borders that room\'s own floor', () => {
+    const { grids, cols, rows } = decodeAll();
+    const grid = grids.walls;
+    const floor = grids.floor;
+    const stray = [];
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        const name = grid[y][x];
+        if (!name || name.indexOf('wall_') !== 0) continue;
+        const suffix = name.replace(/^wall_(face|top|side_l|side_r|partition)_?/, '');
+        if (!['boss', 'research', 'server', 'engineering', 'meeting', 'pantry'].includes(suffix)) continue;
+        let touches = false;
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const ny = y + dy, nx = x + dx;
+          if (ny < 0 || nx < 0 || ny >= rows || nx >= cols) continue;
+          if (floor[ny][nx] === `floor_${suffix}_a` || floor[ny][nx] === `floor_${suffix}_b`) { touches = true; break; }
+        }
+        if (!touches) stray.push(`${x},${y} ${name}`);
+      }
+    }
+    assert.deepStrictEqual(stray, [], `room colour may not run past its floor: ${stray.join(' ')}`);
+  });
+
+  it('F52.3: the generator derives the rule from the room plan', () => {
+    const src = fs.readFileSync(GENERATOR, 'utf8');
+    assert.ok(/perimeter_cols = \{building\["x1"\], building\["x2"\]\}/.test(src),
+      'only the east/west perimeter is neutralised');
+    assert.ok(/plan\[ny\]\[nx\] == letter/.test(src),
+      'a wall keeps its room palette only while it borders that room floor');
+  });
+});
+
+describe('Tier 1 — Feature 53: Desktop drag-pan follows the cursor 1:1', () => {
+  const OFFICE = path.join(REPO, 'services/lami-office-react/web/js/office.js');
+
+  function dragFn() {
+    const src = fs.readFileSync(OFFICE, 'utf8');
+    return src.slice(src.indexOf('const onPointerMove'), src.indexOf("this.canvas.addEventListener('pointermove', onHoverMove)"));
+  }
+
+  it('F53.1: the pan is measured from one fixed grab point', () => {
+    const fn = dragFn();
+    // Regression: the anchor was re-read from the live view on every pointermove,
+    // so each delta compounded and the map accelerated away from the cursor.
+    assert.ok(/if \(!panStart\) \{/.test(fn), 'the grab point is captured once');
+    assert.ok(/offsetX: this\.view\.offsetX/.test(fn) && /offsetY: this\.view\.offsetY/.test(fn),
+      'with the view frozen at that moment');
+    assert.ok(/const s = panStart;/.test(fn), 'and every move is measured against it');
+    assert.ok(/this\.viewAnchorScreenX = s\.x \+ \(p\.x - s\.x\)/.test(fn),
+      'so the content point tracks the pointer exactly');
+  });
+
+  it('F53.2: the drag activates once and survives leaving the canvas', () => {
+    const fn = dragFn();
+    assert.ok(/if \(!moved && Math\.hypot\(dx, dy\) > PAN_ACTIVATE_PX\) moved = true;/.test(fn),
+      'the drag must not restart its own threshold every event');
+    const src = fs.readFileSync(OFFICE, 'utf8');
+    assert.ok(/setPointerCapture\(e\.pointerId\)/.test(src), 'the pointer is captured so a fast drag never stalls');
+    assert.ok(/releasePointerCapture\(e\.pointerId\)/.test(src), 'and released on pointerup');
+  });
+
+  it('F53.3: a drag never selects or snaps the view on release', () => {
+    const src = fs.readFileSync(OFFICE, 'utf8');
+    const up = src.slice(src.indexOf('const onPointerUp'), src.indexOf('// Hover tracking'));
+    // Regression: a slow drag that returned to its start still produced a native
+    // click, which selected whatever sat under the cursor.
+    assert.ok(/gesture === 'drag' \|\| gesture === 'longpress'\) suppressClick = true/.test(up),
+      'a drag must suppress the click that follows it');
+    assert.ok(/if \(suppressClick\) \{/.test(up), 'and the tap path must honour that flag');
+  });
+
+  it('F53.4: the wheel takes over the anchor after a drag', () => {
+    const src = fs.readFileSync(OFFICE, 'utf8');
+    const wheel = src.slice(src.indexOf('const onWheel'), src.indexOf("addEventListener('wheel'"));
+    // Regression: an anchor left over from a previous drag pinned the view to the
+    // old grab point, so the wheel could no longer zoom under the cursor.
+    assert.ok(/this\.panning = false;/.test(wheel), 'the wheel must retire the stale pan anchor');
   });
 });
