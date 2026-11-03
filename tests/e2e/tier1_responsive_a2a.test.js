@@ -1132,10 +1132,32 @@ describe('Tier 1 — Feature 52: A room\'s colour stops at its own floor', () =>
           if (ny < 0 || nx < 0 || ny >= rows || nx >= cols) continue;
           if (floor[ny][nx] === `floor_${suffix}_a` || floor[ny][nx] === `floor_${suffix}_b`) { touches = true; break; }
         }
-        if (!touches) stray.push(`${x},${y} ${name}`);
+        if (touches) continue;
+        // A building outer corner caps a wall run of its own room (the end of
+        // the north/south band): it borders no floor but its horizontal
+        // neighbour carries the same palette, so the colour does not "run past"
+        // the room - it closes the band. A tile that instead continues a
+        // vertical run down to the hallway has no such horizontal neighbour and
+        // is a genuine stray.
+        const side = grid[y][x - 1] || grid[y][x + 1];
+        const capsRun = typeof side === 'string' && side.endsWith('_' + suffix);
+        if (!capsRun) stray.push(`${x},${y} ${name}`);
       }
     }
     assert.deepStrictEqual(stray, [], `room colour may not run past its floor: ${stray.join(' ')}`);
+  });
+
+  it('F52.4: a building outer corner closes its wall band in the room palette', () => {
+    const { grids } = decodeAll();
+    const grid = grids.walls;
+    // Regression: neutralising every perimeter corner left (84,2) a lone tan
+    // wall_top cap at the end of the server room's north band ("ujungnya ga
+    // serasi"). The run ends must keep the room palette; only the mid-run
+    // joints fall back to neutral (checked by F52.1).
+    assert.strictEqual(grid[2][84], 'wall_top_server', 'the server room NE corner keeps its palette');
+    assert.strictEqual(grid[2][1], 'wall_top_boss', 'the boss office NW corner keeps its palette');
+    assert.strictEqual(grid[40][1], 'wall_face_engineering', 'the engineering SW corner keeps its palette');
+    assert.strictEqual(grid[40][84], 'wall_face_pantry', 'the pantry SE corner keeps its palette');
   });
 
   it('F52.3: the generator derives the rule from the room plan', () => {
@@ -1144,6 +1166,9 @@ describe('Tier 1 — Feature 52: A room\'s colour stops at its own floor', () =>
       'only the east/west perimeter is neutralised');
     assert.ok(/plan\[ny\]\[nx\] == letter/.test(src),
       'a wall keeps its room palette only while it borders that room floor');
+    assert.ok(/above_wall = y - 1 >= 0 and walls\[y - 1\]\[x\] is not None/.test(src)
+      && /if above_wall and below_wall:/.test(src),
+      'only mid-run joints are neutralised; the run ends keep the room palette');
   });
 });
 

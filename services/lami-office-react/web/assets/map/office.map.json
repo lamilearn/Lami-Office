@@ -12050,7 +12050,7 @@
      177
     ],
     [
-     "wall_top",
+     "wall_top_boss",
      1
     ],
     [
@@ -12082,7 +12082,7 @@
      26
     ],
     [
-     "wall_top",
+     "wall_top_server",
      1
     ],
     [
@@ -13522,12 +13522,8 @@
      4
     ],
     [
-     "wall_face",
-     1
-    ],
-    [
      "wall_face_engineering",
-     27
+     28
     ],
     [
      "wall_face_meeting",
@@ -13535,11 +13531,7 @@
     ],
     [
      "wall_face_pantry",
-     27
-    ],
-    [
-     "wall_face",
-     1
+     28
     ],
     [
      null,

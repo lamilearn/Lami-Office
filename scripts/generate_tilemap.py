@@ -187,9 +187,11 @@ def build_map(cfg: dict) -> dict:
     # diagonal to the floor, where the side wall meets the end wall) borders no
     # floor of its own, so leaving the room tag on it let the colour run past the
     # room: at the server room's hallway corner the server-purple brick kept
-    # going down the east wall below the room. Those perimeter corners fall back
-    # to the neutral variant. Corners inside the building keep their room colour
-    # so a shared north/south wall run stays continuous across a room boundary.
+    # going down the east wall below the room. Those mid-run corners fall back
+    # to the neutral variant; the ends of the run (building top/bottom corners)
+    # keep the room colour so the band does not finish in a mismatched block.
+    # Corners inside the building keep their room colour so a shared
+    # north/south wall run stays continuous across a room boundary.
     perimeter_cols = {building["x1"], building["x2"]}
     room_letter = {room: letter for letter, room in letter_to_room.items()}
     for y in range(rows):
@@ -204,7 +206,18 @@ def build_map(cfg: dict) -> dict:
                 if 0 <= nx < cols and 0 <= ny < rows and plan[ny][nx] == letter:
                     touches = True
                     break
-            if not touches:
+            if touches:
+                continue
+            # The corner borders no floor of its own. At a mid-run joint - a side
+            # wall running down past the room to the hallway - the colour must
+            # stop, or the room's brick bleeds down the outer wall. But at the
+            # ENDS of that run (the building's top and bottom corners) the tile
+            # caps the room's own wall run, so it must keep the room palette:
+            # neutralised, the north/south wall band finished in a lone tan block
+            # that did not match the band beside it ("ujungnya ga serasi").
+            above_wall = y - 1 >= 0 and walls[y - 1][x] is not None
+            below_wall = y + 1 < rows and walls[y + 1][x] is not None
+            if above_wall and below_wall:
                 wall_room[y][x] = None
 
     for y in range(rows):
