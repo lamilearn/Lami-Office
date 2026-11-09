@@ -685,8 +685,8 @@
       ctx.fillStyle = '#e74c3c';
       ctx.fillRect(crX + 4, crY + 1, 2, 2);
 
-      // Potted Luxury Monstera Plant
-      const px = 4 * ts, py = 5 * ts;
+      // Potted Luxury Monstera Plant (north wall, west end)
+      const px = 2 * ts, py = 3 * ts;
       ctx.fillStyle = '#c0392b';
       ctx.fillRect(px, py + 8, 14, 10);
       ctx.fillStyle = '#27ae60';
@@ -694,8 +694,8 @@
       ctx.arc(px + 7, py + 5, 8, 0, Math.PI * 2);
       ctx.fill();
 
-      // Second plant on the east side
-      const p2x = 25 * ts, p2y = 5 * ts;
+      // Second plant on the north wall, mirrored to the east end
+      const p2x = 27 * ts, p2y = 3 * ts;
       ctx.fillStyle = '#c0392b';
       ctx.fillRect(p2x, p2y + 8, 14, 10);
       ctx.fillStyle = '#27ae60';
@@ -703,11 +703,8 @@
       ctx.arc(p2x + 7, p2y + 5, 8, 0, Math.PI * 2);
       ctx.fill();
 
-      // Boss bookshelf (X: 8, Y: 6)
-      this.draw2DBlock(ctx, 8 * ts, 6 * ts, 1 * ts, 1.2 * ts, 8, '#5c4033', '#3d2b22');
-
       // Context Window Trashcan (Interactive Prop)
-      const tc = LO.PROPS?.trashcan || { x: 20, y: 6 };
+      const tc = LO.PROPS?.trashcan || { x: 18, y: 7 };
       this.drawContextTrashcan(ctx, (tc.x + 0.5) * ts, (tc.y + 0.5) * ts);
 
       // Guest chairs facing the desk
@@ -791,16 +788,17 @@
       ctx.arc(scX + 22, scY + 5, 3.5, 0, Math.PI * 2);
       ctx.fill();
 
-      // Lab bookshelves (X: 49..53, Y: 3) + corkboard (X: 31..34, Y: 4)
-      const bsX = 49 * ts, bsY = 3 * ts;
-      this.draw2DBlock(ctx, bsX, bsY, 5 * ts, 1 * ts, 10, '#5c4033', '#3d2b22');
+      // Lab bookshelves (X: 51..54, Y: 3) + corkboard (X: 31..34, Y: 3),
+      // both on the north wall so the wall reads as one band
+      const bsX = 50 * ts, bsY = 3 * ts;
+      this.draw2DBlock(ctx, bsX, bsY, 4 * ts, 1 * ts, 10, '#5c4033', '#3d2b22');
       const bookColors = ['#e74c3c', '#3498db', '#2ecc71', '#f1c40f', '#9b59b6', '#e67e22', '#1abc9c'];
       for (let bi = 0; bi < 20; bi++) {
         ctx.fillStyle = bookColors[bi % bookColors.length];
         ctx.fillRect(bsX + 3 + bi * 3.6, bsY + 3, 2.6, 9);
       }
 
-      const cbX = 31 * ts, cbY = 4 * ts;
+      const cbX = 30 * ts, cbY = 3 * ts;
       this.draw2DBlock(ctx, cbX, cbY, 4 * ts, 1 * ts, 10, '#c79867', '#8c5828');
       ctx.fillStyle = '#ff8fa3'; ctx.fillRect(cbX + 5, cbY + 3, 6, 5);
       ctx.fillStyle = '#ffd25e'; ctx.fillRect(cbX + 17, cbY + 3, 6, 5);
@@ -875,8 +873,8 @@
         ctx.textAlign = 'left';
       });
 
-      // Mainframe Ops Console Desk (X: 66..71, Y: 14)
-      const cx = 66 * ts, cy = 14 * ts;
+      // Mainframe Ops Console Desk (X: 67..72, Y: 14), centred on the seat at X 70
+      const cx = 67 * ts, cy = 14 * ts;
       this.draw2DBlock(ctx, cx, cy, 6 * ts, 1.2 * ts, 12, '#34495e', '#2c3e50');
 
       [cx + 6, cx + 36, cx + 66].forEach((mx, i) => {
@@ -897,9 +895,8 @@
     // Specific Room 4: Engineering Pit (interior X: 2..27, Y: 24..39)
     drawEngineeringPit(ctx, ts, theme) {
       const pods = [
-        { x: 6, y: 27 }, { x: 11, y: 27 },
-        { x: 6, y: 32 }, { x: 11, y: 32 },
-        { x: 17, y: 30 }, { x: 22, y: 30 }
+        { x: 6, y: 27 }, { x: 14, y: 27 }, { x: 22, y: 27 },
+        { x: 6, y: 32 }, { x: 14, y: 32 }, { x: 22, y: 32 }
       ];
 
       for (const p of pods) {
@@ -933,8 +930,8 @@
       ctx.fillStyle = '#111111';
       ctx.fillRect(canX + 1, canY + 1, 2, 4);
 
-      // Mini Server Tower / Custom Rig (X: 16, Y: 27)
-      const rigX = 16 * ts, rigY = 27 * ts;
+      // Mini Server Tower / Custom Rig (X: 2, Y: 24), north-west corner
+      const rigX = 2 * ts, rigY = 24 * ts;
       this.draw2DBlock(ctx, rigX, rigY, 1 * ts, 1.2 * ts, 8, '#221b2c', '#15101c');
       const rgbColor = ['#ff7675', '#74b9ff', '#55efc4', '#a29bfe'][Math.floor(this.timeSec * 2) % 4];
       ctx.fillStyle = rgbColor;
@@ -1168,11 +1165,11 @@
       const sX = 63 * ts, sY = 33 * ts;
       this.draw2DBlock(ctx, sX, sY, 6 * ts, 1.1 * ts, 10, '#7ac9af', '#57aa8f');
 
-      // Low Wood Coffee Table (X: 68..70, Y: 36)
-      this.draw2DBlock(ctx, 68 * ts, 36 * ts, 3 * ts, 1.0 * ts, 8, '#c7926b', '#9b6e4e');
+      // Low Wood Coffee Table (X: 64..66, Y: 35) — one row in front of the sofa
+      this.draw2DBlock(ctx, 64 * ts, 35 * ts, 3 * ts, 1.0 * ts, 8, '#c7926b', '#9b6e4e');
 
-      // Snack Vending Machine along East wall (X: 78..80, Y: 33..34)
-      const vmX = 78 * ts, vmY = 33 * ts;
+      // Snack Vending Machine flush against the East wall (X: 80..82, Y: 33..34)
+      const vmX = 80 * ts, vmY = 33 * ts;
       this.draw2DBlock(ctx, vmX, vmY, 3 * ts, 2 * ts, 8, '#ff7675', '#d65453');
       ctx.fillStyle = '#1e293b';
       ctx.fillRect(vmX + 3, vmY + 8, 40, 22);
@@ -1185,7 +1182,7 @@
       // Pizza / Martabak Event Item on Table
       const office = window.LO?.office;
       if (office && office.pizzaEventTimer > 0) {
-        const pzX = 68 * ts + 2, pzY = 36 * ts + 2;
+        const pzX = 64 * ts + 2, pzY = 35 * ts + 2;
         ctx.fillStyle = '#e67e22';
         ctx.fillRect(pzX, pzY, 14, 5);
         ctx.strokeStyle = '#d35400';
