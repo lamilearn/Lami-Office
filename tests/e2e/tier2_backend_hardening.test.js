@@ -129,6 +129,7 @@ S.CFG['antigravity_glob']=''
 S.CFG['sessions_glob']='/tmp/kilo/h2-no-sessions/**/*.json*'
 S.CFG['source']='sqlite'
 S.CFG['poll_interval']=0.05
+os.makedirs('/tmp/kilo', exist_ok=True)
 open('/tmp/kilo/h2-corrupt.db','wb').write(b'not-sqlite'*50)
 t=threading.Thread(target=S.watcher_loop, daemon=True); t.start()
 for _ in range(60):
