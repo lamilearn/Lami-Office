@@ -219,36 +219,41 @@
 
     getFurnitureObstacles() {
       return [
-        // Boss Office (interior X: 2..27, Y: 3..18)
+        // Boss Office (interior X: 2..27, Y: 3..18). The desk is centred on the
+        // room; every other piece sits on a wall, mirrored about X=14.5.
         { x: 11, y: 7,  w: 7, h: 1, name: 'Executive Desk' },
-        { x: 4,  y: 5,  w: 1, h: 1, name: 'Boss Plant / Monstera' },
-        { x: 20, y: 6,  w: 1, h: 1, name: 'Context Trashcan' },
-        { x: 25, y: 5,  w: 1, h: 1, name: 'Boss Plant East' },
-        { x: 8,  y: 6,  w: 1, h: 1, name: 'Boss Bookshelf' },
+        { x: 2,  y: 3,  w: 1, h: 1, name: 'Boss Plant / Monstera' },
+        { x: 27, y: 3,  w: 1, h: 1, name: 'Boss Plant East' },
+        { x: 18, y: 7,  w: 1, h: 1, name: 'Context Trashcan' },
 
-        // Research Lab (interior X: 30..55, Y: 3..18)
+        // Research Lab (interior X: 30..55, Y: 3..18): three desk columns at
+        // X 33/41/49, benches and wall storage aligned to the same grid.
         { x: 33, y: 9,  w: 3, h: 1, name: 'Research Desk 1' },
         { x: 41, y: 9,  w: 3, h: 1, name: 'Research Desk 2' },
         { x: 49, y: 9,  w: 3, h: 1, name: 'Research Desk 3' },
         { x: 33, y: 15, w: 2, h: 1, name: 'Microscope Station' },
-        { x: 49, y: 3,  w: 5, h: 1, name: 'Lab Bookshelves' },
-        { x: 31, y: 4,  w: 4, h: 1, name: 'Lab Corkboard' },
+        { x: 50, y: 3,  w: 4, h: 1, name: 'Lab Bookshelves' },
+        { x: 30, y: 3,  w: 4, h: 1, name: 'Lab Corkboard' },
 
-        // Server Room (interior X: 58..83, Y: 3..18)
-        { x: 63, y: 6,  w: 3, h: 2, name: 'Server Rack Cluster 1' },
-        { x: 69, y: 6,  w: 3, h: 2, name: 'Server Rack Cluster 2' },
-        { x: 75, y: 6,  w: 3, h: 2, name: 'Server Rack Cluster 3' },
-        { x: 81, y: 6,  w: 2, h: 2, name: 'Server Rack Cluster 4' },
-        { x: 66, y: 14, w: 6, h: 1, name: 'Mainframe Ops Console' },
+        // Server Room (interior X: 58..83, Y: 3..18): the rack footprints are
+        // the ones LO.VM_RACKS draws, so a character can never walk through a
+        // rack it can see.
+        { x: 60, y: 6,  w: 3, h: 2, name: 'Server Rack Cluster 1' },
+        { x: 65, y: 6,  w: 3, h: 2, name: 'Server Rack Cluster 2' },
+        { x: 70, y: 6,  w: 3, h: 2, name: 'Server Rack Cluster 3' },
+        { x: 75, y: 6,  w: 3, h: 2, name: 'Server Rack Cluster 4' },
+        { x: 80, y: 6,  w: 3, h: 2, name: 'Server Rack Cluster 5' },
+        { x: 67, y: 14, w: 6, h: 1, name: 'Mainframe Ops Console' },
 
-        // Engineering Pit (interior X: 2..27, Y: 24..39)
+        // Engineering Pit (interior X: 2..27, Y: 24..39): two pod rows, both
+        // with the seat row directly under the desk.
         { x: 6,  y: 27, w: 3, h: 1, name: 'Dev Desk 1' },
-        { x: 11, y: 27, w: 3, h: 1, name: 'Dev Desk 2' },
-        { x: 6,  y: 32, w: 3, h: 1, name: 'Dev Desk 3' },
-        { x: 11, y: 32, w: 3, h: 1, name: 'Dev Desk 4' },
-        { x: 17, y: 30, w: 3, h: 1, name: 'Dev Desk 5' },
-        { x: 22, y: 30, w: 3, h: 1, name: 'Dev Desk 6' },
-        { x: 16, y: 27, w: 1, h: 1, name: 'Mini Server Rig' },
+        { x: 14, y: 27, w: 3, h: 1, name: 'Dev Desk 2' },
+        { x: 22, y: 27, w: 3, h: 1, name: 'Dev Desk 3' },
+        { x: 6,  y: 32, w: 3, h: 1, name: 'Dev Desk 4' },
+        { x: 14, y: 32, w: 3, h: 1, name: 'Dev Desk 5' },
+        { x: 22, y: 32, w: 3, h: 1, name: 'Dev Desk 6' },
+        { x: 2,  y: 24, w: 1, h: 1, name: 'Mini Server Rig' },
 
         // Meeting Room (interior X: 30..55, Y: 24..39)
         { x: 38, y: 30, w: 12, h: 3, name: 'Conference Table' },
@@ -256,10 +261,10 @@
 
         // Pantry / Lounge (interior X: 58..83, Y: 24..39)
         { x: 60, y: 27, w: 6, h: 1, name: 'Espresso Bar Counter' },
-        { x: 74, y: 28, w: 1, h: 1, name: 'Water Cooler' },
+        { x: 73, y: 28, w: 1, h: 1, name: 'Water Cooler' },
         { x: 63, y: 33, w: 6, h: 1, name: 'Teal Lounge Sofa' },
-        { x: 68, y: 36, w: 3, h: 1, name: 'Coffee Table' },
-        { x: 78, y: 33, w: 3, h: 2, name: 'Snack Vending Machine' },
+        { x: 64, y: 35, w: 3, h: 1, name: 'Coffee Table' },
+        { x: 80, y: 33, w: 3, h: 2, name: 'Snack Vending Machine' },
 
         // Extra props declared in LO.DECOR_PROPS: anything marked solid blocks
         // movement, so the drawing and the collision grid can never disagree.

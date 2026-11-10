@@ -24,6 +24,7 @@ from __future__ import annotations
 import math
 import random
 import re
+import struct
 import time
 
 # --------------------------------------------------------------------------------------
@@ -79,11 +80,11 @@ SLOTS = {
     ],
     "engineering": [
         {"x": 7, "y": 28, "type": "desk", "facing": "N"},
-        {"x": 12, "y": 28, "type": "desk", "facing": "N"},
+        {"x": 15, "y": 28, "type": "desk", "facing": "N"},
+        {"x": 23, "y": 28, "type": "desk", "facing": "N"},
         {"x": 7, "y": 33, "type": "desk", "facing": "N"},
-        {"x": 12, "y": 33, "type": "desk", "facing": "N"},
-        {"x": 18, "y": 31, "type": "desk", "facing": "N"},
-        {"x": 23, "y": 31, "type": "desk", "facing": "N"},
+        {"x": 15, "y": 33, "type": "desk", "facing": "N"},
+        {"x": 23, "y": 33, "type": "desk", "facing": "N"},
     ],
     "meeting": [
         {"x": 41, "y": 29, "type": "sit", "facing": "S"},
@@ -98,7 +99,7 @@ SLOTS = {
         {"x": 64, "y": 34, "type": "sit", "facing": "S"},
         {"x": 66, "y": 34, "type": "sit", "facing": "S"},
         {"x": 73, "y": 29, "type": "stand", "facing": "N"},
-        {"x": 77, "y": 34, "type": "stand", "facing": "W"},
+        {"x": 77, "y": 34, "type": "stand", "facing": "E"},
     ],
 }
 SLOTS["coding"] = SLOTS["engineering"]
@@ -106,9 +107,9 @@ SLOTS["coding"] = SLOTS["engineering"]
 LAMI_SEAT = {"x": 14, "y": 6, "facing": "S"}
 
 PROPS = {
-    "trashcan": {"x": 20, "y": 6, "w": 1, "h": 1},
+    "trashcan": {"x": 18, "y": 7, "w": 1, "h": 1},
     "whiteboard": {"x": 32, "y": 24, "w": 5, "h": 2},
-    "watercooler": {"x": 74, "y": 28, "w": 1, "h": 1},
+    "watercooler": {"x": 73, "y": 28, "w": 1, "h": 1},
 }
 
 RESIDENTS = [
@@ -134,57 +135,65 @@ DEFAULT_TOOL_BY_ROOM = {"research": "search", "coding": "code", "engineering": "
 
 # Furniture obstacles (mirror of Office.getFurnitureObstacles in web/js/office.js)
 FURNITURE = [
-    {"x": 11, "y": 7, "w": 7, "h": 1}, {"x": 4, "y": 5, "w": 1, "h": 1},
-    {"x": 20, "y": 6, "w": 1, "h": 1}, {"x": 25, "y": 5, "w": 1, "h": 1},
-    {"x": 8, "y": 6, "w": 1, "h": 1},
+    # Boss Office: desk centred, everything else mirrored about X=14.5
+    {"x": 11, "y": 7, "w": 7, "h": 1}, {"x": 2, "y": 3, "w": 1, "h": 1},
+    {"x": 27, "y": 3, "w": 1, "h": 1}, {"x": 18, "y": 7, "w": 1, "h": 1},
+    # Research Lab: desk columns 33/41/49
     {"x": 33, "y": 9, "w": 3, "h": 1}, {"x": 41, "y": 9, "w": 3, "h": 1},
     {"x": 49, "y": 9, "w": 3, "h": 1}, {"x": 33, "y": 15, "w": 2, "h": 1},
-    {"x": 49, "y": 3, "w": 5, "h": 1}, {"x": 31, "y": 4, "w": 4, "h": 1},
-    {"x": 63, "y": 6, "w": 3, "h": 2}, {"x": 69, "y": 6, "w": 3, "h": 2},
-    {"x": 75, "y": 6, "w": 3, "h": 2}, {"x": 81, "y": 6, "w": 2, "h": 2},
-    {"x": 66, "y": 14, "w": 6, "h": 1},
-    {"x": 6, "y": 27, "w": 3, "h": 1}, {"x": 11, "y": 27, "w": 3, "h": 1},
-    {"x": 6, "y": 32, "w": 3, "h": 1}, {"x": 11, "y": 32, "w": 3, "h": 1},
-    {"x": 17, "y": 30, "w": 3, "h": 1}, {"x": 22, "y": 30, "w": 3, "h": 1},
-    {"x": 16, "y": 27, "w": 1, "h": 1},
+    {"x": 50, "y": 3, "w": 4, "h": 1}, {"x": 30, "y": 3, "w": 4, "h": 1},
+    # Server Room: rack footprints are the ones LO.VM_RACKS draws
+    {"x": 60, "y": 6, "w": 3, "h": 2}, {"x": 65, "y": 6, "w": 3, "h": 2},
+    {"x": 70, "y": 6, "w": 3, "h": 2}, {"x": 75, "y": 6, "w": 3, "h": 2},
+    {"x": 80, "y": 6, "w": 3, "h": 2},
+    {"x": 67, "y": 14, "w": 6, "h": 1},
+    # Engineering Pit: two pod rows, seat row directly under the desk
+    {"x": 6, "y": 27, "w": 3, "h": 1}, {"x": 14, "y": 27, "w": 3, "h": 1},
+    {"x": 22, "y": 27, "w": 3, "h": 1}, {"x": 6, "y": 32, "w": 3, "h": 1},
+    {"x": 14, "y": 32, "w": 3, "h": 1}, {"x": 22, "y": 32, "w": 3, "h": 1},
+    {"x": 2, "y": 24, "w": 1, "h": 1},
+    # Meeting Room
     {"x": 38, "y": 30, "w": 12, "h": 3}, {"x": 32, "y": 24, "w": 5, "h": 1},
-    {"x": 60, "y": 27, "w": 6, "h": 1}, {"x": 74, "y": 28, "w": 1, "h": 1},
-    {"x": 63, "y": 33, "w": 6, "h": 1}, {"x": 68, "y": 36, "w": 3, "h": 1},
-    {"x": 78, "y": 33, "w": 3, "h": 2},
+    # Pantry / Lounge
+    {"x": 60, "y": 27, "w": 6, "h": 1}, {"x": 73, "y": 28, "w": 1, "h": 1},
+    {"x": 63, "y": 33, "w": 6, "h": 1}, {"x": 64, "y": 35, "w": 3, "h": 1},
+    {"x": 80, "y": 33, "w": 3, "h": 2},
 ]
 DECOR_PROPS = [
-    {"room": "boss", "kind": "meeting_chairs", "x": 9, "y": 10, "w": 1, "h": 1, "solid": True},
-    {"room": "boss", "kind": "meeting_chairs", "x": 19, "y": 10, "w": 1, "h": 1, "solid": True},
-    {"room": "boss", "kind": "bookshelf", "x": 2, "y": 12, "w": 2, "h": 1, "solid": True},
-    {"room": "boss", "kind": "sideboard", "x": 24, "y": 12, "w": 3, "h": 1, "solid": True},
-    {"room": "boss", "kind": "floor_lamp", "x": 25, "y": 16, "w": 1, "h": 1, "solid": True},
+    # Boss Office: guest chairs sit on their seats, storage on the north wall
+    {"room": "boss", "kind": "meeting_chairs", "x": 8, "y": 12, "w": 1, "h": 1, "solid": False},
+    {"room": "boss", "kind": "meeting_chairs", "x": 20, "y": 12, "w": 1, "h": 1, "solid": False},
+    {"room": "boss", "kind": "bookshelf", "x": 3, "y": 3, "w": 2, "h": 1, "solid": True},
+    {"room": "boss", "kind": "sideboard", "x": 25, "y": 3, "w": 2, "h": 1, "solid": True},
+    {"room": "boss", "kind": "floor_lamp", "x": 26, "y": 17, "w": 1, "h": 1, "solid": True},
     {"room": "boss", "kind": "plant", "x": 3, "y": 17, "w": 1, "h": 1, "solid": True},
-    {"room": "boss", "kind": "rug", "x": 11, "y": 11, "w": 7, "h": 4, "solid": False},
-    {"room": "research", "kind": "lab_bench", "x": 34, "y": 6, "w": 3, "h": 1, "solid": True},
-    {"room": "research", "kind": "lab_bench", "x": 40, "y": 6, "w": 3, "h": 1, "solid": True},
-    {"room": "research", "kind": "lab_bench", "x": 46, "y": 6, "w": 3, "h": 1, "solid": True},
-    {"room": "research", "kind": "workstation", "x": 30, "y": 12, "w": 2, "h": 1, "solid": True},
-    {"room": "research", "kind": "workstation", "x": 38, "y": 12, "w": 2, "h": 1, "solid": True},
-    {"room": "research", "kind": "workstation", "x": 46, "y": 12, "w": 2, "h": 1, "solid": True},
-    {"room": "research", "kind": "whiteboard", "x": 44, "y": 16, "w": 4, "h": 1, "solid": True},
-    {"room": "research", "kind": "plant", "x": 54, "y": 16, "w": 1, "h": 1, "solid": True},
-    {"room": "research", "kind": "cabinet", "x": 34, "y": 17, "w": 2, "h": 1, "solid": True},
-    {"room": "server", "kind": "server_rack", "x": 60, "y": 12, "w": 2, "h": 2, "solid": True},
-    {"room": "server", "kind": "server_rack", "x": 80, "y": 12, "w": 2, "h": 2, "solid": True},
-    {"room": "server", "kind": "crate", "x": 82, "y": 4, "w": 1, "h": 1, "solid": True},
+    {"room": "boss", "kind": "rug", "x": 10, "y": 10, "w": 9, "h": 3, "solid": False},
+    # Research Lab: benches mirror the desk columns
+    {"room": "research", "kind": "lab_bench", "x": 36, "y": 3, "w": 3, "h": 1, "solid": True},
+    {"room": "research", "kind": "lab_bench", "x": 41, "y": 3, "w": 3, "h": 1, "solid": True},
+    {"room": "research", "kind": "lab_bench", "x": 46, "y": 3, "w": 3, "h": 1, "solid": True},
+    {"room": "research", "kind": "whiteboard", "x": 44, "y": 18, "w": 4, "h": 1, "solid": True},
+    {"room": "research", "kind": "cabinet", "x": 34, "y": 18, "w": 2, "h": 1, "solid": True},
+    {"room": "research", "kind": "plant", "x": 30, "y": 18, "w": 1, "h": 1, "solid": True},
+    {"room": "research", "kind": "plant", "x": 55, "y": 18, "w": 1, "h": 1, "solid": True},
+    # Server Room
     {"room": "server", "kind": "crate", "x": 59, "y": 4, "w": 1, "h": 1, "solid": True},
-    {"room": "engineering", "kind": "dev_desk", "x": 18, "y": 26, "w": 3, "h": 1, "solid": True},
-    {"room": "engineering", "kind": "dev_desk", "x": 4, "y": 35, "w": 3, "h": 1, "solid": True},
-    {"room": "engineering", "kind": "dev_desk", "x": 11, "y": 35, "w": 3, "h": 1, "solid": True},
-    {"room": "engineering", "kind": "cabinet", "x": 23, "y": 34, "w": 2, "h": 1, "solid": True},
-    {"room": "engineering", "kind": "plant", "x": 2, "y": 38, "w": 1, "h": 1, "solid": True},
+    {"room": "server", "kind": "crate", "x": 82, "y": 4, "w": 1, "h": 1, "solid": True},
+    {"room": "server", "kind": "plant", "x": 58, "y": 12, "w": 1, "h": 1, "solid": True},
+    {"room": "server", "kind": "plant", "x": 83, "y": 12, "w": 1, "h": 1, "solid": True},
+    # Engineering Pit
     {"room": "engineering", "kind": "whiteboard", "x": 17, "y": 38, "w": 4, "h": 1, "solid": True},
-    {"room": "meeting", "kind": "sideboard", "x": 50, "y": 25, "w": 3, "h": 1, "solid": True},
-    {"room": "meeting", "kind": "plant", "x": 31, "y": 25, "w": 1, "h": 1, "solid": True},
+    {"room": "engineering", "kind": "cabinet", "x": 23, "y": 38, "w": 2, "h": 1, "solid": True},
+    {"room": "engineering", "kind": "plant", "x": 2, "y": 38, "w": 1, "h": 1, "solid": True},
+    {"room": "engineering", "kind": "plant", "x": 27, "y": 38, "w": 1, "h": 1, "solid": True},
+    # Meeting Room
+    {"room": "meeting", "kind": "sideboard", "x": 50, "y": 24, "w": 3, "h": 1, "solid": True},
+    {"room": "meeting", "kind": "plant", "x": 30, "y": 24, "w": 1, "h": 1, "solid": True},
     {"room": "meeting", "kind": "plant", "x": 54, "y": 38, "w": 1, "h": 1, "solid": True},
     {"room": "meeting", "kind": "cabinet", "x": 30, "y": 34, "w": 2, "h": 1, "solid": True},
-    {"room": "pantry", "kind": "dining_table", "x": 66, "y": 30, "w": 3, "h": 2, "solid": True},
-    {"room": "pantry", "kind": "counter", "x": 60, "y": 31, "w": 4, "h": 1, "solid": True},
+    # Pantry
+    {"room": "pantry", "kind": "counter", "x": 60, "y": 29, "w": 6, "h": 1, "solid": True},
+    {"room": "pantry", "kind": "dining_table", "x": 67, "y": 27, "w": 3, "h": 2, "solid": True},
     {"room": "pantry", "kind": "plant", "x": 82, "y": 38, "w": 1, "h": 1, "solid": True},
     {"room": "pantry", "kind": "cabinet", "x": 59, "y": 38, "w": 2, "h": 1, "solid": True},
 ]
@@ -249,6 +258,11 @@ def compress_path(path):
             out.append(b)
     out.append(path[-1])
     return out
+
+
+def _f32(value: float) -> float:
+    """Round to float32, the precision the client's Float32Array gScore keeps."""
+    return struct.unpack("f", struct.pack("f", value))[0]
 
 
 DIRS = [(0, -1), (0, 1), (1, 0), (-1, 0)]  # N, S, E, W
@@ -323,8 +337,10 @@ def find_orthogonal_path(start, goal, grid):
                 continue
             turn = TURN_COST if (cd != 4 and cd != d) else 0
             tentative = cur["g"] + 1 + turn
+            # The client keeps gScore in a Float32Array; rounding the same way
+            # here keeps the tie-breaking (and therefore the route) identical.
             if tentative < g_score.get(nk, float("inf")):
-                g_score[nk] = tentative
+                g_score[nk] = _f32(tentative)
                 came_from[nk] = ck
                 h = float(heur(nx, ny))
                 open_list.append({"x": nx, "y": ny, "d": d, "g": tentative,

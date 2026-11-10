@@ -22,49 +22,48 @@
   // and the collision grid (office.js getFurnitureObstacles) can never disagree:
   // anything with `solid: true` is also an obstacle.
   LO.DECOR_PROPS = [
-    // --- Boss Office (x2..27, y3..18): executive seating + storage
-    { room: 'boss', kind: 'meeting_chairs', x: 9,  y: 10, w: 1, h: 1, solid: true },
-    { room: 'boss', kind: 'meeting_chairs', x: 19, y: 10, w: 1, h: 1, solid: true },
-    { room: 'boss', kind: 'bookshelf',      x: 2,  y: 12, w: 2, h: 1, solid: true },
-    { room: 'boss', kind: 'sideboard',      x: 24, y: 12, w: 3, h: 1, solid: true },
-    { room: 'boss', kind: 'floor_lamp',     x: 25, y: 16, w: 1, h: 1, solid: true },
+    // --- Boss Office (x2..27, y3..18): everything that is not a desk sits on
+    // a wall. North wall: plant | bookshelf | ... | sideboard | plant.
+    { room: 'boss', kind: 'meeting_chairs', x: 8,  y: 12, w: 1, h: 1, solid: false }, // guest chair back
+    { room: 'boss', kind: 'meeting_chairs', x: 20, y: 12, w: 1, h: 1, solid: false }, // guest chair back
+    { room: 'boss', kind: 'bookshelf',      x: 3,  y: 3,  w: 2, h: 1, solid: true },
+    { room: 'boss', kind: 'sideboard',      x: 25, y: 3,  w: 2, h: 1, solid: true },
+    { room: 'boss', kind: 'floor_lamp',     x: 26, y: 17, w: 1, h: 1, solid: true },
     { room: 'boss', kind: 'plant',          x: 3,  y: 17, w: 1, h: 1, solid: true },
-    { room: 'boss', kind: 'rug',            x: 11, y: 11, w: 7, h: 4, solid: false },
+    { room: 'boss', kind: 'rug',            x: 10, y: 10, w: 9, h: 3, solid: false },
 
-    // --- Research Lab (x30..55, y3..18): computer lab + bench
-    { room: 'research', kind: 'lab_bench',  x: 34, y: 6,  w: 3, h: 1, solid: true },
-    { room: 'research', kind: 'lab_bench',  x: 40, y: 6,  w: 3, h: 1, solid: true },
-    { room: 'research', kind: 'lab_bench',  x: 46, y: 6,  w: 3, h: 1, solid: true },
-    { room: 'research', kind: 'workstation', x: 30, y: 12, w: 2, h: 1, solid: true },
-    { room: 'research', kind: 'workstation', x: 38, y: 12, w: 2, h: 1, solid: true },
-    { room: 'research', kind: 'workstation', x: 46, y: 12, w: 2, h: 1, solid: true },
-    { room: 'research', kind: 'whiteboard', x: 44, y: 16, w: 4, h: 1, solid: true },
-    { room: 'research', kind: 'plant',      x: 54, y: 16, w: 1, h: 1, solid: true },
-    { room: 'research', kind: 'cabinet',    x: 34, y: 17, w: 2, h: 1, solid: true },
+    // --- Research Lab (x30..55, y3..18): one bench band on the north wall,
+    // desks on their own row, storage on the south wall.
+    { room: 'research', kind: 'lab_bench',  x: 36, y: 3,  w: 3, h: 1, solid: true },
+    { room: 'research', kind: 'lab_bench',  x: 41, y: 3,  w: 3, h: 1, solid: true },
+    { room: 'research', kind: 'lab_bench',  x: 46, y: 3,  w: 3, h: 1, solid: true },
+    { room: 'research', kind: 'whiteboard', x: 44, y: 18, w: 4, h: 1, solid: true },
+    { room: 'research', kind: 'cabinet',    x: 34, y: 18, w: 2, h: 1, solid: true },
+    { room: 'research', kind: 'plant',      x: 30, y: 18, w: 1, h: 1, solid: true },
+    { room: 'research', kind: 'plant',      x: 55, y: 18, w: 1, h: 1, solid: true },
 
-    // --- Server Room: extra infrastructure
-    { room: 'server', kind: 'server_rack',  x: 60, y: 12, w: 2, h: 2, solid: true },
-    { room: 'server', kind: 'server_rack',  x: 80, y: 12, w: 2, h: 2, solid: true },
-    { room: 'server', kind: 'crate',        x: 82, y: 4,  w: 1, h: 1, solid: true },
+    // --- Server Room: crates in the corners, plants on the side walls. No extra
+    // racks: the five drawn racks already are the room's furniture.
     { room: 'server', kind: 'crate',        x: 59, y: 4,  w: 1, h: 1, solid: true },
+    { room: 'server', kind: 'crate',        x: 82, y: 4,  w: 1, h: 1, solid: true },
+    { room: 'server', kind: 'plant',        x: 58, y: 12, w: 1, h: 1, solid: true },
+    { room: 'server', kind: 'plant',        x: 83, y: 12, w: 1, h: 1, solid: true },
 
-    // --- Engineering Pit (x2..27, y24..39): dev desks + storage
-    { room: 'engineering', kind: 'dev_desk', x: 18, y: 26, w: 3, h: 1, solid: true },
-    { room: 'engineering', kind: 'dev_desk', x: 4,  y: 35, w: 3, h: 1, solid: true },
-    { room: 'engineering', kind: 'dev_desk', x: 11, y: 35, w: 3, h: 1, solid: true },
-    { room: 'engineering', kind: 'cabinet',  x: 23, y: 34, w: 2, h: 1, solid: true },
-    { room: 'engineering', kind: 'plant',    x: 2,  y: 38, w: 1, h: 1, solid: true },
+    // --- Engineering Pit (x2..27, y24..39): boards on the south wall, storage east.
     { room: 'engineering', kind: 'whiteboard', x: 17, y: 38, w: 4, h: 1, solid: true },
+    { room: 'engineering', kind: 'cabinet',  x: 23, y: 38, w: 2, h: 1, solid: true },
+    { room: 'engineering', kind: 'plant',    x: 2,  y: 38, w: 1, h: 1, solid: true },
+    { room: 'engineering', kind: 'plant',    x: 27, y: 38, w: 1, h: 1, solid: true },
 
-    // --- Meeting Room: side furniture
-    { room: 'meeting', kind: 'sideboard', x: 50, y: 25, w: 3, h: 1, solid: true },
-    { room: 'meeting', kind: 'plant',     x: 31, y: 25, w: 1, h: 1, solid: true },
+    // --- Meeting Room: side furniture clears the door corridor (x41..44).
+    { room: 'meeting', kind: 'sideboard', x: 50, y: 24, w: 3, h: 1, solid: true },
+    { room: 'meeting', kind: 'plant',     x: 30, y: 24, w: 1, h: 1, solid: true },
     { room: 'meeting', kind: 'plant',     x: 54, y: 38, w: 1, h: 1, solid: true },
     { room: 'meeting', kind: 'cabinet',   x: 30, y: 34, w: 2, h: 1, solid: true },
 
-    // --- Pantry: the rest of the kitchen
-    { room: 'pantry', kind: 'dining_table', x: 66, y: 30, w: 3, h: 2, solid: true },
-    { room: 'pantry', kind: 'counter',      x: 60, y: 31, w: 4, h: 1, solid: true },
+    // --- Pantry: a single kitchen run on the west wall, everything else around it.
+    { room: 'pantry', kind: 'counter',      x: 60, y: 29, w: 6, h: 1, solid: true }, // below the coffee bar
+    { room: 'pantry', kind: 'dining_table', x: 67, y: 27, w: 3, h: 2, solid: true }, // part of the kitchen run
     { room: 'pantry', kind: 'plant',        x: 82, y: 38, w: 1, h: 1, solid: true },
     { room: 'pantry', kind: 'cabinet',      x: 59, y: 38, w: 2, h: 1, solid: true }
   ];
@@ -417,11 +416,11 @@
     ],
     engineering: [
       { x: 7,  y: 28, col: 7,  row: 28, type: 'desk',  facing: 'N' }, // Dodo (Senior Coder)
-      { x: 12, y: 28, col: 12, row: 28, type: 'desk',  facing: 'N' }, // Developer 2
-      { x: 7,  y: 33, col: 7,  row: 33, type: 'desk',  facing: 'N' }, // Developer 3
-      { x: 12, y: 33, col: 12, row: 33, type: 'desk',  facing: 'N' }, // Developer 4
-      { x: 18, y: 31, col: 18, row: 31, type: 'desk',  facing: 'N' }, // Developer 5
-      { x: 23, y: 31, col: 23, row: 31, type: 'desk',  facing: 'N' }  // Developer 6
+      { x: 15, y: 28, col: 15, row: 28, type: 'desk',  facing: 'N' }, // Developer 2
+      { x: 23, y: 28, col: 23, row: 28, type: 'desk',  facing: 'N' }, // Developer 3
+      { x: 7,  y: 33, col: 7,  row: 33, type: 'desk',  facing: 'N' }, // Developer 4
+      { x: 15, y: 33, col: 15, row: 33, type: 'desk',  facing: 'N' }, // Developer 5
+      { x: 23, y: 33, col: 23, row: 33, type: 'desk',  facing: 'N' }  // Developer 6
     ],
     meeting: [
       { x: 41, y: 29, col: 41, row: 29, type: 'sit',   facing: 'S' }, // Sekar (Sekretaris)
@@ -436,7 +435,7 @@
       { x: 64, y: 34, col: 64, row: 34, type: 'sit',   facing: 'S' }, // Teal sofa seat 1
       { x: 66, y: 34, col: 66, row: 34, type: 'sit',   facing: 'S' }, // Teal sofa seat 2
       { x: 73, y: 29, col: 73, row: 29, type: 'stand', facing: 'N' }, // Water cooler dispenser
-      { x: 77, y: 34, col: 77, row: 34, type: 'stand', facing: 'W' }  // Snack vending machine
+      { x: 77, y: 34, col: 77, row: 34, type: 'stand', facing: 'E' }  // Snack vending machine
     ]
   };
 
@@ -455,9 +454,9 @@
 
   // Interactive Props (2D World Coordinates)
   LO.PROPS = {
-    trashcan: { id: 'trashcan', x: 20, y: 6, col: 20, row: 6, w: 1, h: 1, floor: 0, room: 'boss', name: 'Context Window Trashcan' },
+    trashcan: { id: 'trashcan', x: 18, y: 7, col: 18, row: 7, w: 1, h: 1, floor: 0, room: 'boss', name: 'Context Window Trashcan' },
     whiteboard: { id: 'whiteboard', x: 32, y: 24, col: 32, row: 24, w: 5, h: 2, floor: 3, room: 'meeting', name: 'Multi-Mode Whiteboard' },
-    watercooler: { id: 'watercooler', x: 74, y: 28, col: 74, row: 28, w: 1, h: 1, floor: 4, room: 'pantry', name: 'Water Cooler Dispenser' }
+    watercooler: { id: 'watercooler', x: 73, y: 28, col: 73, row: 28, w: 1, h: 1, floor: 4, room: 'pantry', name: 'Water Cooler Dispenser' }
   };
   LO.PROPS.waterCooler = LO.PROPS.watercooler;
 
