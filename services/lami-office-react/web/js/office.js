@@ -1433,9 +1433,33 @@
         char.carriedItem = data.carry || null;
         if (data.kind && char.kind === undefined) char.kind = data.kind;
         if (data.routineState) char.routineState = data.routineState;
-        if (data.task) char.task = data.task;
+        if (data.task !== undefined) char.task = data.task;
+        if (data.tool !== undefined) {
+          const prevTool = char.currentTool;
+          char.currentTool = data.tool;
+          if (data.tool && char.state === 'idle' && char.routineState === 'desk') {
+            char.state = 'work';
+            char.frame = 'type';
+          } else if (!data.tool && char.state === 'work' && prevTool) {
+            char.state = 'idle';
+            char.frame = 'idle';
+          }
+        }
+        if (data.summary !== undefined) char.currentSummary = data.summary;
         if (data.name && char.name !== data.name) char.name = data.name;
         if (data.slot) char.assignedSlot = data.slot;
+
+        if (LO.ui && LO.ui.selectedAgent && LO.ui.selectedAgent.id === char.id && typeof LO.ui.refreshCardDetails === 'function') {
+          LO.ui.refreshCardDetails(char);
+        }
+      }
+
+      if (frame.doors && typeof frame.doors === 'object' && this.world && this.world.doors) {
+        for (const [rid, prog] of Object.entries(frame.doors)) {
+          if (this.world.doors[rid]) {
+            this.world.doors[rid].serverTarget = Number(prog);
+          }
+        }
       }
 
       // The delivery rider is created and destroyed by the server's random events.
@@ -1521,7 +1545,10 @@
 
     update(dt) {
       this.updateCamera(dt);
-      this.world.update(dt);
+      const peers = this.peerAgents ? [...this.peerAgents.values()] : [];
+      const allChars = [this.lami, ...this.residents, ...peers, ...this.subagents.values(), this.cat];
+      if (this.deliveryRider) allChars.push(this.deliveryRider);
+      this.world.update(dt, allChars);
       this.elevator.update(dt, this);
 
       // Live mode: the server owns positions, routines and narration. Animating

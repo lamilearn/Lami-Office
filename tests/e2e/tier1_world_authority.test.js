@@ -1817,3 +1817,124 @@ describe('Feature 47: Walking characters do not flicker', () => {
     assert.strictEqual(char.frame, 'type', 'a still character must hold its server frame');
   });
 });
+
+describe('Feature 54: Animated Doors & Zero-Latency Real-Time Sync', () => {
+  it('F54.1: world.py simulates animated door states for all 6 rooms on proximity', () => {
+    if (!HAVE_PY) return;
+    const res = pyJson(`
+import json, world
+sim = world.Sim(seed=42)
+initial = dict(sim.doors)
+frame_initial = sim.world_frame()
+
+# Move lami near Boss door (14, 19)
+sim.lami.col = 14.5
+sim.lami.row = 18.5
+for _ in range(5):
+    sim.tick(0.1)
+opened = sim.doors["boss"]
+
+# Move lami away
+sim.lami.col = 10.0
+sim.lami.row = 10.0
+for _ in range(10):
+    sim.tick(0.1)
+closed = sim.doors["boss"]
+
+print(json.dumps({
+    "initial": initial,
+    "frame_doors": frame_initial.get("doors"),
+    "opened": opened,
+    "closed": closed
+}))
+`);
+    assert.strictEqual(Object.keys(res.initial).length, 6, 'Must track all 6 room doors');
+    assert.strictEqual(Object.keys(res.frame_doors).length, 6, 'World frame must include doors dict');
+    assert.strictEqual(res.opened, 1.0, 'Door must open to 1.0 when character approaches');
+    assert.strictEqual(res.closed, 0.0, 'Door must close back to 0.0 when character moves away');
+  });
+
+  it('F54.2: client World animates sliding doors and handles drawDoors cleanly', () => {
+    const harness = require('../harness');
+    const env = harness.createBrowserEnvironment();
+    const LO = harness.loadScriptIntoEnv(env, 'config.js');
+    harness.loadScriptIntoEnv(env, 'sprites.js');
+    harness.loadScriptIntoEnv(env, 'tilemap.js');
+    harness.loadScriptIntoEnv(env, 'world.js');
+
+    const world = new LO.World();
+    assert.ok(world.doors, 'world must have doors state');
+    assert.strictEqual(Object.keys(world.doors).length, 6, '6 doors tracked');
+
+    // Proximity update: fake character near boss door
+    world.updateDoors(0.1, [{ col: 14.5, row: 18.5 }]);
+    assert.ok(world.doors.boss.openProgress > 0, 'boss door should start opening');
+    for (let i = 0; i < 5; i++) world.updateDoors(0.1, [{ col: 14.5, row: 18.5 }]);
+    assert.strictEqual(world.doors.boss.openProgress, 1.0, 'boss door fully open');
+
+    // Drawing doors into mock canvas context must not throw
+    const canvas = env.window.document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    assert.doesNotThrow(() => {
+      world.drawDoors(ctx, 16);
+    }, 'drawDoors must execute without exceptions');
+  });
+
+  it('F54.3: server.py immediately broadcasts world frames on state events', () => {
+    if (!HAVE_PY) return;
+    const res = pyJson(`
+import json, server, queue
+q = server.HUB.subscribe()
+while not q.empty():
+    q.get_nowait()
+
+server.HUB.publish({
+    "type": "tool_start",
+    "agentId": "lami",
+    "tool": "bash",
+    "summary": "running diagnostics"
+})
+
+items = []
+while not q.empty():
+    items.append(q.get_nowait())
+
+server.HUB.unsubscribe(q)
+types = [it.get("type") for it in items]
+print(json.dumps({
+    "has_tool_start": "tool_start" in types,
+    "has_instant_world": "world" in types
+}))
+`);
+    assert.ok(res.has_tool_start, 'subscriber must receive tool_start');
+    assert.ok(res.has_instant_world, 'subscriber must receive immediate world frame without delay');
+  });
+
+  it('F54.4: office.js applyWorld immediately syncs character tools, tasks, and door states', () => {
+    const harness = require('../harness');
+    const env = harness.createBrowserEnvironment();
+    const LO = harness.loadScriptIntoEnv(env, 'config.js');
+    harness.loadScriptIntoEnv(env, 'sprites.js');
+    harness.loadScriptIntoEnv(env, 'tilemap.js');
+    harness.loadScriptIntoEnv(env, 'world.js');
+    LO.audio = new Proxy({}, { get: () => () => {} });
+    LO.ui = { updateStaffCount() {}, addTicker() {}, appendChatMessage() {}, triggerEventBanner() {},
+      setStatus() {}, recordDone() {}, setOfficeStatus() {}, setRoster() {} };
+    harness.loadScriptIntoEnv(env, 'agents.js');
+    harness.loadScriptIntoEnv(env, 'office.js');
+
+    const canvas = env.window.document.createElement('canvas');
+    const office = new LO.Office(canvas);
+
+    office.applyWorld({
+      chars: [
+        { id: 'lami', col: 10, row: 10, tool: 'edit_file', summary: 'editing code', task: 'refactoring' }
+      ],
+      doors: { boss: 0.85, research: 0.0, server: 0.0, engineering: 0.0, meeting: 0.0, pantry: 0.0 }
+    });
+
+    assert.strictEqual(office.lami.currentTool, 'edit_file', 'currentTool must be updated live');
+    assert.strictEqual(office.lami.task, 'refactoring', 'task must be updated live');
+    assert.strictEqual(office.world.doors.boss.serverTarget, 0.85, 'door serverTarget must be set from frame');
+  });
+});
