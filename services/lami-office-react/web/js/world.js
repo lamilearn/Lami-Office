@@ -20,14 +20,60 @@
           phase: Math.random() * Math.PI * 2
         });
       }
+
+      this.doors = {};
+      for (const key of LO.ROOM_KEYS) {
+        this.doors[key] = {
+          openProgress: 0.0,
+          targetProgress: 0.0,
+          serverTarget: 0.0
+        };
+      }
     }
 
-    update(dt) {
+    update(dt, chars) {
       this.timeSec += dt;
       const contentW = LO.CONTENT_W || 1408;
       for (const c of this.clouds) {
         c.x += c.speed * dt * 10;
         if (c.x > contentW + 60) c.x = -60;
+      }
+      this.updateDoors(dt, chars);
+    }
+
+    updateDoors(dt, chars) {
+      const charList = Array.isArray(chars) ? chars : [];
+      for (const [key, doorState] of Object.entries(this.doors)) {
+        const room = LO.ROOMS && LO.ROOMS[key];
+        if (!room || !room.door) continue;
+        const cx = room.door.x + 1.0;
+        const cy = room.door.y + 0.5;
+        let near = false;
+        for (const c of charList) {
+          const col = c.col !== undefined ? c.col : c.x;
+          const row = c.row !== undefined ? c.row : c.y;
+          if (typeof col === 'number' && typeof row === 'number') {
+            if (Math.hypot(col - cx, row - cy) <= 2.2) {
+              near = true;
+              break;
+            }
+          }
+        }
+        // In live mode the server owns the door state (it simulates the same
+        // proximity rule); redeclaring `near` here would fight the authoritative
+        // value and never let a door close behind a character the server moved.
+        const serverOwns = LO.office && LO.office.simulatedExternally;
+        const target = (serverOwns && doorState.serverTarget !== undefined)
+          ? doorState.serverTarget
+          : (near ? 1.0 : 0.0);
+        doorState.targetProgress = target;
+
+        const speed = target > doorState.openProgress ? 5.0 : 3.0;
+        if (doorState.openProgress < target) {
+          doorState.openProgress = Math.min(target, doorState.openProgress + dt * speed);
+        } else if (doorState.openProgress > target) {
+          doorState.openProgress = Math.max(target, doorState.openProgress - dt * speed);
+        }
       }
     }
 
@@ -86,6 +132,7 @@
 
         // 4. Carpets, rugs and furniture (procedural, on top of the tiles)
         this.drawCarpets(ctx, ts);
+        this.drawDoors(ctx, ts);
         this.drawAllFurniture(ctx, ts, theme);
 
         // 5. Ambient Lighting Pools (Night / Sunset)
@@ -100,6 +147,7 @@
       this.drawRoomFloors(ctx, ts);
       this.drawCarpets(ctx, ts);
       this.drawWalls(ctx, ts);
+      this.drawDoors(ctx, ts);
       this.drawWallDecorations(ctx, ts, theme);
       this.drawAllFurniture(ctx, ts, theme);
       if (theme.type === 'night' || theme.type === 'sunset') {
@@ -111,6 +159,127 @@
     renderOverlay(ctx) {
       if (!this.hasTilemap()) return;
       LO.Tilemap.drawWallOverlay(ctx);
+    }
+
+    drawDoors(ctx, ts) {
+      if (!this.doors) return;
+      const doorStyles = {
+        boss: {
+          frame: '#5a3d28',
+          frameDark: '#382215',
+          panel: 'rgba(181, 131, 79, 0.85)',
+          panelInner: 'rgba(252, 237, 215, 0.45)',
+          trim: '#d4af37',
+          handle: '#fcd34d'
+        },
+        research: {
+          frame: '#285577',
+          frameDark: '#1a374e',
+          panel: 'rgba(96, 154, 197, 0.85)',
+          panelInner: 'rgba(225, 240, 252, 0.55)',
+          trim: '#38bdf8',
+          handle: '#e0f2fe'
+        },
+        server: {
+          frame: '#2c263e',
+          frameDark: '#1a1626',
+          panel: 'rgba(55, 48, 78, 0.9)',
+          panelInner: 'rgba(92, 84, 120, 0.5)',
+          trim: '#a855f7',
+          handle: '#c084fc'
+        },
+        engineering: {
+          frame: '#1e4b2e',
+          frameDark: '#12301d',
+          panel: 'rgba(79, 155, 108, 0.85)',
+          panelInner: 'rgba(230, 247, 236, 0.5)',
+          trim: '#34d399',
+          handle: '#6ee7b7'
+        },
+        meeting: {
+          frame: '#623114',
+          frameDark: '#3d1e0c',
+          panel: 'rgba(181, 109, 67, 0.85)',
+          panelInner: 'rgba(255, 240, 229, 0.5)',
+          trim: '#fb923c',
+          handle: '#fdba74'
+        },
+        pantry: {
+          frame: '#5a3a28',
+          frameDark: '#382215',
+          panel: 'rgba(155, 106, 79, 0.85)',
+          panelInner: 'rgba(255, 245, 220, 0.5)',
+          trim: '#f59e0b',
+          handle: '#fde68a'
+        }
+      };
+
+      for (const [key, doorState] of Object.entries(this.doors)) {
+        const room = LO.ROOMS && LO.ROOMS[key];
+        if (!room || !room.door) continue;
+        const style = doorStyles[key] || doorStyles.boss;
+        const dx = room.door.x * ts;
+        const dy = room.door.y * ts;
+        const side = room.door.side || 'S';
+
+        // Lintel header / track sits in the wall band at dy - 14
+        const trackY = dy - 14;
+        const doorH = 18; // covers track down to sill at dy + 4
+        const leafW = ts; // 16px wide each, 32px total opening
+        const prog = Math.max(0, Math.min(1, doorState.openProgress || 0));
+        const slide = Math.round(prog * 14); // slides up to 14px into jambs
+
+        // 1. Top slider track & housing (32px wide, 3px tall)
+        ctx.fillStyle = '#231c2b';
+        ctx.fillRect(dx, trackY, 2 * ts, 3);
+        ctx.fillStyle = '#3f344c';
+        ctx.fillRect(dx, trackY + 1, 2 * ts, 1);
+
+        // 2. Sensor LED in center of top track
+        const isOpen = prog > 0.08;
+        ctx.fillStyle = isOpen ? '#10b981' : (side === 'S' ? '#38bdf8' : '#f59e0b');
+        ctx.fillRect(dx + ts - 1.5, trackY, 3, 2);
+
+        // 3. Left Door Leaf (slides left)
+        const leftX = dx - slide;
+        ctx.fillStyle = style.frameDark;
+        ctx.fillRect(leftX, trackY + 3, leafW, doorH - 3);
+        ctx.fillStyle = style.frame;
+        ctx.fillRect(leftX + 1, trackY + 3, leafW - 2, doorH - 4);
+        ctx.fillStyle = style.panelInner;
+        ctx.fillRect(leftX + 2, trackY + 4, leafW - 4, doorH - 6);
+        ctx.fillStyle = style.trim;
+        ctx.fillRect(leftX + 1, trackY + 11, leafW - 2, 1);
+        ctx.fillStyle = style.handle;
+        ctx.fillRect(leftX + leafW - 3, trackY + 9, 2, 5);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+        ctx.fillRect(leftX + 3, trackY + 5, 2, 4);
+        ctx.fillRect(leftX + 4, trackY + 7, 2, 3);
+
+        // 4. Right Door Leaf (slides right)
+        const rightX = dx + ts + slide;
+        ctx.fillStyle = style.frameDark;
+        ctx.fillRect(rightX, trackY + 3, leafW, doorH - 3);
+        ctx.fillStyle = style.frame;
+        ctx.fillRect(rightX + 1, trackY + 3, leafW - 2, doorH - 4);
+        ctx.fillStyle = style.panelInner;
+        ctx.fillRect(rightX + 2, trackY + 4, leafW - 4, doorH - 6);
+        ctx.fillStyle = style.trim;
+        ctx.fillRect(rightX + 1, trackY + 11, leafW - 2, 1);
+        ctx.fillStyle = style.handle;
+        ctx.fillRect(rightX + 1, trackY + 9, 2, 5);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+        ctx.fillRect(rightX + 3, trackY + 5, 2, 4);
+        ctx.fillRect(rightX + 4, trackY + 7, 2, 3);
+
+        // 5. Door jamb posts on outer left and right (width: 3px)
+        ctx.fillStyle = style.frameDark;
+        ctx.fillRect(dx - 1, trackY + 2, 3, doorH - 2);
+        ctx.fillRect(dx + 2 * ts - 2, trackY + 2, 3, doorH - 2);
+        ctx.fillStyle = style.frame;
+        ctx.fillRect(dx, trackY + 2, 1, doorH - 2);
+        ctx.fillRect(dx + 2 * ts - 1, trackY + 2, 1, doorH - 2);
+      }
     }
 
     // ---- 1. Sky Header & Roof Banner (32px tall) ----
@@ -209,7 +378,7 @@
     // ---- Fallback 3: Room floors ----
     drawRoomFloors(ctx, ts) {
       const rooms = LO.ROOMS || {};
-      for (const key of ['boss', 'research', 'server', 'engineering', 'meeting', 'pantry']) {
+      for (const key of LO.ROOM_KEYS) {
         const r = rooms[key];
         if (!r || !r.bounds) continue;
         const b = r.bounds;
@@ -340,7 +509,7 @@
         ctx.strokeRect(px + 0.5, py + 0.5, ts - 1, ts - 1);
       };
 
-      for (const key of ['boss', 'research', 'server', 'engineering', 'meeting', 'pantry']) {
+      for (const key of LO.ROOM_KEYS) {
         const r = rooms[key];
         if (!r || !r.bounds) continue;
         const b = r.bounds;
@@ -355,7 +524,7 @@
       }
 
       // C. Doorway frames
-      for (const key of ['boss', 'research', 'server', 'engineering', 'meeting', 'pantry']) {
+      for (const key of LO.ROOM_KEYS) {
         const r = rooms[key];
         if (!r || !r.door) continue;
         this.drawDoorFrame(ctx, ts, r.door.x, r.door.y, r.door.side || 'S');
@@ -390,7 +559,7 @@
       this.drawWhiteboard(ctx, wb.x * ts, (wb.y - 1.5) * ts);
 
       // Doorway signboards (hallway side of each door)
-      for (const key of ['boss', 'research', 'server', 'engineering', 'meeting', 'pantry']) {
+      for (const key of LO.ROOM_KEYS) {
         const r = LO.ROOMS[key];
         if (!r || !r.door) continue;
         const side = r.door.side || 'S';

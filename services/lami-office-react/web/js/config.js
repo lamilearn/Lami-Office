@@ -350,6 +350,11 @@
   // Backward compatibility alias: coding -> engineering
   LO.ROOMS.coding = LO.ROOMS.engineering;
 
+  // Single list of floor rooms. Keyed order = render/door order everywhere else
+  // (world.js door states, generate_tilemap.py ROOM_ORDER in world.py); never
+  // re-type this list, read LO.ROOM_KEYS.
+  LO.ROOM_KEYS = ['boss', 'research', 'server', 'engineering', 'meeting', 'pantry'];
+
   // ---- Building Envelope (single floor slab, perimeter walls) ----
   LO.BUILDING = { x1: 1, y1: 2, x2: 84, y2: 40 };
 
@@ -622,7 +627,7 @@
 
   // Returns the room whose configured interior contains the tile, or null.
   LO.roomAt = function (col, row) {
-    for (const key of ['boss', 'research', 'server', 'engineering', 'meeting', 'pantry']) {
+    for (const key of LO.ROOM_KEYS) {
       const b = LO.roomInterior(key);
       if (b && col >= b.x1 && col <= b.x2 && row >= b.y1 && row <= b.y2) return key;
     }
@@ -640,7 +645,7 @@
   // Doorways as 2-tile openings anchored on the configured door tile.
   LO.doorways = function () {
     const out = [];
-    for (const key of ['boss', 'research', 'server', 'engineering', 'meeting', 'pantry']) {
+    for (const key of LO.ROOM_KEYS) {
       const room = LO.ROOMS[key];
       if (!room || !room.door) continue;
       out.push({

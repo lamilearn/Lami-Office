@@ -424,7 +424,7 @@ def is_walkable(col, row) -> bool:
 
 
 def room_at(col, row):
-    for key in ["boss", "research", "server", "engineering", "meeting", "pantry"]:
+    for key in ROOM_ORDER:
         b = ROOMS[key]["bounds"]
         if b["x1"] <= col <= b["x2"] and b["y1"] <= row <= b["y2"]:
             return key
@@ -1542,6 +1542,8 @@ class Sim:
         self.outbox = []
         self.gone = set()          # agent ids explicitly removed (agent_done / reap)
         self.t0 = time.time()
+        # Door states for all 6 rooms: open_progress from 0.0 (closed) to 1.0 (fully open)
+        self.doors = {k: 0.0 for k in ROOMS}
 
     # ---- narrative helpers -------------------------------------------------------
     # `from_hermes=True` marks text that traces back to a real Hermes event. Staff
@@ -1991,6 +1993,27 @@ class Sim:
         self.separate(dt)
         self.update_socials(dt)
         self.despawn_finished()
+        self.update_doors(dt)
+
+    def update_doors(self, dt):
+        """Update door open/close animations based on character proximity."""
+        all_chars = self.all_moving()
+        if self.delivery_rider:
+            all_chars.append(self.delivery_rider)
+
+        for room_id, room in ROOMS.items():
+            door = room.get("door")
+            if not door:
+                continue
+            cx = door["x"] + 1.0
+            cy = door["y"] + 0.5
+            near = any(math.hypot(c.col - cx, c.row - cy) <= 2.2 for c in all_chars)
+            target = 1.0 if near else 0.0
+            current = self.doors.get(room_id, 0.0)
+            if current < target:
+                self.doors[room_id] = min(1.0, current + dt * 4.0)
+            elif current > target:
+                self.doors[room_id] = max(0.0, current - dt * 2.5)
 
     # ---- output ------------------------------------------------------------------
     def world_frame(self, status=None):
@@ -2003,6 +2026,7 @@ class Sim:
             "seq": round(self.time_sec, 3),
             "chars": chars,
             "cat": self.cat.to_world(),
+            "doors": {rid: round(val, 2) for rid, val in self.doors.items()},
             "roster": {
                 "source": "hub",
                 "agents": [
@@ -2032,6 +2056,7 @@ class Sim:
             "pizzaTimer": round(self.pizza_timer, 2),
             "flickerTimer": round(self.flicker_timer, 2),
             "chars": len(self.all_moving()),
+            "doors": {rid: round(val, 2) for rid, val in self.doors.items()},
         }
 
     def drain_outbox(self):
@@ -2046,6 +2071,7 @@ class Sim:
             "residents": {r.id: r.state_snapshot() for r in self.residents},
             "cat": self.cat.state_snapshot(),
             "subagents": {aid: a.state_snapshot() for aid, a in self.subagents.items()},
+            "doors": {rid: round(val, 2) for rid, val in self.doors.items()},
             "pizzaTimer": round(self.pizza_timer, 2),
             "randomEventTimer": round(self.random_event_timer, 2),
         }
@@ -2062,6 +2088,13 @@ class Sim:
             for res in self.residents:
                 self._restore_char(res, (snap.get("residents") or {}).get(res.id))
             self._restore_char(self.cat, snap.get("cat"))
+            if "doors" in snap and isinstance(snap["doors"], dict):
+                for rid, val in snap["doors"].items():
+                    if rid in self.doors:
+                        try:
+                            self.doors[rid] = float(val)
+                        except (TypeError, ValueError):
+                            pass
 
         self.pizza_timer = float(snap.get("pizzaTimer") or 0.0)
         self.random_event_timer = float(snap.get("randomEventTimer") or 45.0)

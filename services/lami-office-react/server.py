@@ -278,7 +278,7 @@ class Hub:
     HISTORY_TTL = 6 * 3600    # discard anything older than 6 hours
 
     def __init__(self, state_path: str | None = None):
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
         self.subs: list[queue.Queue] = []
         self.agents: dict[str, dict] = {}
         self.day = date.today().isoformat()
@@ -368,6 +368,15 @@ class Hub:
         except Exception as exc:  # noqa: BLE001
             print(f"[state] gagal menyimpan: {exc}", file=sys.stderr)
 
+    def _broadcast(self, msg: dict):
+        """Fan one message out to every SSE subscriber. A slow client has one
+        full queue; drop the frame instead of blocking the office."""
+        for q in list(self.subs):
+            try:
+                q.put_nowait(msg)
+            except queue.Full:
+                pass
+
     def publish(self, raw: dict):
         ev = sanitize_event(raw)
         if not ev:
@@ -388,20 +397,21 @@ class Hub:
                 if len(self.history) > self.HISTORY_LIMIT:
                     del self.history[: len(self.history) - self.HISTORY_LIMIT]
                 self._dirty = True
-            for q in list(self.subs):
+            self._broadcast(ev)
+            # Immediate real-time broadcast: when an agent spawns, starts/finishes a tool,
+            # or updates status, immediately push an authoritative world frame so clients
+            # see the transition in < 5ms without waiting for sim_loop tick or polling.
+            if ev.get("type") in ("agent_spawn", "tool_start", "tool_end", "agent_done", "agent_status"):
                 try:
-                    q.put_nowait(ev)
-                except queue.Full:
-                    pass
+                    reconcile_roster()
+                    self._broadcast(SIM.world_frame(world_status()))
+                except Exception as exc:  # noqa: BLE001
+                    print(f"[world] instant publish_world error: {exc}", file=sys.stderr)
 
     def publish_world(self, frame: dict):
         """Broadcast a simulated world frame. Stream-only: not persisted, not counted."""
         with self.lock:
-            for q in list(self.subs):
-                try:
-                    q.put_nowait(frame)
-                except queue.Full:
-                    pass
+            self._broadcast(frame)  # straight to self.subs, never into history
 
     def _apply(self, ev: dict):
         today = date.today().isoformat()
@@ -1362,11 +1372,20 @@ def sim_loop():
                 last_sample = now
                 reconcile_roster()
                 frame = SIM.world_frame(world_status())
-                comparable = [(c["id"], c["col"], c["row"], c["facing"], c["state"], c["frame"],
-                               c.get("bubble"), c.get("emote"), c.get("routineState")) for c in frame["chars"]]
+                comparable = [
+                    (c["id"], c["col"], c["row"], c["facing"], c["state"], c["frame"],
+                     c.get("bubble"), c.get("emote"), c.get("routineState"),
+                     c.get("tool"), c.get("task"), c.get("summary"))
+                    for c in frame["chars"]
+                ]
                 rider = frame.get("rider") or {}
                 comparable.append(("__rider", rider.get("col"), rider.get("row"), rider.get("phase")))
                 comparable.append(("__cat", frame["cat"]["col"], frame["cat"]["row"], frame["cat"]["state"]))
+                comparable.append(("__doors", tuple(sorted(frame.get("doors", {}).items()))))
+                comparable.append(("__roster", tuple((a["id"], a.get("status"), a.get("tool"), a.get("task"))
+                                                     for a in frame.get("roster", {}).get("agents", []))))
+                st = frame.get("status") or {}
+                comparable.append(("__status", st.get("agents_active"), st.get("events_handled")))
                 if comparable != last_frame or now - last_broadcast > MAX_IDLE_REFRESH:
                     HUB.publish_world(frame)
                     last_frame = comparable
@@ -1704,6 +1723,11 @@ class Handler(BaseHTTPRequestHandler):
         try:
             self.wfile.write(b"retry: 3000\n\n")
             self.wfile.write(f"data: {json.dumps(HUB.snapshot())}\n\n".encode())
+            try:
+                current_frame = SIM.world_frame(world_status())
+                self.wfile.write(f"data: {json.dumps(current_frame, ensure_ascii=False)}\n\n".encode("utf-8"))
+            except Exception:
+                pass
             self.wfile.flush()
             while True:
                 try:
