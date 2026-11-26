@@ -22,8 +22,7 @@
       }
 
       this.doors = {};
-      const roomKeys = ['boss', 'research', 'server', 'engineering', 'meeting', 'pantry'];
-      for (const key of roomKeys) {
+      for (const key of LO.ROOM_KEYS) {
         this.doors[key] = {
           openProgress: 0.0,
           targetProgress: 0.0,
@@ -60,7 +59,13 @@
             }
           }
         }
-        const target = near ? 1.0 : (doorState.serverTarget !== undefined ? doorState.serverTarget : 0.0);
+        // In live mode the server owns the door state (it simulates the same
+        // proximity rule); redeclaring `near` here would fight the authoritative
+        // value and never let a door close behind a character the server moved.
+        const serverOwns = LO.office && LO.office.simulatedExternally;
+        const target = (serverOwns && doorState.serverTarget !== undefined)
+          ? doorState.serverTarget
+          : (near ? 1.0 : 0.0);
         doorState.targetProgress = target;
 
         const speed = target > doorState.openProgress ? 5.0 : 3.0;
@@ -373,7 +378,7 @@
     // ---- Fallback 3: Room floors ----
     drawRoomFloors(ctx, ts) {
       const rooms = LO.ROOMS || {};
-      for (const key of ['boss', 'research', 'server', 'engineering', 'meeting', 'pantry']) {
+      for (const key of LO.ROOM_KEYS) {
         const r = rooms[key];
         if (!r || !r.bounds) continue;
         const b = r.bounds;
@@ -504,7 +509,7 @@
         ctx.strokeRect(px + 0.5, py + 0.5, ts - 1, ts - 1);
       };
 
-      for (const key of ['boss', 'research', 'server', 'engineering', 'meeting', 'pantry']) {
+      for (const key of LO.ROOM_KEYS) {
         const r = rooms[key];
         if (!r || !r.bounds) continue;
         const b = r.bounds;
@@ -519,7 +524,7 @@
       }
 
       // C. Doorway frames
-      for (const key of ['boss', 'research', 'server', 'engineering', 'meeting', 'pantry']) {
+      for (const key of LO.ROOM_KEYS) {
         const r = rooms[key];
         if (!r || !r.door) continue;
         this.drawDoorFrame(ctx, ts, r.door.x, r.door.y, r.door.side || 'S');
@@ -554,7 +559,7 @@
       this.drawWhiteboard(ctx, wb.x * ts, (wb.y - 1.5) * ts);
 
       // Doorway signboards (hallway side of each door)
-      for (const key of ['boss', 'research', 'server', 'engineering', 'meeting', 'pantry']) {
+      for (const key of LO.ROOM_KEYS) {
         const r = LO.ROOMS[key];
         if (!r || !r.door) continue;
         const side = r.door.side || 'S';

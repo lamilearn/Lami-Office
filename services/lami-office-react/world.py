@@ -424,7 +424,7 @@ def is_walkable(col, row) -> bool:
 
 
 def room_at(col, row):
-    for key in ["boss", "research", "server", "engineering", "meeting", "pantry"]:
+    for key in ROOM_ORDER:
         b = ROOMS[key]["bounds"]
         if b["x1"] <= col <= b["x2"] and b["y1"] <= row <= b["y2"]:
             return key

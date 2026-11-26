@@ -31,6 +31,7 @@ vm.runInContext(cfg, sandbox);
 const LO = sandbox.window.LO;
 const out = {
   gridCols: LO.GRID_COLS, gridRows: LO.GRID_ROWS, tileSize: LO.TILE_SIZE,
+  roomKeys: LO.ROOM_KEYS,
   doorCol: LO.DOOR_COL, doorRow: LO.DOOR_ROW,
   lamiSeat: LO.LAMI_SEAT,
   rooms: Object.fromEntries(Object.entries(LO.ROOMS)
@@ -99,6 +100,7 @@ def compare() -> list[str]:
         if js_value != py_value:
             problems.append(f"{label}: config.js={js_value!r} world.py={py_value!r}")
 
+    check("ROOM_KEYS", snap["roomKeys"], world.ROOM_ORDER)
     check("GRID_COLS", snap["gridCols"], world.GRID_COLS)
     check("GRID_ROWS", snap["gridRows"], world.GRID_ROWS)
     check("TILE_SIZE", snap["tileSize"], world.TILE_SIZE)
