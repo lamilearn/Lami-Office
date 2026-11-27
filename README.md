@@ -1,5 +1,7 @@
 # Lami AI Office
 
+![Six rooms of the office, live: Boss Office, Research Lab, Server Room, Engineering Pit, Meeting Room, Pantry](docs/img/office.png)
+
 A pixel-art office where AI agents visibly work. The office is a **server-authoritative
 simulation**: one shared world runs at 10 Hz on the server, every browser renders the
 same frames over SSE, and the floor keeps living when nobody is watching.
@@ -79,6 +81,22 @@ There are no hidden modules: `server.py` (2,087 lines) and `world.py` (2,205) ar
 single files by choice, with segment separators. See
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#why-serverpy-is-one-file) for the reasoning —
 splitting them would break 11 assertions that grep specific blocks.
+
+### Assets are generated, not drawn
+
+The floor, walls, doors, windows and props are all tiles. 67 of them, in one
+128×192 spritesheet, produced by a Python script from the floorplan in
+`web/js/config.js`. The same script emits the tilemap, so a wall cannot end up
+somewhere the collision grid does not expect it.
+
+<p align="center">
+  <img src="docs/img/tileset-4x.png" alt="67 tiles: floors per room, brick and painted walls, door frames, windows, desks, monitors, plants, whiteboard, trashcan" width="384">
+  <br>
+  <sub><code>web/assets/tiles/tileset.png</code>, shown at 4× — every room gets its own wall palette</sub>
+</p>
+
+`make assets-check` fails if the committed PNG, JSON or `?v=` hashes drift from
+`config.js`, so the artefacts can never quietly disagree with the plan.
 
 ## How the pieces talk
 
