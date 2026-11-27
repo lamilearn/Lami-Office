@@ -281,6 +281,22 @@
       return this.collisionGrid[y][x] === 0;
     }
 
+    // Movement clamp: a path snap must never teleport a body across a wall.
+    updateChar(a, run) {
+      if (!a || typeof run !== 'function') return;
+      const col0 = a.col;
+      const row0 = a.row;
+      run();
+      if (typeof col0 === 'number' && typeof row0 === 'number'
+          && Math.hypot(a.col - col0, a.row - row0) > 0.75) {
+        a.col = col0;
+        a.row = row0;
+        a.vx = 0;
+        a.vy = 0;
+        a.path = [];
+      }
+    }
+
     setCollision(tileX, tileY, isSolid) {
       const x = Math.floor(tileX);
       const y = Math.floor(tileY);
@@ -1502,6 +1518,11 @@
       if (frame.doors_locked && typeof frame.doors_locked === 'object' && this.world && this.world.doors) {
         for (const [rid, locked] of Object.entries(frame.doors_locked)) {
           if (this.world.doors[rid]) this.world.doors[rid].locked = !!locked;
+          const room = LO.ROOMS && LO.ROOMS[rid];
+          if (room && room.door) {
+            this.setCollision(room.door.x, room.door.y, !!locked);
+            this.setCollision(room.door.x + 1, room.door.y, !!locked);
+          }
         }
       }
 
@@ -1601,7 +1622,7 @@
         return;
       }
 
-      this.lami.update(dt, this);
+      this.updateChar(this.lami, () => this.lami.update(dt, this));
       this.cat.update(dt, this);
 
       // Random office event timers
@@ -1615,14 +1636,14 @@
       }
 
       if (this.deliveryRider) {
-        this.deliveryRider.update(dt, this);
+        this.updateChar(this.deliveryRider, () => this.deliveryRider.update(dt, this));
       }
 
       for (const res of this.residents) {
-        res.update(dt, this);
+        this.updateChar(res, () => res.update(dt, this));
       }
       for (const sub of this.subagents.values()) {
-        sub.update(dt, this);
+        this.updateChar(sub, () => sub.update(dt, this));
       }
 
       // 2D Character Elastic Separation Physics (Social Anti-Overlap in Hallways & Doors)
