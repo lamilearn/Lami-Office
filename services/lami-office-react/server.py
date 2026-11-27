@@ -1690,6 +1690,8 @@ class Handler(BaseHTTPRequestHandler):
                 "total": len(peers),
                 "can_send": bool(str(CFG.get("a2a_secret") or "") or CFG.get("a2a_peer_tokens")),
             })
+        if path == "/api/doors":
+            return self.handle_doors()
         if path == "/api/world":
             reconcile_roster()
             frame = SIM.world_frame(world_status())
@@ -1735,6 +1737,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = urlparse(self.path).path
+        if path == "/api/doors":
+            return self.handle_doors()
         if path == "/api/chat":
             return self.handle_chat()
         if path == "/api/a2a/send":
@@ -1818,6 +1822,41 @@ class Handler(BaseHTTPRequestHandler):
             return {"ok": False, "status": 504, "error": str(data.get("error") or "Lami belum membalas")}
         return {"ok": True, "status": 200, "reply": str(data.get("reply") or ""),
                 "context_id": str(data.get("context_id") or context_id)}
+
+    def handle_doors(self):
+        """Door access control. GET reads the locks, POST {room, locked} flips one.
+
+        Only local/LAN hosts may lock a door: a public visitor must never be able
+        to seal a room and trap the office simulation.
+        """
+        state = {rid: bool(SIM.doors_locked.get(rid)) for rid in SIM.doors}
+        if self.command == "GET":
+            return self.send_json(200, {"ok": True, "doors_locked": state})
+        try:
+            # Read the body first: refusing with an unread body desyncs a kept-alive
+            # connection and the next response on it is unparseable.
+            declared = int(self.headers.get("Content-Length", 0) or 0)
+            raw = self.rfile.read(declared) if declared else b"{}"
+            self._body_read = True
+            data = json.loads(raw)
+        except Exception:  # noqa: BLE001
+            return self.send_json(400, {"error": "json tidak valid"})
+        if not isinstance(data, dict):
+            return self.send_json(400, {"error": "body harus objek JSON"})
+        if not self.is_trusted():
+            return self.send_json(403, {"error": "kunci pintu hanya dari host lokal/LAN terpercaya"})
+        room = str(data.get("room") or "").strip()
+        if room not in state:
+            return self.send_json(400, {"error": "room tidak dikenal", "rooms": sorted(state)})
+        locked = bool(data.get("locked"))
+        SIM.set_door_lock(room, locked)
+        try:
+            HUB.publish_world(SIM.world_frame(world_status()))
+        except Exception as exc:  # noqa: BLE001
+            print(f"[doors] publish error: {exc}", file=sys.stderr)
+        return self.send_json(200, {"ok": True, "room": room, "locked": locked,
+                                    "doors_locked": {rid: bool(SIM.doors_locked.get(rid))
+                                                     for rid in SIM.doors}})
 
     def handle_chat(self):
         """Public web chat -> Lami over A2A.

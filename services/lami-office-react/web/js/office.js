@@ -609,6 +609,19 @@
           }
         }
 
+        // 1a. Door access: tapping a doorway asks the server to lock/unlock it.
+        const doorTile = LO.screenToTile ? LO.screenToTile(canvasX, canvasY) : null;
+        if (doorTile) {
+          for (const key of LO.ROOM_KEYS) {
+            const d = LO.ROOMS[key] && LO.ROOMS[key].door;
+            if (!d) continue;
+            if (doorTile.tileY === d.y && (doorTile.tileX === d.x || doorTile.tileX === d.x + 1)) {
+              this.toggleDoorLock(key);
+              return true;
+            }
+          }
+        }
+
         // 1b. Tapping a rack pins that agent's resources, which is how touch
         // devices (no hover) inspect a server.
         const rack = this.rackAt(canvasX, canvasY);
@@ -882,6 +895,30 @@
       // chat input stays visible and the canvas re-fits.
       this.setupVisualViewport();
       this.refreshMode();
+    }
+
+    async toggleDoorLock(roomKey) {
+      const state = this.world && this.world.doors && this.world.doors[roomKey];
+      const locked = !(state && state.locked);
+      try {
+        const res = await fetch('/api/doors', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ room: roomKey, locked })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const msg = data.error || 'gagal mengubah kunci pintu';
+          if (LO.ui && LO.ui.appendChatMessage) {
+            LO.ui.appendChatMessage('Sistem', 'Pintu', LO.ui.escChat ? LO.ui.escChat(msg) : msg, '🔒', '#c0392b', false, true);
+          }
+          return;
+        }
+        if (state) state.locked = locked;
+        if (LO.audio && LO.audio.pop) LO.audio.pop();
+      } catch (err) {
+        // Offline or blocked: the frame from the server stays authoritative.
+      }
     }
 
     setupVisualViewport() {
@@ -1459,6 +1496,12 @@
           if (this.world.doors[rid]) {
             this.world.doors[rid].serverTarget = Number(prog);
           }
+        }
+      }
+
+      if (frame.doors_locked && typeof frame.doors_locked === 'object' && this.world && this.world.doors) {
+        for (const [rid, locked] of Object.entries(frame.doors_locked)) {
+          if (this.world.doors[rid]) this.world.doors[rid].locked = !!locked;
         }
       }
 

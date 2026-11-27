@@ -1544,6 +1544,9 @@ class Sim:
         self.t0 = time.time()
         # Door states for all 6 rooms: open_progress from 0.0 (closed) to 1.0 (fully open)
         self.doors = {k: 0.0 for k in ROOMS}
+        # Access control: a locked door stays shut and its tiles are solid, so
+        # A*, movement and clicks cannot pass until it is unlocked again.
+        self.doors_locked = {k: False for k in ROOMS}
 
     # ---- narrative helpers -------------------------------------------------------
     # `from_hermes=True` marks text that traces back to a real Hermes event. Staff
@@ -2008,12 +2011,25 @@ class Sim:
             cx = door["x"] + 1.0
             cy = door["y"] + 0.5
             near = any(math.hypot(c.col - cx, c.row - cy) <= 2.2 for c in all_chars)
-            target = 1.0 if near else 0.0
+            target = 0.0 if self.doors_locked.get(room_id) else (1.0 if near else 0.0)
             current = self.doors.get(room_id, 0.0)
             if current < target:
                 self.doors[room_id] = min(1.0, current + dt * 4.0)
             elif current > target:
                 self.doors[room_id] = max(0.0, current - dt * 2.5)
+
+    def set_door_lock(self, room_id: str, locked: bool) -> bool:
+        """Lock/unlock a room door. Locked tiles become solid for every path."""
+        room = ROOMS.get(room_id)
+        door = (room or {}).get("door")
+        if not door:
+            return False
+        for x, y in ((door["x"], door["y"]), (door["x"] + 1, door["y"])):
+            GRID[y][x] = 1 if locked else 0
+        self.doors_locked[room_id] = bool(locked)
+        if locked:
+            self.doors[room_id] = 0.0
+        return True
 
     # ---- output ------------------------------------------------------------------
     def world_frame(self, status=None):
@@ -2027,6 +2043,7 @@ class Sim:
             "chars": chars,
             "cat": self.cat.to_world(),
             "doors": {rid: round(val, 2) for rid, val in self.doors.items()},
+            "doors_locked": {rid: bool(self.doors_locked.get(rid)) for rid in self.doors},
             "roster": {
                 "source": "hub",
                 "agents": [
@@ -2057,6 +2074,7 @@ class Sim:
             "flickerTimer": round(self.flicker_timer, 2),
             "chars": len(self.all_moving()),
             "doors": {rid: round(val, 2) for rid, val in self.doors.items()},
+            "doors_locked": {rid: bool(self.doors_locked.get(rid)) for rid in self.doors},
         }
 
     def drain_outbox(self):
@@ -2072,6 +2090,7 @@ class Sim:
             "cat": self.cat.state_snapshot(),
             "subagents": {aid: a.state_snapshot() for aid, a in self.subagents.items()},
             "doors": {rid: round(val, 2) for rid, val in self.doors.items()},
+            "doors_locked": {rid: bool(self.doors_locked.get(rid)) for rid in self.doors},
             "pizzaTimer": round(self.pizza_timer, 2),
             "randomEventTimer": round(self.random_event_timer, 2),
         }
