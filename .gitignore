@@ -25,6 +25,7 @@ yarn-error.log*
 !.env.example
 !.env.production
 !.env.development
+.env.*.secrets
 
 # OS / IDE artifacts
 .DS_Store

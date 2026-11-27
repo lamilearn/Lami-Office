@@ -1044,3 +1044,128 @@ describe('Tier 4 — HTTP Integration: One number for "agents online"', () => {
     assert.strictEqual(integ.json.sub_agents, 0, 'no Hermes sub-agent is running here');
   }, LONG);
 });
+
+// Public web chat: the browser never holds an A2A token, so /api/chat is the
+// only chat surface a visitor can reach. These tests pin its guardrails.
+describe('Tier 4 — HTTP Integration: public web chat', () => {
+  let srv = null;
+  let stub = null;
+
+  beforeAll(async () => {
+    stub = await H.startStubPeer({ protocol: 'a2a' });
+    srv = await H.startServer({
+      env: {
+        A2A_PEERS: peerJson([{ id: 'lami-chat', name: 'Lami', host: '127.0.0.1', port: stub.port, room: 'boss', protocol: 'a2a' }]),
+        A2A_SECRET: 'test-secret',
+        CHAT_PEER: 'lami-chat',
+        CHAT_PER_MINUTE: '2',
+        CHAT_PER_HOUR: '50',
+        CHAT_DAILY_CAP: '40'
+      }
+    });
+    await H.sleep(1400);
+  });
+  afterAll(async () => {
+    if (srv) await srv.stop();
+    if (stub) await stub.stop();
+    srv = null; stub = null;
+  });
+
+  it('G1: a public visitor gets a real reply through the proxy', async () => {
+    if (!HAVE_PY) return;
+    const res = await srv.post('/api/chat', { text: 'halo lami', session: 'wtest1' },
+      { headers: { 'CF-Connecting-IP': '203.0.113.11', 'CF-Ray': 'test-ray-g1' } });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.json.ok, true);
+    assert.strictEqual(res.json.reply, 'laporan siap');
+    assert.strictEqual(res.json.session, 'wtest1');
+  }, LONG);
+
+  it('G2: the forwarded message is tagged as untrusted public input', async () => {
+    if (!HAVE_PY) return;
+    const call = stub.seen.filter((s) => s.method === 'POST' && s.url === '/').pop();
+    assert.ok(call, 'the chat must reach the peer over A2A');
+    assert.strictEqual(call.headers.authorization, 'Bearer test-secret');
+    const forwarded = call.body.params.message.parts[0].text;
+    assert.ok(forwarded.includes('[web-chat publik'), `tag missing: ${forwarded}`);
+    assert.ok(forwarded.includes('halo lami'), 'visitor text must be forwarded');
+  }, LONG);
+
+  it('G3: empty and oversized messages are rejected', async () => {
+    if (!HAVE_PY) return;
+    const headers = { 'CF-Connecting-IP': '203.0.113.12' };
+    const empty = await srv.post('/api/chat', { text: '   ' }, { headers });
+    assert.strictEqual(empty.status, 400);
+    const long = await srv.post('/api/chat', { text: 'x'.repeat(601) }, { headers });
+    assert.strictEqual(long.status, 400);
+    assert.ok(String(long.json.error).includes('terlalu panjang'));
+  }, LONG);
+
+  it('G4: a third message in one minute is refused with 429', async () => {
+    if (!HAVE_PY) return;
+    const headers = { 'CF-Connecting-IP': '203.0.113.13' };
+    const first = await srv.post('/api/chat', { text: 'satu' }, { headers });
+    const second = await srv.post('/api/chat', { text: 'dua' }, { headers });
+    const third = await srv.post('/api/chat', { text: 'tiga' }, { headers });
+    assert.strictEqual(first.status, 200);
+    assert.strictEqual(second.status, 200);
+    assert.strictEqual(third.status, 429);
+    assert.ok(String(third.json.error).includes('terlalu cepat'));
+  }, LONG);
+
+  it('G5: chat is not a back door to /api/a2a/send', async () => {
+    if (!HAVE_PY) return;
+    const res = await srv.post('/api/a2a/send', { peer: 'lami-chat', text: 'hi' },
+      { headers: { 'CF-Ray': 'test-ray-g5' } });
+    assert.strictEqual(res.status, 403);
+  }, LONG);
+});
+
+// Door access control: a lock must be server-owned, visible in world frames and
+// impossible to flip from public/tunnel traffic.
+describe('Tier 4 — HTTP Integration: door access control', () => {
+  let srv = null;
+
+  beforeAll(async () => { srv = await H.startServer({}); await H.sleep(1400); });
+  afterAll(async () => { if (srv) await srv.stop(); srv = null; });
+
+  it('H1: doors start unlocked', async () => {
+    if (!HAVE_PY) return;
+    const res = await srv.get('/api/doors');
+    assert.strictEqual(res.status, 200);
+    assert.deepStrictEqual(res.json.doors_locked,
+      { boss: false, research: false, server: false, engineering: false, meeting: false, pantry: false });
+  }, LONG);
+
+  it('H2: a trusted host can lock a room door and world frames agree', async () => {
+    if (!HAVE_PY) return;
+    const res = await srv.post('/api/doors', { room: 'boss', locked: true });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.json.doors_locked.boss, true);
+    const world = await srv.get('/api/world');
+    assert.strictEqual(world.json.doors_locked.boss, true, 'world frame must carry the lock');
+    assert.strictEqual(world.json.doors.boss, 0, 'a locked door is closed');
+  }, LONG);
+
+  it('H3: an unknown room is rejected', async () => {
+    if (!HAVE_PY) return;
+    const res = await srv.post('/api/doors', { room: 'narnia', locked: true });
+    assert.strictEqual(res.status, 400);
+  }, LONG);
+
+  it('H4: public tunnel traffic cannot flip a lock', async () => {
+    if (!HAVE_PY) return;
+    const res = await srv.post('/api/doors', { room: 'boss', locked: false },
+      { headers: { 'CF-Connecting-IP': '203.0.113.31', 'CF-Ray': 'test-ray-h4' } });
+    assert.strictEqual(res.status, 403);
+    const after = await srv.get('/api/doors');
+    assert.strictEqual(after.json.doors_locked.boss, true, 'the lock must survive the refused call');
+  }, LONG);
+
+  it('H5: unlocking restores the door', async () => {
+    if (!HAVE_PY) return;
+    const res = await srv.post('/api/doors', { room: 'boss', locked: false });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.json.doors_locked.boss, false);
+  }, LONG);
+});

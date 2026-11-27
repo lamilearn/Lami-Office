@@ -423,6 +423,16 @@ def is_walkable(col, row) -> bool:
     return GRID[y][x] == 0
 
 
+def _segment_clear(x0, y0, x1, y1) -> bool:
+    """True when the straight segment stays on walkable tiles (no wall crossing)."""
+    dist = math.hypot(x1 - x0, y1 - y0)
+    steps = max(1, int(dist / 0.2) + 1)
+    for i in range(steps + 1):
+        t = i / steps
+        if not is_walkable(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t):
+            return False
+    return True
+
 def room_at(col, row):
     for key in ROOM_ORDER:
         b = ROOMS[key]["bounds"]
@@ -714,7 +724,19 @@ class Character:
             self.bubble_timer -= dt
             if self.bubble_timer <= 0:
                 self.bubble = None
+        col0, row0 = self.col, self.row
         self.update_movement(dt)
+        # Hard invariant: a single tick never carries a body across a solid tile.
+        # Waypoint snapping used to hop over walls when a path was replaced while
+        # the body sat far away, which read on screen as walking through walls.
+        if not _segment_clear(col0, row0, self.col, self.row):
+            self.col, self.row = col0, row0
+            self.vx = self.vy = 0.0
+            self.path = []
+            self.state = "work"
+        if getattr(self, "_need_nudge", False):
+            self._need_nudge = False
+            self._unstuck()
 
     def update_movement(self, dt):
         self.floor = self.target_floor = 0
@@ -799,9 +821,9 @@ class Character:
             if is_walkable(node["x"], node["y"]) and moved_now < 1e-4:
                 self._stuck_time += dt
                 if self._stuck_time > 0.25:
-                    self.col = float(node["x"])
-                    self.row = float(node["y"])
-                    self.vx = self.vy = 0.0
+                    # Flag a nudge off the wall face; update() performs it after
+                    # the anti-clip guard so the two never fight each other.
+                    self._need_nudge = True
                     self._stuck_time = 0.0
                     self._advance_waypoint(node)
                     return
@@ -845,6 +867,21 @@ class Character:
         if self.state == "walk":
             self.on_arrived()
         self.update_idle_state(dt)
+
+    def _unstuck(self):
+        """Move the body a safe step off a wall face. Never crosses a solid tile."""
+        for dc, dr in ((0.6, 0), (-0.6, 0), (0, 0.6), (0, -0.6),
+                       (0.6, 0.6), (-0.6, -0.6), (0.6, -0.6), (-0.6, 0.6)):
+            col, row = self.col + dc, self.row + dr
+            if _segment_clear(self.col, self.row, col, row) and is_walkable(col, row):
+                self.col, self.row = col, row
+                self.vx = self.vy = 0.0
+                return True
+        near = nearest_walkable(self.col, self.row, GRID, max_radius=2)
+        if near and _segment_clear(self.col, self.row, near["x"] + 0.5, near["y"] + 0.5):
+            self.col, self.row = float(near["x"]) + 0.5, float(near["y"]) + 0.5
+        self.vx = self.vy = 0.0
+        return False
 
     def _advance_waypoint(self, node):
         """Pop the reached waypoint and finish the walk when it was the last."""
@@ -1544,6 +1581,9 @@ class Sim:
         self.t0 = time.time()
         # Door states for all 6 rooms: open_progress from 0.0 (closed) to 1.0 (fully open)
         self.doors = {k: 0.0 for k in ROOMS}
+        # Access control: a locked door stays shut and its tiles are solid, so
+        # A*, movement and clicks cannot pass until it is unlocked again.
+        self.doors_locked = {k: False for k in ROOMS}
 
     # ---- narrative helpers -------------------------------------------------------
     # `from_hermes=True` marks text that traces back to a real Hermes event. Staff
@@ -2008,12 +2048,25 @@ class Sim:
             cx = door["x"] + 1.0
             cy = door["y"] + 0.5
             near = any(math.hypot(c.col - cx, c.row - cy) <= 2.2 for c in all_chars)
-            target = 1.0 if near else 0.0
+            target = 0.0 if self.doors_locked.get(room_id) else (1.0 if near else 0.0)
             current = self.doors.get(room_id, 0.0)
             if current < target:
                 self.doors[room_id] = min(1.0, current + dt * 4.0)
             elif current > target:
                 self.doors[room_id] = max(0.0, current - dt * 2.5)
+
+    def set_door_lock(self, room_id: str, locked: bool) -> bool:
+        """Lock/unlock a room door. Locked tiles become solid for every path."""
+        room = ROOMS.get(room_id)
+        door = (room or {}).get("door")
+        if not door:
+            return False
+        for x, y in ((door["x"], door["y"]), (door["x"] + 1, door["y"])):
+            GRID[y][x] = 1 if locked else 0
+        self.doors_locked[room_id] = bool(locked)
+        if locked:
+            self.doors[room_id] = 0.0
+        return True
 
     # ---- output ------------------------------------------------------------------
     def world_frame(self, status=None):
@@ -2027,6 +2080,7 @@ class Sim:
             "chars": chars,
             "cat": self.cat.to_world(),
             "doors": {rid: round(val, 2) for rid, val in self.doors.items()},
+            "doors_locked": {rid: bool(self.doors_locked.get(rid)) for rid in self.doors},
             "roster": {
                 "source": "hub",
                 "agents": [
@@ -2057,6 +2111,7 @@ class Sim:
             "flickerTimer": round(self.flicker_timer, 2),
             "chars": len(self.all_moving()),
             "doors": {rid: round(val, 2) for rid, val in self.doors.items()},
+            "doors_locked": {rid: bool(self.doors_locked.get(rid)) for rid in self.doors},
         }
 
     def drain_outbox(self):
@@ -2072,6 +2127,7 @@ class Sim:
             "cat": self.cat.state_snapshot(),
             "subagents": {aid: a.state_snapshot() for aid, a in self.subagents.items()},
             "doors": {rid: round(val, 2) for rid, val in self.doors.items()},
+            "doors_locked": {rid: bool(self.doors_locked.get(rid)) for rid in self.doors},
             "pizzaTimer": round(self.pizza_timer, 2),
             "randomEventTimer": round(self.random_event_timer, 2),
         }
