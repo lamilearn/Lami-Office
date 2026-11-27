@@ -14,7 +14,6 @@
     ['#b79cf2', '#9478d6'], ['#ff9e7a', '#e57c58'], ['#6fd0c8', '#47b0a7'], ['#f58fd0', '#d468b0'],
   ];
   const PANTS = ['#4b4e7a', '#5a4a6e', '#3f5a6e', '#6e4a4a'];
-  LO.PALETTE = { HAIR, SKIN, CLOTH, PANTS };
 
   // South (Facing Down / Front) 14 x 20
   const SOUTH_BODY = [
@@ -273,15 +272,6 @@
     const set = { SE: se, SW: sw, right: se, left: sw, w: 12, h: 8 };
     cache.set('cat', set);
     return set;
-  };
-
-  // ---- Coin 7x7 ----
-  LO.getCoinSprite = function () {
-    if (cache.has('coin')) return cache.get('coin');
-    const rows = ['..OOO..', '.OYYYO.', 'OYWYYyO', 'OYWYYyO', 'OYYYYyO', '.OyyyO.', '..OOO..'];
-    const c = rasterize(rows, { O: '#9a6a12', Y: '#ffd25e', y: '#e9a827', W: '#fff6c9' });
-    cache.set('coin', c);
-    return c;
   };
 
   // ---- Paper 5x6 ----

@@ -153,7 +153,9 @@ def load_config() -> dict:
 
 CFG = load_config()
 
-# --------------------------------------------------------------- web chat --
+# --------------------------------------------------------------------------------------
+# Public web chat rate limit
+# --------------------------------------------------------------------------------------
 # One sliding window per visitor IP plus a shared daily budget, so a public
 # chat box can never burn the agent's tokens or hammer the LAN A2A endpoint.
 _CHAT_LOCK = threading.Lock()
@@ -183,6 +185,9 @@ def chat_allow(ip: str) -> tuple:
         return True, ""
 
 # Parsed once: LAN ranges allowed to POST /api/event (the Hermes bridge host).
+# --------------------------------------------------------------------------------------
+# Trust boundary - who may POST events / drive peers
+# --------------------------------------------------------------------------------------
 try:
     TRUSTED_NETS = [ipaddress.ip_network(str(n), strict=False) for n in (CFG.get("trusted_networks") or [])]
 except ValueError as _exc:  # noqa: BLE001
@@ -215,7 +220,7 @@ def is_trusted_host(address: str) -> bool:
 
 
 # --------------------------------------------------------------------------------------
-# Sanitizer - nothing sensitive leaves this machine
+# Redaction - strip URLs, emails, tokens and file paths from any text
 # --------------------------------------------------------------------------------------
 _URL = re.compile(r"https?://([^/\s\"'<>]+)[^\s\"'<>]*", re.I)
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
@@ -264,6 +269,9 @@ def clean_text(value, limit: int | None = None) -> str:
     return s
 
 
+# --------------------------------------------------------------------------------------
+# Event schema - the only keys/types that may leave this machine
+# --------------------------------------------------------------------------------------
 ALLOWED_KEYS = {"type", "agentId", "parentId", "task", "tool", "summary", "ok", "status", "result", "text", "name", "ts",
                 "who", "role", "icon", "color", "title", "desc",
                 # context window report (from the bridge, measured from Hermes)
@@ -878,6 +886,9 @@ class A2ARegistry:
 A2A = A2ARegistry(CFG.get("a2a_peers"))
 
 
+# --------------------------------------------------------------------------------------
+# A2A poller thread
+# --------------------------------------------------------------------------------------
 def a2a_loop():
     while True:
         try:
@@ -989,6 +1000,9 @@ def normalize_tool_calls(raw) -> list[dict]:
     return calls
 
 
+# --------------------------------------------------------------------------------------
+# Tracker - chat/tool stream to office events
+# --------------------------------------------------------------------------------------
 class Tracker:
     """Turns a stream of chat messages (from any source) into office events."""
 
@@ -1071,6 +1085,9 @@ class Tracker:
         return ids
 
 
+# --------------------------------------------------------------------------------------
+# Hermes sources - sqlite, session files, Antigravity transcripts
+# --------------------------------------------------------------------------------------
 class SqliteSource:
     def __init__(self, path: str, tracker: Tracker):
         self.path, self.tracker = path, tracker
@@ -1327,6 +1344,9 @@ def _source_names(sources):
     return [type(s).__name__ for s in sources]
 
 
+# --------------------------------------------------------------------------------------
+# Persistence and watcher threads
+# --------------------------------------------------------------------------------------
 def _persist_loop():
     """Flush hub state even when no watcher sources are configured."""
     while True:
@@ -1515,6 +1535,9 @@ MIME = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=ut
         ".webp": "image/webp", ".woff2": "font/woff2", ".mp3": "audio/mpeg", ".wav": "audio/wav"}
 
 
+# --------------------------------------------------------------------------------------
+# HTTP handler - every route lives here
+# --------------------------------------------------------------------------------------
 class Handler(BaseHTTPRequestHandler):
     server_version = "LamiOffice/1.0"
     protocol_version = "HTTP/1.1"
@@ -2032,6 +2055,9 @@ def probe():
         print("   -", f)
 
 
+# --------------------------------------------------------------------------------------
+# Entrypoint
+# --------------------------------------------------------------------------------------
 def main():
     ap = argparse.ArgumentParser(description="Lami's AI Office server")
     ap.add_argument("--probe", action="store_true", help="cek sumber data Hermes lalu keluar")

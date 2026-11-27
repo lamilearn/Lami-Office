@@ -86,14 +86,6 @@
   // relative to the plain contain fit.
   LO.DESKTOP_ZOOM_MAX = 4;
 
-  // Backward-compatibility geometric aliases
-  LO.ISO_TILE_W = LO.TILE_SIZE;
-  LO.ISO_TILE_H = LO.TILE_SIZE;
-  LO.FLOOR_DY = 0;
-  LO.ROOF_OFFSET = 24;
-  LO.ORIGIN_X = Math.floor(LO.CONTENT_W / 2);
-  LO.NF = 6;
-
   // ---- 2D Orthogonal Grid Projection Math ----
   LO.tileToScreen = function (tileX, tileY) {
     return {
@@ -115,19 +107,9 @@
     };
   };
 
-  // Legacy isometric wrappers forwarding to 2D orthogonal grid math for zero breakage
-  LO.isoToScreen = function (col, row, floor) {
+  // Characters and the renderer still call this name; it forwards to the 2D grid.
+  LO.isoToScreen = function (col, row) {
     return LO.tileToScreen(col, row);
-  };
-
-  LO.screenToIso = function (sx, sy, floor) {
-    const t = LO.screenToTile(sx, sy);
-    return {
-      col: t.col,
-      row: t.row,
-      tileX: t.tileX,
-      tileY: t.tileY
-    };
   };
 
   // ---- 2D Orthogonal Pathfinding (A* / Manhattan heuristic) ----
@@ -372,11 +354,6 @@
   LO.ENTRANCE = { x: 2, y: 21, facing: 'E' };
   LO.DOOR_COL = 2;
   LO.DOOR_ROW = 21;
-  LO.LIFT_COL = 1;
-  LO.LIFT_ROW = 21;
-  LO.LIFT_WAIT_COL = 2;
-  LO.LIFT_WAIT_ROW = 21;
-
   // Legacy Floors array & index for backward compatibility with UI/HUD
   LO.FLOORS = [
     LO.ROOMS.boss,
@@ -661,16 +638,6 @@
       });
     }
     return out;
-  };
-
-  // A tile is walkable when it is inside a room interior, a hallway band or a doorway.
-  LO.isFloorTile = function (col, row) {
-    if (LO.roomAt(col, row)) return true;
-    if (LO.hallwayAt(col, row)) return true;
-    for (const d of LO.doorways()) {
-      for (const t of d.tiles) if (t.x === col && t.y === row) return true;
-    }
-    return false;
   };
 
   // ---- Responsive Breakpoints & Phone Camera Mode ----
