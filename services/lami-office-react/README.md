@@ -1,35 +1,30 @@
 # 🏢 Lami's AI Office — Kantor AI Pixel Live
 
+> **Catatan struktur:** repo ini monorepo. Aplikasi office ada di
+> `services/lami-office-react/`. Jalankan dan deploy dari **root repo** lewat
+> [`docker-compose.yml`](../../docker-compose.yml). README ini menjelaskan
+> service-nya saja.
+
 Visualisasi kantor AI bergaya game **Happy Mall Story** (pixel art pastel, cutaway building) di mana Boss Lami (Hermes) dan karyawan sub-agent bekerja secara **real-time** mengikuti aktivitas AI sesungguhnya.
 
 ---
 
 ## 🚀 Cara Menjalankan
 
-### 1. Jalankan Server (Port 8090)
-**Di Windows (PowerShell):**
-```powershell
-.\deploy\start.ps1
+Dari **root repo** (bukan dari folder ini):
+
+```bash
+docker compose --env-file .env.production up -d --build
 ```
 
-**Di Linux (Ubuntu/Debian/dll):**
-```bash
-chmod +x deploy/start.sh
-./deploy/start.sh
-```
+Untuk menjalankan `server.py` langsung tanpa Docker (debug saja):
 
-Atau manual lewat Python:
 ```bash
+cd services/lami-office-react
 python3 server.py
 ```
-> Server menggunakan **Python Standard Library murni**, tidak perlu install library pihak ketiga (`pip install`).
 
-**Jalankan sebagai Service Background di Linux (Systemd):**
-```bash
-sudo cp deploy/lami-office.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now lami-office
-```
+> Server memakai **Python Standard Library murni**, tidak perlu `pip install`.
 
 Buka di browser:
 - **Tampilan Standar:** [http://localhost:8090](http://localhost:8090)
@@ -101,7 +96,7 @@ Buka di browser:
    ```bash
    cloudflared tunnel route dns lami-office office.fatihrumi.id
    ```
-4. Salin `<TUNNEL_ID>` dari file `.cloudflared/<TUNNEL_ID>.json` ke file [deploy/cloudflared-config.yml](file:///d:/Hermes/AI-Office/deploy/cloudflared-config.yml).
+4. Salin `<TUNNEL_ID>` dari file `.cloudflared/<TUNNEL_ID>.json` ke `deploy/cloudflared-config.yml`.
 5. Jalankan tunnel:
    ```bash
    cloudflared tunnel --config deploy/cloudflared-config.yml run lami-office
@@ -156,5 +151,5 @@ python3 deploy/hermes_hook.py status --status thinking
 ## 🔒 Keamanan & Sensor Data
 - Web publik bersifat **Read-Only** (hanya melihat simulasi, tidak dapat mengirim eksekusi ke sistem).
 - Server otomatis menyensor file path asli, secret token, API key, dan email sebelum dikirim ke browser.
-- Mode publik dapat disetel ke `demo` di [config.json](file:///d:/Hermes/AI-Office/config.json) jika ingin pengunjung luar hanya melihat simulasi aman.
+- Mode publik disetel lewat `PUBLIC_MODE` di [`.env.production`](../../.env.production) (`live` atau `demo`).
 

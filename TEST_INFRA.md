@@ -35,14 +35,20 @@ The testing track uses an opaque-box, requirement-driven 4-tier testing methodol
 ```
 Project/AI Agent/Lami/ai-office/
 ├── package.json                   # Root package definition with npm test scripts
+├── docker-compose.yml             # The only compose file
 ├── scripts/
+│   ├── check_world_sync.py        # world.py <-> config.js parity guard
+│   ├── stamp_assets.py            # Content-hash ?v= for every asset
 │   ├── push_to_github.sh          # Git dev push and branch management
 │   ├── smoke_test.sh              # 7-point live endpoint smoke probe
 │   ├── generate_tileset.py        # Builds assets/tiles/tileset.png (+ --check)
-│   └── generate_tilemap.py        # Builds assets/map/office.map.json from config.js (+ --check)
+│   └── generate_tilemap.py        # Builds assets/map/office.map.json (+ --check)
 ├── services/
 │   └── lami-office-react/         # 2D RPG Office frontend & SSE server (Port 8090)
 │       ├── server.py              # Single-port HTTP & SSE streaming server
+│       ├── world.py               # Server-authoritative simulation
+│       ├── config.json            # Optional overrides (env wins)
+│       ├── deploy/                # Hermes bridge, metrics agent, tunnel config
 │       └── web/
 │           ├── index.html         # Canvas UI & DOM overlays
 │           ├── assets/            # tiles/tileset.png + tileset.json + map/office.map.json

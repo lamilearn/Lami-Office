@@ -6,19 +6,28 @@ Unified workspace & monorepo containing services for **AI Office** and **Lami Of
 
 ```
 .
-├── .dockerignore
-├── .gitignore
-├── .env.example
-├── .env.production
-├── .env.development
-├── docker-compose.yml
+├── docker-compose.yml       # The only compose file — run from here
+├── package.json             # npm test / npm run assets:check
+├── .env.example             # Copy to .env.production|.env.development
+├── PROJECT.md               # Architecture + interface contracts
+├── TEST_INFRA.md            # E2E suite layout
 ├── scripts/
-│   ├── smoke_test.sh        # Probes all 7 health endpoints
-│   ├── push_to_github.sh    # Push master and dev branches to GitHub
+│   ├── check_world_sync.py  # Fails when world.py drifts from config.js
 │   ├── generate_tileset.py  # Builds web/assets/tiles/tileset.png (+ --check)
-│   └── generate_tilemap.py  # Builds web/assets/map/office.map.json from config.js (+ --check)
-└── services/
-    └── lami-office-react/   # Interactive office app, port 8090 (host-published as 8088/8090)
+│   ├── generate_tilemap.py  # Builds web/assets/map/office.map.json (+ --check)
+│   ├── stamp_assets.py      # Content-hash ?v= on every asset in index.html
+│   ├── deploy_prod.sh       # Fast-forward master + rebuild on the prod host
+│   ├── deploy_staging.sh    # Same for dev on the staging host
+│   ├── push_to_github.sh    # Push dev (master needs ALLOW_MASTER_PUSH=1)
+│   └── smoke_test.sh        # Probes all 7 health endpoints
+├── services/
+│   └── lami-office-react/   # The app: server.py, world.py, web/
+│       ├── server.py        # stdlib HTTP + SSE, public chat proxy
+│       ├── world.py         # Server-authoritative 10 Hz simulation
+│       ├── config.json      # Optional overrides (env wins)
+│       ├── deploy/          # Hermes bridge, metrics agent, units, tunnel
+│       └── web/             # index.html, css/style.css, js/*.js, assets/
+└── tests/                   # Zero-dependency E2E harness (378 tests)
 ```
 
 ## Floorplan & Assets
