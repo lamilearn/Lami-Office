@@ -1120,3 +1120,52 @@ describe('Tier 4 — HTTP Integration: public web chat', () => {
     assert.strictEqual(res.status, 403);
   }, LONG);
 });
+
+// Door access control: a lock must be server-owned, visible in world frames and
+// impossible to flip from public/tunnel traffic.
+describe('Tier 4 — HTTP Integration: door access control', () => {
+  let srv = null;
+
+  beforeAll(async () => { srv = await H.startServer({}); await H.sleep(1400); });
+  afterAll(async () => { if (srv) await srv.stop(); srv = null; });
+
+  it('H1: doors start unlocked', async () => {
+    if (!HAVE_PY) return;
+    const res = await srv.get('/api/doors');
+    assert.strictEqual(res.status, 200);
+    assert.deepStrictEqual(res.json.doors_locked,
+      { boss: false, research: false, server: false, engineering: false, meeting: false, pantry: false });
+  }, LONG);
+
+  it('H2: a trusted host can lock a room door and world frames agree', async () => {
+    if (!HAVE_PY) return;
+    const res = await srv.post('/api/doors', { room: 'boss', locked: true });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.json.doors_locked.boss, true);
+    const world = await srv.get('/api/world');
+    assert.strictEqual(world.json.doors_locked.boss, true, 'world frame must carry the lock');
+    assert.strictEqual(world.json.doors.boss, 0, 'a locked door is closed');
+  }, LONG);
+
+  it('H3: an unknown room is rejected', async () => {
+    if (!HAVE_PY) return;
+    const res = await srv.post('/api/doors', { room: 'narnia', locked: true });
+    assert.strictEqual(res.status, 400);
+  }, LONG);
+
+  it('H4: public tunnel traffic cannot flip a lock', async () => {
+    if (!HAVE_PY) return;
+    const res = await srv.post('/api/doors', { room: 'boss', locked: false },
+      { headers: { 'CF-Connecting-IP': '203.0.113.31', 'CF-Ray': 'test-ray-h4' } });
+    assert.strictEqual(res.status, 403);
+    const after = await srv.get('/api/doors');
+    assert.strictEqual(after.json.doors_locked.boss, true, 'the lock must survive the refused call');
+  }, LONG);
+
+  it('H5: unlocking restores the door', async () => {
+    if (!HAVE_PY) return;
+    const res = await srv.post('/api/doors', { room: 'boss', locked: false });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.json.doors_locked.boss, false);
+  }, LONG);
+});
