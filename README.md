@@ -18,8 +18,7 @@ Unified workspace & monorepo containing services for **AI Office** and **Lami Of
 │   ├── generate_tileset.py  # Builds web/assets/tiles/tileset.png (+ --check)
 │   └── generate_tilemap.py  # Builds web/assets/map/office.map.json from config.js (+ --check)
 └── services/
-    ├── ai-office/           # Python FastAPI app running on port 8088 (office.fatihrumi.id)
-    └── lami-office-react/   # Interactive office app running on port 8090 (office.fatihrumi.id)
+    └── lami-office-react/   # Interactive office app, port 8090 (host-published as 8088/8090)
 ```
 
 ## Floorplan & Assets

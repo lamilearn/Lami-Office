@@ -41,7 +41,6 @@ Project/Lami/ai-office/
 │   ├── generate_tileset.py        # Builds assets/tiles/tileset.png (+ --check)
 │   └── generate_tilemap.py        # Builds assets/map/office.map.json from config.js (+ --check)
 ├── services/
-│   ├── ai-office/                 # Backend proxy & agent runner (Port 8088)
 │   └── lami-office-react/         # 2D RPG Office frontend & SSE server (Port 8090)
 │       ├── server.py              # Single-port HTTP & SSE streaming server
 │       └── web/
