@@ -11,22 +11,33 @@ Unified workspace & monorepo containing services for **AI Office** and **Lami Of
 ├── .env.example             # Copy to .env.production|.env.development
 ├── PROJECT.md               # Architecture + interface contracts
 ├── TEST_INFRA.md            # E2E suite layout
+├── server.py                # stdlib HTTP + SSE, public chat proxy
+├── world.py                 # Server-authoritative 10 Hz simulation
+├── config.json              # Optional overrides (env wins)
+├── Dockerfile
+├── SERVICE.md               # How the app itself works
+├── deploy/
+│   ├── agent/               # Runs on the Hermes hosts (.31, .91-.94)
+│   │   ├── hermes_bridge.py      # Tails state.db, POSTs events
+│   │   ├── hermes_hook.py        # Library/CLI for direct event pushes
+│   │   ├── hermes-bridge.service
+│   │   ├── metrics_agent.py      # /proc CPU/RAM/disk, port 8010
+│   │   ├── lami-metrics.service
+│   │   └── install_metrics_agent.sh
+│   └── office/              # Runs on the office host (.33)
+│       └── cloudflared-config.yml
 ├── scripts/
-│   ├── check_world_sync.py  # Fails when world.py drifts from config.js
-│   ├── generate_tileset.py  # Builds web/assets/tiles/tileset.png (+ --check)
-│   ├── generate_tilemap.py  # Builds web/assets/map/office.map.json (+ --check)
-│   ├── stamp_assets.py      # Content-hash ?v= on every asset in index.html
-│   ├── deploy_prod.sh       # Fast-forward master + rebuild on the prod host
-│   ├── deploy_staging.sh    # Same for dev on the staging host
-│   ├── push_to_github.sh    # Push dev (master needs ALLOW_MASTER_PUSH=1)
-│   └── smoke_test.sh        # Probes all 7 health endpoints
-├── services/
-│   └── lami-office-react/   # The app: server.py, world.py, web/
-│       ├── server.py        # stdlib HTTP + SSE, public chat proxy
-│       ├── world.py         # Server-authoritative 10 Hz simulation
-│       ├── config.json      # Optional overrides (env wins)
-│       ├── deploy/          # Hermes bridge, metrics agent, units, tunnel
-│       └── web/             # index.html, css/style.css, js/*.js, assets/
+│   ├── assets/              # Generated artefacts + their guards
+│   │   ├── check_world_sync.py   # Fails when world.py drifts from config.js
+│   │   ├── generate_tileset.py   # Builds web/assets/tiles/tileset.png (+ --check)
+│   │   ├── generate_tilemap.py   # Builds web/assets/map/office.map.json (+ --check)
+│   │   └── stamp_assets.py       # Content-hash ?v= on every asset
+│   └── ops/                 # Operate a deployment
+│       ├── deploy_prod.sh        # Fast-forward master + rebuild (.33)
+│       ├── deploy_staging.sh     # Same for dev (.32)
+│       ├── push_to_github.sh     # Push dev (master needs ALLOW_MASTER_PUSH=1)
+│       └── smoke_test.sh         # Probes all 7 health endpoints
+├── web/                     # index.html, css/style.css, js/*.js, assets/
 └── tests/                   # Zero-dependency E2E harness (378 tests)
 ```
 
@@ -36,8 +47,8 @@ The office is one **single enclosed floor** (architect-plan style): six themed
 rooms sealed by shared partition walls around a central hallway, each pierced by
 a 2-tile doorway. It renders from a committed tilemap + tileset:
 
-- `services/lami-office-react/web/assets/tiles/tileset.png` + `tileset.json`
-- `services/lami-office-react/web/assets/map/office.map.json`
+- `web/assets/tiles/tileset.png` + `tileset.json`
+- `web/assets/map/office.map.json`
 
 Both are generated from `web/js/config.js` (the single source of truth) and
 committed. Regenerate or verify them with:
@@ -58,11 +69,11 @@ The renderer (`web/js/tilemap.js`) falls back to the procedural floorplan in
 ## Environment Profiles
 
 - **Production (`.env.production`)**:
-  - Ports: 8088 (`ai-office`), 8090 (`lami-office-react`)
+  - Ports: 8088 (host 8088), 8090 (host 8090)
   - Project name: `office-prod`
   - Mode: `live`
 - **Development / Staging (`.env.development`)**:
-  - Ports: 18088 (`ai-office`), 13579 (`lami-office-react`)
+  - Ports: 18088 (host 18088), 13579 (host 13579)
   - Project name: `office-dev`
   - Mode: `demo`
 
@@ -192,10 +203,10 @@ To verify service health across all 7 endpoints:
 
 ```bash
 # Test local instance
-./scripts/smoke_test.sh 127.0.0.1 8088 8090
+./scripts/ops/smoke_test.sh 127.0.0.1 8088 8090
 
 # Test remote host
-./scripts/smoke_test.sh 192.168.3.33 8088 8090
+./scripts/ops/smoke_test.sh 192.168.3.33 8088 8090
 ```
 
 ## Automated Tests
@@ -240,7 +251,7 @@ curl -s http://127.0.0.1:13579/api/integration | jq
 the cross-host bridge (or `POST /api/event`) is the active path.
 
 To keep the bridge running on the Hermes host, copy
-`services/lami-office-react/deploy/hermes-bridge.service` to
+`deploy/hermes-bridge.service` to
 `~/.config/systemd/user/hermes-bridge.service`, adjust the paths/token, then:
 
 ```bash

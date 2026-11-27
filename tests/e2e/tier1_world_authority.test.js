@@ -15,9 +15,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const REPO = path.resolve(__dirname, '..', '..');
-const WORLD_PY = path.join(REPO, 'services/lami-office-react/world.py');
-const OFFICE_JS = path.join(REPO, 'services/lami-office-react/web/js/office.js');
-const NET_JS = path.join(REPO, 'services/lami-office-react/web/js/net.js');
+const WORLD_PY = path.join(REPO, 'world.py');
+const OFFICE_JS = path.join(REPO, 'web/js/office.js');
+const NET_JS = path.join(REPO, 'web/js/net.js');
 const PY = process.env.PYTHON || 'python3';
 
 function havePython() {
@@ -32,7 +32,7 @@ const HAVE_PY = havePython();
 // Runs a small python program with world.py importable and returns its JSON.
 function pyJson(script, timeout = 60000) {
   const res = spawnSync(PY, ['-c', script], {
-    cwd: path.join(REPO, 'services/lami-office-react'),
+    cwd: REPO,
     encoding: 'utf8',
     timeout
   });
@@ -46,7 +46,7 @@ function pyJson(script, timeout = 60000) {
 // The same collision grid, computed by the client code in a VM sandbox.
 function jsGrid() {
   const vm = require('node:vm');
-  const cfg = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/js/config.js'), 'utf8');
+  const cfg = fs.readFileSync(path.join(REPO, 'web/js/config.js'), 'utf8');
   const office = fs.readFileSync(OFFICE_JS, 'utf8');
   const sandbox = { window: {}, console, Math, URLSearchParams };
   sandbox.window.LO = {};
@@ -116,7 +116,7 @@ for sx, sy, gx, gy in pairs:
 print(json.dumps(res))
 `);
     const vm = require('node:vm');
-    const cfg = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/js/config.js'), 'utf8');
+    const cfg = fs.readFileSync(path.join(REPO, 'web/js/config.js'), 'utf8');
     const sandbox = { window: {}, console, Math, URLSearchParams };
     sandbox.window.LO = {};
     vm.createContext(sandbox);
@@ -163,7 +163,7 @@ print(json.dumps(res))
 
   it('F21.3: world.py stays in sync with config.js (rooms, slots, residents, routines, furniture)', () => {
     if (!HAVE_PY) return;
-    const res = spawnSync(PY, [path.join(REPO, 'scripts/check_world_sync.py')], {
+    const res = spawnSync(PY, [path.join(REPO, 'scripts/assets/check_world_sync.py')], {
       encoding: 'utf8', timeout: 60000
     });
     assert.strictEqual(res.status, 0, `drift detected:\n${(res.stderr || '').slice(-1500)}`);
@@ -236,13 +236,13 @@ describe('Feature 22: The browser renders the server world instead of simulating
   });
 
   it('F22.5: demo mode keeps the local simulation alive', () => {
-    const demo = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/js/demo.js'), 'utf8');
+    const demo = fs.readFileSync(path.join(REPO, 'web/js/demo.js'), 'utf8');
     const start = demo.slice(demo.indexOf('    start() {'), demo.indexOf('    stop() {'));
     assert.ok(/simulatedExternally = false/.test(start), 'demo mode must own the simulation');
   });
 
   it('F22.6: the server broadcast has a private channel (not counted as history)', () => {
-    const src = fs.readFileSync(path.join(REPO, 'services/lami-office-react/server.py'), 'utf8');
+    const src = fs.readFileSync(path.join(REPO, 'server.py'), 'utf8');
     const block = src.slice(src.indexOf('    def publish_world(self, frame: dict):'),
       src.indexOf('    def _apply(self, ev: dict):'));
     assert.ok(/self\.subs/.test(block), 'world frames go straight to subscribers');
@@ -333,7 +333,7 @@ print(json.dumps({"rooms": rooms, "kinds": kinds}))
 
   it('F23.5: the status reports idle when nothing arrived, live when it did', () => {
     if (!HAVE_PY) return;
-    const src = fs.readFileSync(path.join(REPO, 'services/lami-office-react/server.py'), 'utf8');
+    const src = fs.readFileSync(path.join(REPO, 'server.py'), 'utf8');
     const fn = src.slice(src.indexOf('def world_status()'), src.indexOf('def sim_loop()'));
     assert.ok(/age > 300/.test(fn) && /"idle"/.test(fn), 'stale inactivity must read as idle');
     assert.ok(/age > 120/.test(fn), 'a slow feed must be distinguished from a live one');
@@ -419,7 +419,7 @@ print(json.dumps({"max_moved": round(max_moved, 3), "walkable": world.is_walkabl
 });
 
 describe('Feature 26: The client renders every simulated character', () => {
-  const OFFICE = path.join(REPO, 'services/lami-office-react/web/js/office.js');
+  const OFFICE = path.join(REPO, 'web/js/office.js');
 
   it('F26.1: A2A peers are created from a world frame, not only sub-agents', () => {
     const src = fs.readFileSync(OFFICE, 'utf8');
@@ -503,10 +503,10 @@ print(json.dumps({"drift": drift, "kinds": kinds, "restored": sorted(after)}))
 });
 
 describe('Feature 28: The spritesheet is never served stale', () => {
-  const TILEMAP = path.join(REPO, 'services/lami-office-react/web/js/tilemap.js');
-  const TILESET = path.join(REPO, 'services/lami-office-react/web/assets/tiles/tileset.json');
-  const MAP = path.join(REPO, 'services/lami-office-react/web/assets/map/office.map.json');
-  const CONFIG = path.join(REPO, 'services/lami-office-react/web/js/config.js');
+  const TILEMAP = path.join(REPO, 'web/js/tilemap.js');
+  const TILESET = path.join(REPO, 'web/assets/tiles/tileset.json');
+  const MAP = path.join(REPO, 'web/assets/map/office.map.json');
+  const CONFIG = path.join(REPO, 'web/js/config.js');
 
   it('F28.1: the tileset image is requested with a version derived from the index', () => {
     const vm = require('node:vm');
@@ -553,7 +553,7 @@ describe('Feature 28: The spritesheet is never served stale', () => {
 });
 
 describe('Feature 29: A page load never looks like a position reset', () => {
-  const OFFICE = path.join(REPO, 'services/lami-office-react/web/js/office.js');
+  const OFFICE = path.join(REPO, 'web/js/office.js');
 
   it('F29.1: the first world frame snaps everybody to the server position', () => {
     const src = fs.readFileSync(OFFICE, 'utf8');
@@ -582,8 +582,8 @@ describe('Feature 29: A page load never looks like a position reset', () => {
 
 describe('Feature 30: Production stays a clean mirror of master', () => {
   const REPO_ROOT = REPO;
-  const DEPLOY = path.join(REPO_ROOT, 'scripts/deploy_prod.sh');
-  const STAMP = path.join(REPO_ROOT, 'scripts/stamp_assets.py');
+  const DEPLOY = path.join(REPO_ROOT, 'scripts/ops/deploy_prod.sh');
+  const STAMP = path.join(REPO_ROOT, 'scripts/assets/stamp_assets.py');
 
   it('F30.1: the deploy script pulls and refuses a dirty checkout', () => {
     const src = fs.readFileSync(DEPLOY, 'utf8');
@@ -596,7 +596,7 @@ describe('Feature 30: Production stays a clean mirror of master', () => {
   });
 
   it('F30.2: index.html asset URLs carry content hashes and stay current', () => {
-    const html = fs.readFileSync(path.join(REPO_ROOT, 'services/lami-office-react/web/index.html'), 'utf8');
+    const html = fs.readFileSync(path.join(REPO_ROOT, 'web/index.html'), 'utf8');
     const links = [...html.matchAll(/(?:href|src)="([^"?]+\.(?:css|js))\?v=([0-9a-f]{8})"/g)];
     assert.ok(links.length >= 10, `expected the css/js bundle to be versioned, found ${links.length}`);
     // Every version must match the file, otherwise a deploy serves a mismatch.
@@ -605,7 +605,7 @@ describe('Feature 30: Production stays a clean mirror of master', () => {
   });
 
   it('F30.3: no script pushes master without an explicit opt-in', () => {
-    const src = fs.readFileSync(path.join(REPO_ROOT, 'scripts/push_to_github.sh'), 'utf8');
+    const src = fs.readFileSync(path.join(REPO_ROOT, 'scripts/ops/push_to_github.sh'), 'utf8');
     // The script used to push master AND dev, silently bypassing the staging gate.
     assert.ok(/ALLOW_MASTER_PUSH/.test(src), 'master pushes must be gated behind a flag');
     const gated = src.slice(src.indexOf('ALLOW_MASTER_PUSH'), src.indexOf('Pushing development branch'));
@@ -616,7 +616,7 @@ describe('Feature 30: Production stays a clean mirror of master', () => {
 });
 
 describe('Feature 32: Doorways read as openings', () => {
-  const TILESET_GEN = path.join(REPO, 'scripts/generate_tileset.py');
+  const TILESET_GEN = path.join(REPO, 'scripts/assets/generate_tileset.py');
 
   it('F32.1: jamb tiles are posts, not a solid slab across the doorway', () => {
     const src = fs.readFileSync(TILESET_GEN, 'utf8');
@@ -636,19 +636,19 @@ describe('Feature 32: Doorways read as openings', () => {
   });
 
   it('F32.3: no threshold mat is laid across the hallway', () => {
-    const tilemapGen = fs.readFileSync(path.join(REPO, 'scripts/generate_tilemap.py'), 'utf8');
+    const tilemapGen = fs.readFileSync(path.join(REPO, 'scripts/assets/generate_tilemap.py'), 'utf8');
     assert.ok(!/door_threshold/.test(tilemapGen), 'the generator must not place threshold mats');
-    const index = JSON.parse(fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/assets/tiles/tileset.json'), 'utf8'));
+    const index = JSON.parse(fs.readFileSync(path.join(REPO, 'web/assets/tiles/tileset.json'), 'utf8'));
     assert.ok(!index.some((t) => t.name === 'door_threshold'), 'the tile is retired');
-    const tm = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/js/tilemap.js'), 'utf8');
+    const tm = fs.readFileSync(path.join(REPO, 'web/js/tilemap.js'), 'utf8');
     assert.ok(!/'door_threshold'/.test(tm), 'the renderer no longer needs to special-case it');
   });
 });
 
 describe('Feature 33: A2A credentials are wired end to end', () => {
-  const STAGING_DEPLOY = path.join(REPO, 'scripts/deploy_staging.sh');
-  const PROD_DEPLOY = path.join(REPO, 'scripts/deploy_prod.sh');
-  const SERVER = path.join(REPO, 'services/lami-office-react/server.py');
+  const STAGING_DEPLOY = path.join(REPO, 'scripts/ops/deploy_staging.sh');
+  const PROD_DEPLOY = path.join(REPO, 'scripts/ops/deploy_prod.sh');
+  const SERVER = path.join(REPO, 'server.py');
 
   it('F33.1: staging is deployed with the untracked secrets file', () => {
     const src = fs.readFileSync(STAGING_DEPLOY, 'utf8');
@@ -683,8 +683,8 @@ describe('Feature 33: A2A credentials are wired end to end', () => {
 
   it('F33.4: no credential is committed to the repo', () => {
     const tracked = [
-      '.env.development', '.env.production', 'services/lami-office-react/server.py',
-      'scripts/deploy_staging.sh', 'scripts/deploy_prod.sh'
+      '.env.development', '.env.production', 'server.py',
+      'scripts/ops/deploy_staging.sh', 'scripts/ops/deploy_prod.sh'
     ];
     for (const rel of tracked) {
       const text = fs.readFileSync(path.join(REPO, rel), 'utf8');
@@ -695,15 +695,15 @@ describe('Feature 33: A2A credentials are wired end to end', () => {
 });
 
 describe('Feature 34: Server Room shows real agent VM resources', () => {
-  const AGENT = path.join(REPO, 'services/lami-office-react/deploy/metrics_agent.py');
-  const WORLD = path.join(REPO, 'services/lami-office-react/web/js/world.js');
-  const NET = path.join(REPO, 'services/lami-office-react/web/js/net.js');
+  const AGENT = path.join(REPO, 'deploy/agent/metrics_agent.py');
+  const WORLD = path.join(REPO, 'web/js/world.js');
+  const NET = path.join(REPO, 'web/js/net.js');
 
   it('F34.1: the metrics agent reports real CPU/RAM/disk from this host', () => {
     if (!HAVE_PY) return;
     const out = pyJson(`
 import json, sys
-sys.path.insert(0, 'deploy')
+sys.path.insert(0, 'deploy/agent')
 import metrics_agent as m
 d = m.metrics()
 print(json.dumps({
@@ -811,17 +811,17 @@ print(json.dumps({
     const net = fs.readFileSync(NET, 'utf8');
     assert.ok(/syncResources\(\)/.test(net), 'the client must poll resources');
     assert.ok(/fetch\('\/api\/resources'\)/.test(net));
-    const installer = fs.readFileSync(path.join(REPO, 'services/lami-office-react/deploy/install_metrics_agent.sh'), 'utf8');
+    const installer = fs.readFileSync(path.join(REPO, 'deploy/agent/install_metrics_agent.sh'), 'utf8');
     assert.ok(/lami-metrics/.test(installer) && /\/metrics/.test(installer), 'the installer must verify the endpoint');
-    const service = fs.readFileSync(path.join(REPO, 'services/lami-office-react/deploy/lami-metrics.service'), 'utf8');
+    const service = fs.readFileSync(path.join(REPO, 'deploy/agent/lami-metrics.service'), 'utf8');
     assert.ok(/METRICS_PORT/.test(service) && /AGENT_ID/.test(service));
   });
 });
 
 describe('Feature 35: The Server Room shows one rack per agent', () => {
-  const WORLD = path.join(REPO, 'services/lami-office-react/web/js/world.js');
-  const OFFICE = path.join(REPO, 'services/lami-office-react/web/js/office.js');
-  const CONFIG = path.join(REPO, 'services/lami-office-react/web/js/config.js');
+  const WORLD = path.join(REPO, 'web/js/world.js');
+  const OFFICE = path.join(REPO, 'web/js/office.js');
+  const CONFIG = path.join(REPO, 'web/js/config.js');
 
   function buildOffice() {
     const harness = require('../harness');
@@ -916,21 +916,21 @@ describe('Feature 35: The Server Room shows one rack per agent', () => {
     assert.ok(!texts.some((t) => /Yuna/.test(t)), 'no agent list on the floor');
     assert.ok(!texts.some((t) => /Lami/.test(t)));
 
-    const ui = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/js/ui.js'), 'utf8');
+    const ui = fs.readFileSync(path.join(REPO, 'web/js/ui.js'), 'utf8');
     assert.ok(/showVmModal\(\)/.test(ui), 'the chip must open a modal card');
     assert.ok(/renderVmList/.test(ui), 'the card must render one row per agent');
     assert.ok(!/vmPanelPinned/.test(ui), 'the chip must not pin an in-world panel');
   });
 
   it('F35.5: the HUD owns the VM INFO affordance and the client feeds it', () => {
-    const html = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/index.html'), 'utf8');
+    const html = fs.readFileSync(path.join(REPO, 'web/index.html'), 'utf8');
     assert.ok(/id="hud-vm-chip"/.test(html), 'the chip must live in the HUD');
     assert.ok(/VM INFO/.test(html), 'the chip must be labelled VM INFO');
     assert.ok(/id="vm-modal"/.test(html) && /id="vm-list"/.test(html), 'the card must exist in the DOM');
-    const ui = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/js/ui.js'), 'utf8');
+    const ui = fs.readFileSync(path.join(REPO, 'web/js/ui.js'), 'utf8');
     assert.ok(/showVmModal\(\)/.test(ui), 'the chip must open the VM card');
     assert.ok(/setVmStatus/.test(ui), 'the chip must reflect how many agents report');
-    const net = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/js/net.js'), 'utf8');
+    const net = fs.readFileSync(path.join(REPO, 'web/js/net.js'), 'utf8');
     assert.ok(/LO\.ui\.setVmStatus/.test(net), 'the poller must feed the chip');
     const world = fs.readFileSync(WORLD, 'utf8');
     assert.ok(!/drawVmMonitorHint/.test(world), 'the old floor hint must be gone');
@@ -940,9 +940,9 @@ describe('Feature 35: The Server Room shows one rack per agent', () => {
 });
 
 describe('Feature 36: Characters are occluded by props, not drawn over them', () => {
-  const OFFICE = path.join(REPO, 'services/lami-office-react/web/js/office.js');
-  const AGENTS = path.join(REPO, 'services/lami-office-react/web/js/agents.js');
-  const WORLD = path.join(REPO, 'services/lami-office-react/web/js/world.js');
+  const OFFICE = path.join(REPO, 'web/js/office.js');
+  const AGENTS = path.join(REPO, 'web/js/agents.js');
+  const WORLD = path.join(REPO, 'web/js/world.js');
 
   function buildOffice() {
     const harness = require('../harness');
@@ -1022,8 +1022,8 @@ describe('Feature 36: Characters are occluded by props, not drawn over them', ()
 });
 
 describe('Feature 37: Mouse zoom and drag panning', () => {
-  const CONFIG = path.join(REPO, 'services/lami-office-react/web/js/config.js');
-  const OFFICE = path.join(REPO, 'services/lami-office-react/web/js/office.js');
+  const CONFIG = path.join(REPO, 'web/js/config.js');
+  const OFFICE = path.join(REPO, 'web/js/office.js');
 
   it('F37.1: with no explicit zoom the view reproduces the default fit', () => {
     const harness = require('../harness');
@@ -1105,8 +1105,8 @@ describe('Feature 37: Mouse zoom and drag panning', () => {
 });
 
 describe('Feature 38: Meeting room furniture is laid out logically', () => {
-  const WORLD = path.join(REPO, 'services/lami-office-react/web/js/world.js');
-  const CONFIG = path.join(REPO, 'services/lami-office-react/web/js/config.js');
+  const WORLD = path.join(REPO, 'web/js/world.js');
+  const CONFIG = path.join(REPO, 'web/js/config.js');
 
   function meetingChairs() {
     const harness = require('../harness');
@@ -1204,17 +1204,17 @@ describe('Feature 38: Meeting room furniture is laid out logically', () => {
 });
 
 describe('Feature 39: The trashcan shows the context window live', () => {
-  const BRIDGE = path.join(REPO, 'services/lami-office-react/deploy/hermes_bridge.py');
-  const WORLD = path.join(REPO, 'services/lami-office-react/web/js/world.js');
-  const UI = path.join(REPO, 'services/lami-office-react/web/js/ui.js');
-  const NET = path.join(REPO, 'services/lami-office-react/web/js/net.js');
+  const BRIDGE = path.join(REPO, 'deploy/agent/hermes_bridge.py');
+  const WORLD = path.join(REPO, 'web/js/world.js');
+  const UI = path.join(REPO, 'web/js/ui.js');
+  const NET = path.join(REPO, 'web/js/net.js');
 
   it('F39.1: the bridge measures the real Hermes transcript', () => {
     if (!HAVE_PY) return;
     const out = pyJson(`
 import importlib.util, json, os, sqlite3, sys, tempfile
 sys.path.insert(0, 'deploy')
-spec = importlib.util.spec_from_file_location('hb', 'deploy/hermes_bridge.py')
+spec = importlib.util.spec_from_file_location('hb', 'deploy/agent/hermes_bridge.py')
 hb = importlib.util.module_from_spec(spec); spec.loader.exec_module(hb)
 
 d = tempfile.mkdtemp(); db = os.path.join(d, 'state.db')
@@ -1269,14 +1269,14 @@ print(json.dumps(snap))
     const fn = ui.slice(ui.indexOf('    setContextUsage(ratio, detail) {'), ui.indexOf('    setContextUsage('.length + 1600));
     assert.ok(/detail\.limitTokens|detail\.limit_tokens/.test(fn), 'the real limit must be used');
     assert.ok(/estimasi/.test(fn), 'the UI must say the value is an estimate');
-    const server = fs.readFileSync(path.join(REPO, 'services/lami-office-react/server.py'), 'utf8');
+    const server = fs.readFileSync(path.join(REPO, 'server.py'), 'utf8');
     assert.ok(/"context"/.test(server), 'the server must accept and store context reports');
   });
 });
 
 describe('Feature 40: No seam or notch artefacts around characters', () => {
-  const OFFICE = path.join(REPO, 'services/lami-office-react/web/js/office.js');
-  const SPRITES = path.join(REPO, 'services/lami-office-react/web/js/sprites.js');
+  const OFFICE = path.join(REPO, 'web/js/office.js');
+  const SPRITES = path.join(REPO, 'web/js/sprites.js');
 
   function build() {
     const harness = require('../harness');
@@ -1366,7 +1366,7 @@ describe('Feature 40: No seam or notch artefacts around characters', () => {
 });
 
 describe('Feature 41: The boss chair reads as a chair', () => {
-  const WORLD = path.join(REPO, 'services/lami-office-react/web/js/world.js');
+  const WORLD = path.join(REPO, 'web/js/world.js');
 
   function bossOps() {
     const harness = require('../harness');
@@ -1419,9 +1419,9 @@ describe('Feature 41: The boss chair reads as a chair', () => {
 });
 
 describe('Feature 42: Rooms are furnished like real offices', () => {
-  const CONFIG = path.join(REPO, 'services/lami-office-react/web/js/config.js');
-  const WORLD = path.join(REPO, 'services/lami-office-react/web/js/world.js');
-  const OFFICE = path.join(REPO, 'services/lami-office-react/web/js/office.js');
+  const CONFIG = path.join(REPO, 'web/js/config.js');
+  const WORLD = path.join(REPO, 'web/js/world.js');
+  const OFFICE = path.join(REPO, 'web/js/office.js');
   const ROOMS = ['boss', 'research', 'server', 'engineering', 'meeting', 'pantry'];
 
   function LO() {
@@ -1548,10 +1548,10 @@ describe('Feature 42: Rooms are furnished like real offices', () => {
     assert.ok(/LO\.DECOR_PROPS/.test(world), 'the renderer must read the shared list');
     const office = fs.readFileSync(OFFICE, 'utf8');
     assert.ok(/LO\.DECOR_PROPS \|\| \[\]/.test(office), 'solid props must join the collision grid');
-    const server = fs.readFileSync(path.join(REPO, 'services/lami-office-react/world.py'), 'utf8');
+    const server = fs.readFileSync(path.join(REPO, 'world.py'), 'utf8');
     assert.ok(/DECOR_PROPS = \[/.test(server), 'the simulation needs the same props');
     assert.ok(/for obs in DECOR_PROPS/.test(server), 'the server grid must apply them');
-    const sync = fs.readFileSync(path.join(REPO, 'scripts/check_world_sync.py'), 'utf8');
+    const sync = fs.readFileSync(path.join(REPO, 'scripts/assets/check_world_sync.py'), 'utf8');
     assert.ok(/decorProps/.test(sync), 'the drift check must compare them');
   });
 
@@ -1563,8 +1563,8 @@ describe('Feature 42: Rooms are furnished like real offices', () => {
 });
 
 describe('Feature 44: Canvas Pipeline Hardening & Layout Display Resilience', () => {
-  const TILESET = path.join(REPO, 'services/lami-office-react/web/assets/tiles/tileset.json');
-  const MAP = path.join(REPO, 'services/lami-office-react/web/assets/map/office.map.json');
+  const TILESET = path.join(REPO, 'web/assets/tiles/tileset.json');
+  const MAP = path.join(REPO, 'web/assets/map/office.map.json');
 
   function buildCompleteOfficeEnv() {
     const harness = require('../harness');
@@ -1680,10 +1680,10 @@ describe('Feature 44: Canvas Pipeline Hardening & Layout Display Resilience', ()
 });
 
 describe('Feature 44: Render failures are recorded, not swallowed', () => {
-  const OFFICE = path.join(REPO, 'services/lami-office-react/web/js/office.js');
-  const WORLD = path.join(REPO, 'services/lami-office-react/web/js/world.js');
-  const NET = path.join(REPO, 'services/lami-office-react/web/js/net.js');
-  const SERVER = path.join(REPO, 'services/lami-office-react/server.py');
+  const OFFICE = path.join(REPO, 'web/js/office.js');
+  const WORLD = path.join(REPO, 'web/js/world.js');
+  const NET = path.join(REPO, 'web/js/net.js');
+  const SERVER = path.join(REPO, 'server.py');
 
   function build() {
     const harness = require('../harness');
@@ -1751,7 +1751,7 @@ describe('Feature 44: Render failures are recorded, not swallowed', () => {
 });
 
 describe('Feature 47: Walking characters do not flicker', () => {
-  const OFFICE = path.join(REPO, 'services/lami-office-react/web/js/office.js');
+  const OFFICE = path.join(REPO, 'web/js/office.js');
 
   function build() {
     const harness = require('../harness');

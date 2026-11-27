@@ -1,7 +1,7 @@
 services:
   ai-office:
     build:
-      context: ./services/lami-office-react
+      context: .
       dockerfile: Dockerfile
     container_name: ${COMPOSE_PROJECT_NAME:-office}-ai-office
     restart: unless-stopped

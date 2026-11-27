@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ==============================================================================
 # Smoke Test Verification Script for Lami AI Office Suite
-# Probes all 7 health and status endpoints across ai-office and lami-office-react.
+# Probes all 7 health and status endpoints across the office stack.
 #
 # Usage: ./scripts/smoke_test.sh [HOST] [AI_PORT] [LAMI_PORT]
 # Example: ./scripts/smoke_test.sh 192.168.3.33 8088 8090
@@ -79,7 +79,7 @@ probe_endpoint 2 "ai-office" "/api/boss" "http://${HOST}:${AI_PORT}/api/boss" '"
 probe_endpoint 3 "ai-office" "/api/agents" "http://${HOST}:${AI_PORT}/api/agents" '"agents"[[:space:]]*:[[:space:]]*\['
 probe_endpoint 4 "ai-office" "GET / (HTML)" "http://${HOST}:${AI_PORT}/" '<title>|<html'
 
-echo -e "\n${BLUE}--- Probing lami-office-react (Port ${LAMI_PORT}) ---${NC}"
+echo -e "\n${BLUE}--- Probing lami-office (Port ${LAMI_PORT}) ---${NC}"
 probe_endpoint 5 "lami-office" "/healthz" "http://${HOST}:${LAMI_PORT}/healthz" '"ok"[[:space:]]*:[[:space:]]*true'
 probe_endpoint 6 "lami-office" "/api/config" "http://${HOST}:${LAMI_PORT}/api/config" '"mode"[[:space:]]*:[[:space:]]*"(live|demo)"'
 probe_endpoint 7 "lami-office" "GET / (HTML)" "http://${HOST}:${LAMI_PORT}/" '<title>|<html'

@@ -14,8 +14,8 @@ const os = require('node:os');
 const path = require('node:path');
 
 const REPO = path.resolve(__dirname, '..');
-const SERVER = path.join(REPO, 'services', 'lami-office-react', 'server.py');
-const BRIDGE = path.join(REPO, 'services', 'lami-office-react', 'deploy', 'hermes_bridge.py');
+const SERVER = path.join(REPO, 'server.py');
+const BRIDGE = path.join(REPO, 'deploy', 'agent', 'hermes_bridge.py');
 
 function pythonBin() {
   return process.env.PYTHON || 'python3';
@@ -368,11 +368,11 @@ function readBridgeState(stateFile) {
   }
 }
 
-// Runs a python snippet inside services/lami-office-react (so `import world`
+// Runs a python snippet inside the repo root (so `import world`
 // works) and returns its parsed JSON stdout. argv goes through sys.argv.
 function pythonJson(script, args = [], timeout = 60000) {
   const res = spawnSync(pythonBin(), ['-c', script, ...args], {
-    cwd: path.join(REPO, 'services', 'lami-office-react'),
+    cwd: REPO,
     encoding: 'utf8',
     timeout
   });

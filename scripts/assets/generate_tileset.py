@@ -3,7 +3,7 @@
 
 Pure standard library (zlib + struct), so it runs anywhere the server runs.
 Outputs:
-  services/lami-office-react/web/assets/tiles/tileset.png
+  web/assets/tiles/tileset.png
 and validates that tileset.json references every drawn tile.
 
 Usage:
@@ -20,8 +20,8 @@ import sys
 import zlib
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-TILE_DIR = ROOT / "services" / "lami-office-react" / "web" / "assets" / "tiles"
+ROOT = Path(__file__).resolve().parents[2]
+TILE_DIR = ROOT / "web" / "assets" / "tiles"
 INDEX_PATH = TILE_DIR / "tileset.json"
 PNG_PATH = TILE_DIR / "tileset.png"
 

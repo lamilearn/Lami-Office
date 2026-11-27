@@ -1,7 +1,7 @@
 # Test Infrastructure: 2D Top-Down / RPG Office Suite
 
 ## 1. Overview
-This document describes the end-to-end (E2E) testing infrastructure, harness architecture, test suites, and execution methodology for the 2D Top-Down / RPG Office Suite (`ai-office` & `lami-office-react`).
+This document describes the end-to-end (E2E) testing infrastructure, harness architecture, test suites, and execution methodology for the 2D Top-Down / RPG Office Suite (single service).
 
 The testing track uses an opaque-box, requirement-driven 4-tier testing methodology strictly derived from `ORIGINAL_REQUEST.md` (R1, R2, R3) and `PROJECT.md` (§ Feature Inventory & Interface Contracts).
 
@@ -36,23 +36,20 @@ The testing track uses an opaque-box, requirement-driven 4-tier testing methodol
 Project/AI Agent/Lami/ai-office/
 ├── package.json                   # Root package definition with npm test scripts
 ├── docker-compose.yml             # The only compose file
+├── server.py                      # Single-port HTTP & SSE streaming server
+├── world.py                       # Server-authoritative simulation
+├── config.json                    # Optional overrides (env wins)
+├── Dockerfile
+├── deploy/
+│   ├── agent/                     # Hermes bridge, metrics agent, hook, units
+│   └── office/                    # cloudflared tunnel config
 ├── scripts/
-│   ├── check_world_sync.py        # world.py <-> config.js parity guard
-│   ├── stamp_assets.py            # Content-hash ?v= for every asset
-│   ├── push_to_github.sh          # Git dev push and branch management
-│   ├── smoke_test.sh              # 7-point live endpoint smoke probe
-│   ├── generate_tileset.py        # Builds assets/tiles/tileset.png (+ --check)
-│   └── generate_tilemap.py        # Builds assets/map/office.map.json (+ --check)
-├── services/
-│   └── lami-office-react/         # 2D RPG Office frontend & SSE server (Port 8090)
-│       ├── server.py              # Single-port HTTP & SSE streaming server
-│       ├── world.py               # Server-authoritative simulation
-│       ├── config.json            # Optional overrides (env wins)
-│       ├── deploy/                # Hermes bridge, metrics agent, tunnel config
-│       └── web/
-│           ├── index.html         # Canvas UI & DOM overlays
-│           ├── assets/            # tiles/tileset.png + tileset.json + map/office.map.json
-│           └── js/                # Game simulation modules (incl. tilemap.js)
+│   ├── assets/                    # check_world_sync, stamp_assets, generators
+│   └── ops/                       # deploy_prod, deploy_staging, push, smoke
+├── web/
+│   ├── index.html                 # Canvas UI & DOM overlays
+│   ├── assets/                    # tiles/tileset.png + tileset.json + map/office.map.json
+│   └── js/                        # Game simulation modules (incl. tilemap.js)
 └── tests/
     ├── harness.js                 # Headless DOM and Canvas 2D mock harness
     ├── oracle.js                  # Authoritative specification oracle reference
@@ -73,7 +70,7 @@ Project/AI Agent/Lami/ai-office/
 
 | Tier | Suite Name | File | Test Count | Description |
 |------|------------|------|------------|-------------|
-| **Tier 1** | World Authority | `tests/e2e/tier1_world_authority.test.js` + `scripts/check_world_sync.py` | 10 | Python `world.py` vs client engine parity: identical collision grid, equal-cost A* routes, config sync (rooms/slots/residents/routines/furniture), every desk and routine spot reachable, and the browser stays render-only in live mode. |
+| **Tier 1** | World Authority | `tests/e2e/tier1_world_authority.test.js` + `scripts/assets/check_world_sync.py` | 10 | Python `world.py` vs client engine parity: identical collision grid, equal-cost A* routes, config sync (rooms/slots/residents/routines/furniture), every desk and routine spot reachable, and the browser stays render-only in live mode. |
 | **Tier 1** | Feature Coverage | `tests/e2e/tier1_feature_coverage.test.js` + `tier1_responsive_a2a.test.js` + `tier1_world_authority.test.js` | 97 | Validates primary happy-path behavior across all 18 core features: map/collision, responsive camera, drawer-aware layout, floorplan decoration and A2A peers. |
 | **Tier 2** | Boundary & Corner Cases | `tests/e2e/tier2_boundary_corner.test.js` | 45 | Exercises degenerate inputs, extreme viewports (0x0 to 8K), zero/max coordinates, obstacle trapping, text overflow, and error handling. |
 | **Tier 3** | Cross-Feature Combinations | `tests/e2e/tier3_cross_feature.test.js` | 9 | Verifies pairwise interactions: Pathfinding across sealed doorways, viewport resize with drawer, tool event slotting, task completion reporting, modal conflicts, tribute mode skinning. |

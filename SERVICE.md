@@ -1,9 +1,8 @@
 # 🏢 Lami's AI Office — Kantor AI Pixel Live
 
-> **Catatan struktur:** repo ini monorepo. Aplikasi office ada di
-> `services/lami-office-react/`. Jalankan dan deploy dari **root repo** lewat
-> [`docker-compose.yml`](../../docker-compose.yml). README ini menjelaskan
-> service-nya saja.
+> Aplikasi ini adalah **isi repo** (`server.py`, `world.py`, `web/`) — tidak ada
+> sub-folder service. Jalankan dan deploy dari root lewat
+> [`docker-compose.yml`](docker-compose.yml).
 
 Visualisasi kantor AI bergaya game **Happy Mall Story** (pixel art pastel, cutaway building) di mana Boss Lami (Hermes) dan karyawan sub-agent bekerja secara **real-time** mengikuti aktivitas AI sesungguhnya.
 
@@ -20,7 +19,6 @@ docker compose --env-file .env.production up -d --build
 Untuk menjalankan `server.py` langsung tanpa Docker (debug saja):
 
 ```bash
-cd services/lami-office-react
 python3 server.py
 ```
 

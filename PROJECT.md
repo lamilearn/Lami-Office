@@ -11,10 +11,10 @@ A complete 2D Top-Down / RPG pixel art office (Pokemon / Zelda GBA / RPG Maker a
   5. Meeting Room (`meeting`)
   6. Pantry & Lounge (`pantry`)
   Top row (boss | research | server) and bottom row (engineering | meeting | pantry), split by one central hallway band with a west entrance lobby.
-- **Wall/Floor Rendering**: A committed tilemap (`assets/map/office.map.json`) + tileset spritesheet (`assets/tiles/tileset.png`) rendered by `js/tilemap.js`, generated from `config.js` by `scripts/generate_tilemap.py` / `scripts/generate_tileset.py`. Wall faces are extruded; wall tops & doorway frames are drawn after characters so rooms read as enclosed boxes while collision stays 1 tile.
+- **Wall/Floor Rendering**: A committed tilemap (`assets/map/office.map.json`) + tileset spritesheet (`assets/tiles/tileset.png`) rendered by `js/tilemap.js`, generated from `config.js` by `scripts/assets/generate_tilemap.py` / `scripts/assets/generate_tileset.py`. Wall faces are extruded; wall tops & doorway frames are drawn after characters so rooms read as enclosed boxes while collision stays 1 tile.
 - **Agent System**: 4 cardinal movement directions (South/Front, North/Back, East/Right, West/Left) with 3/4-frame step cycles, orthogonal A* pathfinding avoiding collision obstacles, and canvas-rendered speech bubbles / inspect modals.
 - **Viewport & UI**: Responsive desktop scaling with side chat drawer width dynamic subtraction, avoiding HUD overlap.
-- **Simulasi Terpusat (server-authoritative)**: The office is ONE shared world simulated by `services/lami-office-react/world.py` inside `server.py`, not by each browser tab. The simulation thread (`sim_loop`) ticks at 10 Hz, broadcasts a `world` frame over SSE at ~5 Hz (only when something changed, plus a 5 s idle refresh), and the browser only renders and interpolates those frames. Consequences: every visitor sees the same characters in the same places, the office keeps living while nobody is watching, and a browser refresh no longer resets anyone to their desk because positions live in the server state file.
+- **Simulasi Terpusat (server-authoritative)**: The office is ONE shared world simulated by `world.py` inside `server.py`, not by each browser tab. The simulation thread (`sim_loop`) ticks at 10 Hz, broadcasts a `world` frame over SSE at ~5 Hz (only when something changed, plus a 5 s idle refresh), and the browser only renders and interpolates those frames. Consequences: every visitor sees the same characters in the same places, the office keeps living while nobody is watching, and a browser refresh no longer resets anyone to their desk because positions live in the server state file.
 - **Environment**: Branch `dev` on local repo `/home/fatih/Vault/Ecobytes/Project/AI Agent/Lami/ai-office`, remote GitHub repo `git@github.com:lamilearn/Lami-Office.git`, and live staging deployment at `http://192.168.3.32:13579`.
 
 ---
@@ -112,7 +112,7 @@ A complete 2D Top-Down / RPG pixel art office (Pokemon / Zelda GBA / RPG Maker a
   `LO.lookForAgent(id)`, `LO.slotIndexForAgent(id, slotCount)` — deterministic,
   so reloading never renames or reskins an agent.
 - `POST /api/event` (JSON): ingest; allowed from localhost/LAN (`trusted_networks`) or with `X-Office-Token` matching `INGEST_TOKEN`.
-- `services/lami-office-react/deploy/hermes_bridge.py`: tails Hermes `state.db` on another host and POSTs events. `--probe` prints parsed events, `--verify` checks db + endpoint + ingest auth.
+- `deploy/hermes_bridge.py`: tails Hermes `state.db` on another host and POSTs events. `--probe` prints parsed events, `--verify` checks db + endpoint + ingest auth.
 
 ### `sprites.js` ↔ `agents.js`
 - `LO.getCharacterSprites(look)`: returns directional keys `S`/`N`/`E`/`W` (aliases `down/up/right/left`, `SE->S`, `SW->W`, `NE->E`, `NW->N`).
@@ -153,7 +153,7 @@ Rules:
 - The browser must NOT simulate characters while `office.simulatedExternally` is true; it calls `applyWorld(frame)` and eases toward the target (`applyWorldTargets`).
 - Local simulation is the fallback only: `?demo=1`, or an unavailable/failed SSE stream. Demo mode sets `simulatedExternally = false`.
 - Narration (`message`, `ticker`, `event_banner`) is authored once by the server, so the client prints it verbatim instead of also reacting to it.
-- `world.py` mirrors the floorplan from `web/js/config.js`; `scripts/check_world_sync.py` fails the suite when they drift, and `tests/e2e/tier1_world_authority.test.js` asserts the collision grid and A* routes stay equivalent.
+- `world.py` mirrors the floorplan from `web/js/config.js`; `scripts/assets/check_world_sync.py` fails the suite when they drift, and `tests/e2e/tier1_world_authority.test.js` asserts the collision grid and A* routes stay equivalent.
 - Positions are persisted in `OFFICE_STATE_FILE` under the `world` key every ~5 s; on boot `Sim.restore()` resumes the exact walk (remaining `path` included). Entries older than the staleness window or standing on a now-solid tile fall back safely.
 
 ## Deployment (production)
@@ -164,7 +164,7 @@ Production is a **pure mirror of `master`**; nobody merges or edits code there.
 |---|---|
 | 1. Gate | staging verified (suite + smoke) |
 | 2. Release | `git checkout master && git merge --no-ff dev && git tag -a vX.Y.Z && git push origin master vX.Y.Z` |
-| 3. Deploy | `bash scripts/deploy_prod.sh` (fast-forwards `origin/master`, refuses a dirty checkout, rebuilds, waits for `/healthz`) |
+| 3. Deploy | `bash scripts/ops/deploy_prod.sh` (fast-forwards `origin/master`, refuses a dirty checkout, rebuilds, waits for `/healthz`) |
 
 ### Host layout
 | Host | Role | Path | Ports |
@@ -189,7 +189,7 @@ Compose is always invoked with both env files:
 `docker compose --env-file .env.production --env-file .env.production.secrets up -d --build`.
 
 Staging follows the same pattern on `.32` with `.env.development` + `.env.development.secrets`,
-deployed by `bash scripts/deploy_staging.sh` (fast-forward of `dev`, refuses drift, then asserts
+deployed by `bash scripts/ops/deploy_staging.sh` (fast-forward of `dev`, refuses drift, then asserts
 `/api/a2a` reports `can_send: true`). Override the target with `DEPLOY_HOST=user@host`.
 
 ### Agent VM resources (Server Room)
@@ -222,7 +222,7 @@ rather than an invented number, and an offline agent shows no gauges at all.
 either, `/api/a2a` reports `can_send: false` and `/api/a2a/send` returns 503 — the peers still show
 as online because presence probing does not need a token.
 
-`scripts/push_to_github.sh` no longer pushes `master` unless `ALLOW_MASTER_PUSH=1`, so the
+`scripts/ops/push_to_github.sh` no longer pushes `master` unless `ALLOW_MASTER_PUSH=1`, so the
 staging gate cannot be bypassed by accident.
 
 ### Cache-busting
@@ -236,7 +236,7 @@ fails when a hash is stale.
 ## Code & Asset Layout
 - Target Repository: `/home/fatih/Vault/Ecobytes/Project/AI Agent/Lami/ai-office`
 - Active Branch: `dev`
-- Frontend Scripts: `services/lami-office-react/web/js/`
+- Frontend Scripts: `web/js/`
   - `config.js`: Grid constants, dimensions, building/rooms/hallway, plan helpers, projection math.
   - `sprites.js`: Pixel art sprite generation and directional step cycles.
   - `tilemap.js`: Tilemap + tileset loader and layered renderer.
@@ -244,10 +244,10 @@ fails when a hash is stale.
   - `agents.js`: Character base class, resident staff, Boss Lami, SubAgents, MochiCat, DeliveryRider.
   - `office.js`: Render loop, collision grid, viewport scaling, click handling, `applyWorld()` interpolation (live mode).
   - `ui.js`: DOM UI overlays, character cards, whiteboard modal, context modal.
-- Frontend Assets: `services/lami-office-react/web/assets/`
+- Frontend Assets: `web/assets/`
   - `tiles/tileset.png` + `tiles/tileset.json`: 16x16 spritesheet + index.
   - `map/office.map.json`: RLE floor/walls/decor layers + meta derived from `config.js`.
-- Server Simulation: `services/lami-office-react/world.py` (stdlib only) — floorplan data, A*, collision grid, character kinematics, staff/boss routines, sub-agents, Mochi, delivery rider, socials, random events. Parity guard: `scripts/check_world_sync.py`.
+- Server Simulation: `world.py` (stdlib only) — floorplan data, A*, collision grid, character kinematics, staff/boss routines, sub-agents, Mochi, delivery rider, socials, random events. Parity guard: `scripts/assets/check_world_sync.py`.
 - Per-room wall palette: each room's `wall`/`wallDark` in `config.js` is baked into its own tileset variants (`wall_face_<room>`, `wall_top_<room>`, `wall_side_l_<room>`, `wall_side_r_<room>`, `window_<room>`). `generate_tilemap.py` tags every wall and window with its room id, and `web/js/tilemap.js` resolves the matching variant, so every room is visually distinct. The shared building perimeter keeps the neutral `wall_face`/`wall_top`.
-- Asset Generators (stdlib Python): `scripts/generate_tileset.py`, `scripts/generate_tilemap.py` (both support `--check`).
-- Smoke Tests: `scripts/smoke_test.sh`
+- Asset Generators (stdlib Python): `scripts/assets/generate_tileset.py`, `scripts/assets/generate_tilemap.py` (both support `--check`).
+- Smoke Tests: `scripts/ops/smoke_test.sh`
