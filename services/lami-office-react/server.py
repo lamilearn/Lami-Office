@@ -756,6 +756,13 @@ class A2ARegistry:
             return {"ok": False, "status": 502, "error": str(data["error"])[:200], "peer": peer.to_dict()}
         reply, state = self._a2a_reply(data)
         ctx = str((((data.get("result") or {}).get("task") or {}).get("contextId") or ""))[:64]
+        if not reply:
+            # The gateway can finish a task with no message parts when it already
+            # streamed the answer; the text only exists as artifact deltas then.
+            streamed = self._send_a2a_stream(peer, token, text, timeout, context_id or ctx)
+            if streamed.get("reply"):
+                reply, state = streamed["reply"], streamed.get("state") or state
+                ctx = streamed.get("context_id") or ctx
         HUB.publish({"type": "message", "agentId": "lami",
                      "text": f"→ {peer.name}: {clean_text(text, 40)}"})
         if reply:
@@ -763,6 +770,53 @@ class A2ARegistry:
                          "text": f"← {peer.name}: {clean_text(reply, 60)}"})
         return {"ok": True, "status": 200, "peer": peer.to_dict(), "state": state, "reply": reply,
                 "context_id": ctx}
+
+    def _send_a2a_stream(self, peer: "A2APeer", token: str, text: str, timeout: float = 60.0,
+                         context_id: str = "") -> dict:
+        """SendStreamingMessage (SSE). Concatenates artifact deltas into one reply."""
+        message = {
+            "messageId": f"office-{os.urandom(6).hex()}",
+            "role": "ROLE_USER",
+            "parts": [{"text": text}],
+        }
+        if context_id:
+            message["contextId"] = context_id
+        payload = {"jsonrpc": "2.0", "id": f"office-{int(time.time() * 1000)}",
+                   "method": "SendStreamingMessage", "params": {"message": message}}
+        req = urllib.request.Request(peer.base + "/", data=json.dumps(payload).encode(), method="POST")
+        req.add_header("Content-Type", "application/json")
+        req.add_header("Accept", "text/event-stream")
+        req.add_header("Authorization", f"Bearer {token}")
+        chunks, ctx, state = [], context_id, ""
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                for line in resp:
+                    line = line.decode("utf-8", "ignore").strip()
+                    if not line.startswith("data:"):
+                        continue
+                    try:
+                        frame = json.loads(line[5:].strip())
+                    except Exception:  # noqa: BLE001
+                        continue
+                    result = frame.get("result")
+                    if not isinstance(result, dict):
+                        continue
+                    for kind, obj in result.items():
+                        if not isinstance(obj, dict):
+                            continue
+                        ctx = str(obj.get("contextId") or ctx)[:64]
+                        if kind == "artifactUpdate":
+                            art = obj.get("artifact") or {}
+                            chunks.append("".join(p.get("text", "") for p in art.get("parts") or []))
+                        elif kind == "statusUpdate":
+                            st = obj.get("status") or {}
+                            state = str(st.get("state") or state)
+                            for part in (st.get("message") or {}).get("parts") or []:
+                                if part.get("text") and not chunks:
+                                    chunks.append(part["text"])
+        except Exception as exc:  # noqa: BLE001
+            return {"reply": "", "state": "", "context_id": ctx, "error": str(exc)[:120]}
+        return {"reply": "".join(chunks).strip()[:1000], "state": state, "context_id": ctx}
 
     @staticmethod
     def _a2a_reply(data: dict):
