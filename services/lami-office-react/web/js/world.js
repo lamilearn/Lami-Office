@@ -26,7 +26,8 @@
         this.doors[key] = {
           openProgress: 0.0,
           targetProgress: 0.0,
-          serverTarget: 0.0
+          serverTarget: 0.0,
+          locked: false
         };
       }
     }
@@ -228,6 +229,17 @@
         const leafW = ts; // 16px wide each, 32px total opening
         const prog = Math.max(0, Math.min(1, doorState.openProgress || 0));
         const slide = Math.round(prog * 14); // slides up to 14px into jambs
+
+        // Locked doors read as sealed: red band + padlock over the leaf.
+        if (doorState.locked) {
+          ctx.fillStyle = 'rgba(190, 30, 45, 0.9)';
+          ctx.fillRect(dx, dy - 3, ts * 2, 6);
+          ctx.fillStyle = '#fee2e2';
+          ctx.font = `${Math.max(8, Math.round(ts * 0.55))}px sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.fillText('🔒', dx + ts, dy + ts * 0.75);
+          ctx.textAlign = 'left';
+        }
 
         // 1. Top slider track & housing (32px wide, 3px tall)
         ctx.fillStyle = '#231c2b';

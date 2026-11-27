@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deploy the current `dev` to staging (host .32; .33 is production only).
+# Deploy the current `dev` to staging (self, .33:13579 -> dev.fatihrumi.id).
 #
 # Staging is a mirror of `dev`, exactly like production mirrors `master`: this
 # script only fast-forwards and it refuses a checkout with modified tracked
@@ -13,7 +13,7 @@
 set -euo pipefail
 
 # Staging lives on .32 so .33 can be dedicated to production/master.
-HOST="${DEPLOY_HOST:-rumi@192.168.3.32}"
+HOST="${DEPLOY_HOST:-rumi@192.168.3.33}"
 DIR="${DEPLOY_DIR:-/home/rumi/projects/office-suite-dev}"
 BRANCH="${DEPLOY_BRANCH:-dev}"
 HEALTH_PORT="${HEALTH_PORT:-13579}"

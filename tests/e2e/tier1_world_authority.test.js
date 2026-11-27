@@ -376,10 +376,10 @@ print(json.dumps(report))
     }
   }, { timeout: 180000 });
 
-  it('F24.2: the waypoint is finished when the body cannot advance', () => {
+  it('F24.2: a wall-pinned body resumes walking without crossing a solid tile', () => {
     if (!HAVE_PY) return;
     const out = pyJson(`
-import json, world
+import json, math, world
 sim = world.Sim(seed=5)
 c = sim.residents[0]
 # Park the body against a wall face with one waypoint left, exactly like the
@@ -390,14 +390,22 @@ c.path_goal = {"x": 34, "y": 10}
 c.target_col, c.target_row = 34, 10
 c.state = "walk"
 c.vx = c.vy = 0.0
+start = (c.col, c.row)
+max_moved = 0.0
+crossed = 0
+prev = (c.col, c.row)
 for _ in range(40):
     sim.tick(0.1)
-moved = abs(c.col - 32.61) + abs(c.row - 9.999)
-print(json.dumps({"moved": round(moved, 3), "path_left": len(c.path),
-                  "walkable": world.is_walkable(c.col, c.row)}))
+    max_moved = max(max_moved, math.hypot(c.col - start[0], c.row - start[1]))
+    if not world._segment_clear(prev[0], prev[1], c.col, c.row):
+        crossed += 1
+    prev = (c.col, c.row)
+print(json.dumps({"max_moved": round(max_moved, 3), "walkable": world.is_walkable(c.col, c.row),
+                  "crossed_walls": crossed}))
 `);
-    assert.ok(out.moved > 0.5, `a wall-pinned character must resume walking, moved ${out.moved}`);
+    assert.ok(out.max_moved > 0.5, `a wall-pinned character must resume walking, moved ${out.max_moved}`);
     assert.strictEqual(out.walkable, true, 'it must never be left inside a solid tile');
+    assert.strictEqual(out.crossed_walls, 0, 'it must never step across a solid tile');
   }, { timeout: 60000 });
 
   it('F24.3: the collision probe keys off movement, not the velocity sign', () => {
