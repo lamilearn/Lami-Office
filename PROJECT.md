@@ -15,7 +15,7 @@ A complete 2D Top-Down / RPG pixel art office (Pokemon / Zelda GBA / RPG Maker a
 - **Agent System**: 4 cardinal movement directions (South/Front, North/Back, East/Right, West/Left) with 3/4-frame step cycles, orthogonal A* pathfinding avoiding collision obstacles, and canvas-rendered speech bubbles / inspect modals.
 - **Viewport & UI**: Responsive desktop scaling with side chat drawer width dynamic subtraction, avoiding HUD overlap.
 - **Simulasi Terpusat (server-authoritative)**: The office is ONE shared world simulated by `services/lami-office-react/world.py` inside `server.py`, not by each browser tab. The simulation thread (`sim_loop`) ticks at 10 Hz, broadcasts a `world` frame over SSE at ~5 Hz (only when something changed, plus a 5 s idle refresh), and the browser only renders and interpolates those frames. Consequences: every visitor sees the same characters in the same places, the office keeps living while nobody is watching, and a browser refresh no longer resets anyone to their desk because positions live in the server state file.
-- **Environment**: Branch `dev` on local repo `/home/fatih/Vault/Ecobytes/Project/Lami/ai-office`, remote GitHub repo `git@github.com:lamilearn/Lami-Office.git`, and live staging deployment at `http://192.168.3.32:13579`.
+- **Environment**: Branch `dev` on local repo `/home/fatih/Vault/Ecobytes/Project/AI Agent/Lami/ai-office`, remote GitHub repo `git@github.com:lamilearn/Lami-Office.git`, and live staging deployment at `http://192.168.3.32:13579`.
 
 ---
 
@@ -234,7 +234,7 @@ Run `npm run assets:stamp` after editing any `web/js`/`web/css` file; `npm run a
 fails when a hash is stale.
 
 ## Code & Asset Layout
-- Target Repository: `/home/fatih/Vault/Ecobytes/Project/Lami/ai-office`
+- Target Repository: `/home/fatih/Vault/Ecobytes/Project/AI Agent/Lami/ai-office`
 - Active Branch: `dev`
 - Frontend Scripts: `services/lami-office-react/web/js/`
   - `config.js`: Grid constants, dimensions, building/rooms/hallway, plan helpers, projection math.

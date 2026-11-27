@@ -3,7 +3,7 @@
 **Status**: READY FOR MILESTONE GATING & VERIFICATION  
 **Author**: `e2e_test_writer_1`  
 **Date**: 2026-10-27T03:34:00Z  
-**Target Repository**: `/home/fatih/Vault/Ecobytes/Project/Lami/ai-office` (Branch: `dev`)  
+**Target Repository**: `/home/fatih/Vault/Ecobytes/Project/AI Agent/Lami/ai-office` (Branch: `dev`)
 **Runner Command**: `npm test` or `node tests/run_all_e2e.js`  
 
 ---
@@ -46,7 +46,7 @@
 
 ## 3. How to Execute the Suite
 
-From project root `/home/fatih/Vault/Ecobytes/Project/Lami/ai-office`:
+From project root `/home/fatih/Vault/Ecobytes/Project/AI Agent/Lami/ai-office`:
 ```bash
 # 1. Run all tests
 npm test

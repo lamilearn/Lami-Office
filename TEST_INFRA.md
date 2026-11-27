@@ -33,7 +33,7 @@ The testing track uses an opaque-box, requirement-driven 4-tier testing methodol
 ## 3. Directory Layout
 
 ```
-Project/Lami/ai-office/
+Project/AI Agent/Lami/ai-office/
 ├── package.json                   # Root package definition with npm test scripts
 ├── scripts/
 │   ├── push_to_github.sh          # Git dev push and branch management
