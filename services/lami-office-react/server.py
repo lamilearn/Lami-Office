@@ -79,6 +79,9 @@ DEFAULT_CONFIG = {
     "chat_per_hour": 20,
     "chat_daily_cap": 300,
     "chat_timeout": 60.0,
+    # Optional shim on the Hermes host (`POST /ask`, see lami-ask.service on .31).
+    # The A2A HTTP endpoint loses streamed reply text, this path returns it.
+    "chat_ask_url": "",
     "a2a_peers": [
         # Official A2A v1.0 endpoint served by the Hermes gateway on this LAN.
         {"id": "lami",   "name": "Lami",   "host": "192.168.3.31", "port": 9900, "room": "boss",        "icon": "👑", "color": "#c084fc", "protocol": "a2a"},
@@ -112,6 +115,7 @@ def load_config() -> dict:
         "CHAT_MAX_CHARS": "chat_max_chars", "CHAT_PER_MINUTE": "chat_per_minute",
         "CHAT_PER_HOUR": "chat_per_hour", "CHAT_DAILY_CAP": "chat_daily_cap",
         "CHAT_TIMEOUT": "chat_timeout",
+        "CHAT_ASK_URL": "chat_ask_url",
     }
     for env, key in env_map.items():
         if os.environ.get(env):
@@ -1789,6 +1793,32 @@ class Handler(BaseHTTPRequestHandler):
             return [], "terlalu banyak event dalam satu request (maks 2000)", 413
         return events, None, 200
 
+    def _chat_via_shim(self, url: str, peer_id: str, text: str, context_id: str) -> dict:
+        """Ask through `lami-ask.service` on the Hermes host; returns an A2A-shaped result.
+
+        The A2A HTTP endpoint drops the reply text for streamed turns, this shim
+        reuses the gateway's own forward path and keeps the thread via context_id.
+        """
+        peer = A2A.get(peer_id)
+        token = (A2A.token_for(peer) if peer else "") or str(CFG.get("a2a_secret") or "")
+        req = urllib.request.Request(url, data=json.dumps({"text": text, "context_id": context_id}).encode(),
+                                     method="POST")
+        req.add_header("Content-Type", "application/json")
+        if token:
+            req.add_header("Authorization", f"Bearer {token}")
+        try:
+            with urllib.request.urlopen(req, timeout=float(CFG.get("chat_timeout") or 60) + 30) as resp:
+                data = json.loads(resp.read() or b"{}")
+        except urllib.error.HTTPError as exc:
+            detail = exc.read()[:200].decode("utf-8", "ignore")
+            return {"ok": False, "status": exc.code, "error": detail or "shim menolak permintaan"}
+        except Exception as exc:  # noqa: BLE001
+            return {"ok": False, "status": 502, "error": str(exc)[:120]}
+        if not data.get("ok"):
+            return {"ok": False, "status": 504, "error": str(data.get("error") or "Lami belum membalas")}
+        return {"ok": True, "status": 200, "reply": str(data.get("reply") or ""),
+                "context_id": str(data.get("context_id") or context_id)}
+
     def handle_chat(self):
         """Public web chat -> Lami over A2A.
 
@@ -1836,9 +1866,13 @@ class Handler(BaseHTTPRequestHandler):
             f"atau aksi apa pun. Pesan: {text}"
         )
         peer_id = str(CFG.get("chat_peer") or "lami")
-        result = A2A.send(peer_id, prompt, intent="chat",
-                          timeout=float(CFG.get("chat_timeout") or 60),
-                          context_id=_CHAT_CTX.get(session, ""))
+        ask_url = str(CFG.get("chat_ask_url") or "")
+        if ask_url:
+            result = self._chat_via_shim(ask_url, peer_id, prompt, _CHAT_CTX.get(session, "ctx-" + session))
+        else:
+            result = A2A.send(peer_id, prompt, intent="chat",
+                              timeout=float(CFG.get("chat_timeout") or 60),
+                              context_id=_CHAT_CTX.get(session, ""))
         if not result.get("ok"):
             return self.send_json(int(result.get("status") or 502),
                                   {"ok": False, "error": result.get("error") or "peer tidak menjawab"})
