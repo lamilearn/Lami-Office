@@ -143,7 +143,7 @@ describe('Tier 1 — Feature 15: Responsive Layout & Phone Camera', () => {
   });
 
   it('F15.8: The shell is full-bleed — no 100vw sizing and no vertical letterbox', () => {
-    const css = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/css/style.css'), 'utf8');
+    const css = fs.readFileSync(path.join(REPO, 'web/css/style.css'), 'utf8');
     const stage = css.slice(css.indexOf('#stage {'), css.indexOf('#office {'));
 
     assert.ok(!/width:\s*100vw/.test(stage), '#stage must not size with 100vw (ignores scrollbar/visual viewport)');
@@ -155,7 +155,7 @@ describe('Tier 1 — Feature 15: Responsive Layout & Phone Camera', () => {
   });
 
   it('F15.9: The HUD grows for safe-area insets instead of clipping', () => {
-    const css = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/css/style.css'), 'utf8');
+    const css = fs.readFileSync(path.join(REPO, 'web/css/style.css'), 'utf8');
     const hud = css.slice(css.indexOf('#hud {'), css.indexOf('.hud-brand, .hud-stats'));
 
     assert.ok(/min-height:\s*var\(--header-height\)/.test(hud), 'HUD must use min-height');
@@ -165,8 +165,8 @@ describe('Tier 1 — Feature 15: Responsive Layout & Phone Camera', () => {
   });
 
   it('F15.10: The ?vertical=1 override is gone from both CSS and camera mode', () => {
-    const main = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/js/main.js'), 'utf8');
-    const office = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/js/office.js'), 'utf8');
+    const main = fs.readFileSync(path.join(REPO, 'web/js/main.js'), 'utf8');
+    const office = fs.readFileSync(path.join(REPO, 'web/js/office.js'), 'utf8');
 
     assert.ok(!/classList\.add\('vertical'\)/.test(main), 'main.js must not toggle the vertical class');
     const isPhone = office.slice(office.indexOf('isPhoneMode() {'), office.indexOf('isPhoneMode() {') + 200);
@@ -175,7 +175,7 @@ describe('Tier 1 — Feature 15: Responsive Layout & Phone Camera', () => {
   });
 
   it('F15.11: The Android soft keyboard resizes the shell via visualViewport', () => {
-    const office = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/js/office.js'), 'utf8');
+    const office = fs.readFileSync(path.join(REPO, 'web/js/office.js'), 'utf8');
     assert.ok(/window\.visualViewport/.test(office), 'visualViewport must be used');
     assert.ok(/setupVisualViewport\(\)/.test(office), 'a visualViewport setup hook must exist');
     assert.ok(/setProperty\('--vvh'/.test(office), 'the visual viewport height must feed --vvh');
@@ -184,7 +184,7 @@ describe('Tier 1 — Feature 15: Responsive Layout & Phone Camera', () => {
   });
 
   it('F15.12: Phones render the chat drawer as a bottom sheet, not a full-height sidebar', () => {
-    const css = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/css/style.css'), 'utf8');
+    const css = fs.readFileSync(path.join(REPO, 'web/css/style.css'), 'utf8');
     const sheetAt = css.indexOf('.chat-drawer.is-sheet {');
     assert.ok(sheetAt > -1, 'a bottom-sheet variant must exist');
     const sheet = css.slice(css.indexOf('.chat-drawer,', sheetAt - 400), sheetAt + 400);
@@ -197,7 +197,7 @@ describe('Tier 1 — Feature 15: Responsive Layout & Phone Camera', () => {
   });
 
   it('F15.13: The desk drawer stays an inset card with a pixel accent rail', () => {
-    const css = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/css/style.css'), 'utf8');
+    const css = fs.readFileSync(path.join(REPO, 'web/css/style.css'), 'utf8');
     const drawer = css.slice(css.indexOf('.chat-drawer {'), css.indexOf('.chat-drawer.hidden'));
     assert.ok(/top:\s*calc\(8px \+ env\(safe-area-inset-top\)\)/.test(drawer), 'desktop drawer must float below the HUD');
     assert.ok(/border-radius:\s*14px/.test(drawer), 'desktop drawer must be rounded, not edge-to-edge');
@@ -206,8 +206,8 @@ describe('Tier 1 — Feature 15: Responsive Layout & Phone Camera', () => {
   });
 
   it('F15.14: The sheet follows the visual viewport so the keyboard never covers the input', () => {
-    const ui = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/js/ui.js'), 'utf8');
-    const html = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/index.html'), 'utf8');
+    const ui = fs.readFileSync(path.join(REPO, 'web/js/ui.js'), 'utf8');
+    const html = fs.readFileSync(path.join(REPO, 'web/index.html'), 'utf8');
     const setup = ui.slice(ui.indexOf('setupChatSheet() {'), ui.indexOf('scrollChatToEnd() {'));
 
     assert.ok(/setupChatSheet\(\)/.test(ui), 'the sheet setup hook must exist');
@@ -220,7 +220,7 @@ describe('Tier 1 — Feature 15: Responsive Layout & Phone Camera', () => {
   });
 
   it('F15.15: The canvas fills the shell and the office clears the HUD', () => {
-    const css = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/css/style.css'), 'utf8');
+    const css = fs.readFileSync(path.join(REPO, 'web/css/style.css'), 'utf8');
     const canvas = css.slice(css.indexOf('#office {'), css.indexOf('#office:active'));
     assert.ok(/inset:\s*0/.test(canvas), 'the canvas spans the whole shell so the lawn is full-bleed');
     assert.ok(/width:\s*100%/.test(canvas) && /height:\s*100%/.test(canvas), 'the canvas must fill the shell');
@@ -231,7 +231,7 @@ describe('Tier 1 — Feature 15: Responsive Layout & Phone Camera', () => {
     assert.ok(/--stage-top-gap:\s*16px/.test(css), 'the margin must shrink further on phones');
 
     // The office is drawn below the HUD by a measured inset, not a CSS guess.
-    const js = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/js/office.js'), 'utf8');
+    const js = fs.readFileSync(path.join(REPO, 'web/js/office.js'), 'utf8');
     assert.ok(/topInsetFor\(canvasHeight\)/.test(js), 'the inset must be derived at render time');
     assert.ok(/this\.hudBottom\(\) \+ this\.stageTopGap\(\)/.test(js),
       'the inset must be the HUD height plus the margin');
@@ -313,7 +313,7 @@ describe('Tier 1 — Feature 15: Responsive Layout & Phone Camera', () => {
   });
 
   it('F15.19: Speech balloons use a named ceiling rim, not a magic number', () => {
-    const src = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/js/agents.js'), 'utf8');
+    const src = fs.readFileSync(path.join(REPO, 'web/js/agents.js'), 'utf8');
     assert.ok(/const BUBBLE_TOP_RIM = 34;/.test(src), 'the canopy rim must be a named constant');
     assert.ok(/by < BUBBLE_TOP_RIM/.test(src), 'the flip test must use the constant');
     assert.ok(!/by < 34\b/.test(src), 'no bare 34 may remain in the bubble logic');
@@ -321,8 +321,8 @@ describe('Tier 1 — Feature 15: Responsive Layout & Phone Camera', () => {
 });
 
 describe('Tier 1 — Feature 16: Floorplan Decoration', () => {
-  const MAP_PATH = path.join(REPO, 'services/lami-office-react/web/assets/map/office.map.json');
-  const TILESET_PATH = path.join(REPO, 'services/lami-office-react/web/assets/tiles/tileset.json');
+  const MAP_PATH = path.join(REPO, 'web/assets/map/office.map.json');
+  const TILESET_PATH = path.join(REPO, 'web/assets/tiles/tileset.json');
 
   function decorCounts() {
     const map = JSON.parse(fs.readFileSync(MAP_PATH, 'utf8'));
@@ -408,7 +408,7 @@ describe('Tier 1 — Feature 16: Floorplan Decoration', () => {
   });
 
   it('F16.6: Door thresholds render below characters so nobody is hidden in a doorway', () => {
-    const src = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/js/tilemap.js'), 'utf8');
+    const src = fs.readFileSync(path.join(REPO, 'web/js/tilemap.js'), 'utf8');
     const ground = src.slice(src.indexOf('function paintGround'), src.indexOf('function paintOverlay'));
     const overlay = src.slice(src.indexOf('function paintOverlay'), src.indexOf('function drawLayer'));
 
@@ -419,7 +419,7 @@ describe('Tier 1 — Feature 16: Floorplan Decoration', () => {
   });
 
   it('F16.7: The office render order keeps the wall overlay after the characters', () => {
-    const office = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/js/office.js'), 'utf8');
+    const office = fs.readFileSync(path.join(REPO, 'web/js/office.js'), 'utf8');
     const render = office.slice(office.indexOf('render() {'), office.indexOf('LO.Office = Office'));
     const charsAt = render.indexOf('c.render(this.ctx)');
     const overlayAt = render.indexOf('renderOverlay');
@@ -430,7 +430,7 @@ describe('Tier 1 — Feature 16: Floorplan Decoration', () => {
 
 describe('Tier 1 — Feature 17: A2A Peer Agents & Backend Wiring', () => {
   it('F17.1: A2A peers are declared for the four LAN sidecars', () => {
-    const server = fs.readFileSync(path.join(REPO, 'services/lami-office-react/server.py'), 'utf8');
+    const server = fs.readFileSync(path.join(REPO, 'server.py'), 'utf8');
     for (const [ip, room] of [['192.168.3.91', 'research'], ['192.168.3.92', 'meeting'],
       ['192.168.3.93', 'engineering'], ['192.168.3.94', 'server']]) {
       assert.ok(server.includes(ip), `Peer IP ${ip} must be configured`);
@@ -442,7 +442,7 @@ describe('Tier 1 — Feature 17: A2A Peer Agents & Backend Wiring', () => {
   });
 
   it('F17.2: A2A messages require a configured secret and a known peer', () => {
-    const server = fs.readFileSync(path.join(REPO, 'services/lami-office-react/server.py'), 'utf8');
+    const server = fs.readFileSync(path.join(REPO, 'server.py'), 'utf8');
     assert.ok(/a2a_secret/.test(server), 'a2a_secret must be configurable');
     assert.ok(/a2a_peer_tokens/.test(server), 'per-peer tokens must be configurable');
     assert.ok(/token A2A belum diisi/.test(server), 'Sending must fail clearly without a token');
@@ -450,7 +450,7 @@ describe('Tier 1 — Feature 17: A2A Peer Agents & Backend Wiring', () => {
   });
 
   it('F17.3: Public tunnel traffic can never send A2A messages', () => {
-    const server = fs.readFileSync(path.join(REPO, 'services/lami-office-react/server.py'), 'utf8');
+    const server = fs.readFileSync(path.join(REPO, 'server.py'), 'utf8');
     const sendFn = server.slice(server.indexOf('def handle_a2a_send'));
     const body = sendFn.slice(0, sendFn.indexOf('def handle_events'));
     assert.ok(/is_public\(\)/.test(body), 'Send handler must reject public traffic');
@@ -458,7 +458,7 @@ describe('Tier 1 — Feature 17: A2A Peer Agents & Backend Wiring', () => {
   });
 
   it('F17.3b: Official A2A peers are detected by Agent Card and sent via JSON-RPC', () => {
-    const server = fs.readFileSync(path.join(REPO, 'services/lami-office-react/server.py'), 'utf8');
+    const server = fs.readFileSync(path.join(REPO, 'server.py'), 'utf8');
     assert.ok(server.includes('.well-known/agent-card.json'), 'Agent Card must be probed');
     assert.ok(/\"method\": \"SendMessage\"/.test(server), 'Official sends must use JSON-RPC SendMessage');
     assert.ok(/Authorization.*Bearer/.test(server), 'Official sends must use a Bearer token');
@@ -468,7 +468,7 @@ describe('Tier 1 — Feature 17: A2A Peer Agents & Backend Wiring', () => {
   });
 
   it('F17.3c: A2A replies are parsed from the task status or artifacts', () => {
-    const server = fs.readFileSync(path.join(REPO, 'services/lami-office-react/server.py'), 'utf8');
+    const server = fs.readFileSync(path.join(REPO, 'server.py'), 'utf8');
     assert.ok(/TASK_STATE|status\.get\(\"state\"\)/.test(server), 'Task state must be read');
     assert.ok(/artifacts/.test(server), 'Artifact text must be read as a reply source');
   });
@@ -526,7 +526,7 @@ describe('Tier 1 — Feature 17: A2A Peer Agents & Backend Wiring', () => {
 describe('Tier 1 — Feature 18: Live State Persistence Across Reloads', () => {
   const fsx = require('node:fs');
   const pathx = require('node:path');
-  const SERVER = pathx.join(REPO, 'services/lami-office-react/server.py');
+  const SERVER = pathx.join(REPO, 'server.py');
 
   it('F18.1: Agent identity is deterministic — the same id always gets the same name and look', () => {
     const { LO } = loadConfig(1400, false);
@@ -556,14 +556,14 @@ describe('Tier 1 — Feature 18: Live State Persistence Across Reloads', () => {
   });
 
   it('F18.3: Sub-agents are spawned in restore mode without an entrance animation', () => {
-    const src = fsx.readFileSync(pathx.join(REPO, 'services/lami-office-react/web/js/office.js'), 'utf8');
+    const src = fsx.readFileSync(pathx.join(REPO, 'web/js/office.js'), 'utf8');
     assert.ok(/opts\.restore|restore = Boolean/.test(src), 'spawnSubAgent must accept a restore option');
     assert.ok(/agent\.state = 'work'/.test(src), 'Restored agents resume in the work state');
     assert.ok(/preferredSlot === 'auto'/.test(src), 'Restore uses deterministic auto placement');
   });
 
   it('F18.4: In live mode the roster comes from the server, not the event feed', () => {
-    const src = fsx.readFileSync(pathx.join(REPO, 'services/lami-office-react/web/js/net.js'), 'utf8');
+    const src = fsx.readFileSync(pathx.join(REPO, 'web/js/net.js'), 'utf8');
     // Offline/demo may still rebuild agents locally, so the restore path stays.
     assert.ok(/restore: true/.test(src), 'offline restore must still use restore mode');
     // Live mode: the server owns the floor, so the client must not build bodies
@@ -600,8 +600,8 @@ describe('Tier 1 — Feature 18: Live State Persistence Across Reloads', () => {
 describe('Tier 1 — Feature 19: Overlay Footprint (notifications must not cover the floorplan)', () => {
   const fsx = require('node:fs');
   const pathx = require('node:path');
-  const CSS = pathx.join(REPO, 'services/lami-office-react/web/css/style.css');
-  const UI = pathx.join(REPO, 'services/lami-office-react/web/js/ui.js');
+  const CSS = pathx.join(REPO, 'web/css/style.css');
+  const UI = pathx.join(REPO, 'web/js/ui.js');
 
   it('F19.1: The activity ticker is height-capped so it cannot cover the left page', () => {
     const css = fsx.readFileSync(CSS, 'utf8');
@@ -632,7 +632,7 @@ describe('Tier 1 — Feature 19: Overlay Footprint (notifications must not cover
 describe('Tier 1 — Feature 20: Mesh Sidecar Roles & Recipient Mapping', () => {
   const fsx = require('node:fs');
   const pathx = require('node:path');
-  const SERVER = pathx.join(REPO, 'services/lami-office-react/server.py');
+  const SERVER = pathx.join(REPO, 'server.py');
 
   it('F20.1: Sidecar rooms match their real roles (security->server, devops->engineering)', () => {
     const src = fsx.readFileSync(SERVER, 'utf8');
@@ -655,7 +655,7 @@ describe('Tier 1 — Feature 20: Mesh Sidecar Roles & Recipient Mapping', () => 
 
   it('F20.3: No sidecar secret is committed to the repository', () => {
     const tracked = ['README.md', 'PROJECT.md', '.env.example', 'docker-compose.yml',
-      'services/lami-office-react/server.py'];
+      'server.py'];
     for (const f of tracked) {
       const txt = fsx.readFileSync(pathx.join(REPO, f), 'utf8');
       assert.ok(!/a2a_secret_mesh_ebi_2026/.test(txt), `${f} must not contain the mesh secret`);
@@ -665,8 +665,8 @@ describe('Tier 1 — Feature 20: Mesh Sidecar Roles & Recipient Mapping', () => 
 
 describe('Tier 1 — Feature 25: Per-room wall palette', () => {
   const ROOMS6 = ['boss', 'research', 'server', 'engineering', 'meeting', 'pantry'];
-  const TILESET = path.join(REPO, 'services/lami-office-react/web/assets/tiles/tileset.json');
-  const WALL_MAP = path.join(REPO, 'services/lami-office-react/web/assets/map/office.map.json');
+  const TILESET = path.join(REPO, 'web/assets/tiles/tileset.json');
+  const WALL_MAP = path.join(REPO, 'web/assets/map/office.map.json');
 
   it('F25.1: every room has a tileset entry for each wall variant and window', () => {
     const index = JSON.parse(fs.readFileSync(TILESET, 'utf8'));
@@ -713,7 +713,7 @@ describe('Tier 1 — Feature 25: Per-room wall palette', () => {
   });
 
   it('F25.4: tilemap.js resolves room tops and treats tagged walls as solid', () => {
-    const src = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/js/tilemap.js'), 'utf8');
+    const src = fs.readFileSync(path.join(REPO, 'web/js/tilemap.js'), 'utf8');
     assert.ok(/function wallRoomSuffix/.test(src), 'a room-suffix resolver must exist');
     assert.ok(/function wallTopFor/.test(src), 'wall tops must match the body room');
     assert.ok(/name\.indexOf\('wall_'\) === 0/.test(src),
@@ -722,7 +722,7 @@ describe('Tier 1 — Feature 25: Per-room wall palette', () => {
   });
 
   it('F25.5: the six room colours are actually distinct', () => {
-    const cfg = fs.readFileSync(path.join(REPO, 'services/lami-office-react/web/js/config.js'), 'utf8');
+    const cfg = fs.readFileSync(path.join(REPO, 'web/js/config.js'), 'utf8');
     // Restrict to the LO.ROOMS block: LO.HALLWAY also has a `wall` colour.
     const start = cfg.indexOf('LO.ROOMS = {');
     const end = cfg.indexOf('LO.HALLWAY', start);
@@ -735,9 +735,9 @@ describe('Tier 1 — Feature 25: Per-room wall palette', () => {
 });
 
 describe('Tier 1 — Feature 31: Full-bleed office view', () => {
-  const CONFIG = path.join(REPO, 'services/lami-office-react/web/js/config.js');
-  const OFFICE = path.join(REPO, 'services/lami-office-react/web/js/office.js');
-  const TILEMAP = path.join(REPO, 'services/lami-office-react/web/js/tilemap.js');
+  const CONFIG = path.join(REPO, 'web/js/config.js');
+  const OFFICE = path.join(REPO, 'web/js/office.js');
+  const TILEMAP = path.join(REPO, 'web/js/tilemap.js');
 
   it('F31.1: the desktop zoom fills the focus region but never crops the building', () => {
     const { LO } = loadConfig(1920, false);
@@ -792,7 +792,7 @@ describe('Tier 1 — Feature 31: Full-bleed office view', () => {
 });
 
 describe('Tier 1 — Feature 43: Walls sit on floor, never on the lawn', () => {
-  const MAP = path.join(REPO, 'services/lami-office-react/web/assets/map/office.map.json');
+  const MAP = path.join(REPO, 'web/assets/map/office.map.json');
 
   function layers() {
     const m = JSON.parse(fs.readFileSync(MAP, 'utf8'));
@@ -840,7 +840,7 @@ describe('Tier 1 — Feature 43: Walls sit on floor, never on the lawn', () => {
   });
 
   it('F43.3: the generator derives that floor instead of hardcoding it', () => {
-    const src = fs.readFileSync(path.join(REPO, 'scripts/generate_tilemap.py'), 'utf8');
+    const src = fs.readFileSync(path.join(REPO, 'scripts/assets/generate_tilemap.py'), 'utf8');
     // The generator walks out to the nearest real floor rather than copying the
     // tile below, because a corner has no floor directly underneath it.
     assert.ok(/floor\[y\]\[x\] = found/.test(src), 'the wall row must inherit a real floor');
@@ -850,7 +850,7 @@ describe('Tier 1 — Feature 43: Walls sit on floor, never on the lawn', () => {
 });
 
 describe('Tier 1 — Feature 45: No dark band under the walls', () => {
-  const TILEMAP = path.join(REPO, 'services/lami-office-react/web/js/tilemap.js');
+  const TILEMAP = path.join(REPO, 'web/js/tilemap.js');
 
   it('F45.1: the ground pass paints no contact shadow under raised walls', () => {
     const src = fs.readFileSync(TILEMAP, 'utf8');
@@ -870,8 +870,8 @@ describe('Tier 1 — Feature 45: No dark band under the walls', () => {
 });
 
 describe('Tier 1 — Feature 46: The top wall band has no notches', () => {
-  const TILEMAP = path.join(REPO, 'services/lami-office-react/web/js/tilemap.js');
-  const MAP = path.join(REPO, 'services/lami-office-react/web/assets/map/office.map.json');
+  const TILEMAP = path.join(REPO, 'web/js/tilemap.js');
+  const MAP = path.join(REPO, 'web/assets/map/office.map.json');
 
   it('F46.1: corners where a divider meets an outer wall are drawn raised too', () => {
     const src = fs.readFileSync(TILEMAP, 'utf8');
@@ -966,7 +966,7 @@ describe('Tier 1 — Feature 46: The top wall band has no notches', () => {
 });
 
 describe('Tier 1 — Feature 48: No dark line along the foot of a wall', () => {
-  const TILEMAP = path.join(REPO, 'services/lami-office-react/web/js/tilemap.js');
+  const TILEMAP = path.join(REPO, 'web/js/tilemap.js');
 
   it('F48.1: the overlay paints no 1px shadow at the wall base', () => {
     const src = fs.readFileSync(TILEMAP, 'utf8');
@@ -986,8 +986,8 @@ describe('Tier 1 — Feature 48: No dark line along the foot of a wall', () => {
 });
 
 describe('Tier 1 — Feature 49: Facade details follow their wall', () => {
-  const TILEMAP = path.join(REPO, 'services/lami-office-react/web/js/tilemap.js');
-  const MAP = path.join(REPO, 'services/lami-office-react/web/assets/map/office.map.json');
+  const TILEMAP = path.join(REPO, 'web/js/tilemap.js');
+  const MAP = path.join(REPO, 'web/assets/map/office.map.json');
 
   function decorRows() {
     const m = JSON.parse(fs.readFileSync(MAP, 'utf8'));
@@ -1044,7 +1044,7 @@ describe('Tier 1 — Feature 49: Facade details follow their wall', () => {
 });
 
 describe('Tier 1 — Feature 50: Doorways sit in the wall band', () => {
-  const TILEMAP = path.join(REPO, 'services/lami-office-react/web/js/tilemap.js');
+  const TILEMAP = path.join(REPO, 'web/js/tilemap.js');
 
   it('F50.1: a raised doorway sill uses the same frame as the wall', () => {
     const src = fs.readFileSync(TILEMAP, 'utf8');
@@ -1068,7 +1068,7 @@ describe('Tier 1 — Feature 50: Doorways sit in the wall band', () => {
 });
 
 describe('Tier 1 — Feature 51: A raised corner matches its neighbours', () => {
-  const TILEMAP = path.join(REPO, 'services/lami-office-react/web/js/tilemap.js');
+  const TILEMAP = path.join(REPO, 'web/js/tilemap.js');
 
   it('F51.1: the top face uses the tile\'s own family', () => {
     const src = fs.readFileSync(TILEMAP, 'utf8');
@@ -1084,8 +1084,8 @@ describe('Tier 1 — Feature 51: A raised corner matches its neighbours', () => 
 });
 
 describe('Tier 1 — Feature 52: A room\'s colour stops at its own floor', () => {
-  const MAP = path.join(REPO, 'services/lami-office-react/web/assets/map/office.map.json');
-  const GENERATOR = path.join(REPO, 'scripts/generate_tilemap.py');
+  const MAP = path.join(REPO, 'web/assets/map/office.map.json');
+  const GENERATOR = path.join(REPO, 'scripts/assets/generate_tilemap.py');
 
   function decodeAll() {
     const raw = JSON.parse(fs.readFileSync(MAP, 'utf8'));
@@ -1173,7 +1173,7 @@ describe('Tier 1 — Feature 52: A room\'s colour stops at its own floor', () =>
 });
 
 describe('Tier 1 — Feature 53: Desktop drag-pan follows the cursor 1:1', () => {
-  const OFFICE = path.join(REPO, 'services/lami-office-react/web/js/office.js');
+  const OFFICE = path.join(REPO, 'web/js/office.js');
 
   function dragFn() {
     const src = fs.readFileSync(OFFICE, 'utf8');

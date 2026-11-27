@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&family=Press+Start+2P&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=bfa1d494">
+  <link rel="stylesheet" href="css/style.css?v=cc927bb0">
 </head>
 <body>
   <main id="stage" aria-label="Lami's AI Office">
@@ -73,7 +73,7 @@
         <span class="chat-grabber" aria-hidden="true"></span>
         <div class="chat-head-title">
           <span class="chat-hash">#</span>
-          <b>general-kantor</b>
+          <b id="chat-channel-name">lami-saya</b>
           <span class="chat-online-badge">● live</span>
         </div>
         <div class="chat-head-actions">
@@ -81,7 +81,11 @@
           <button id="chat-close" class="chat-close-btn" aria-label="Tutup Chat">✕</button>
         </div>
       </div>
-      <div id="chat-messages" class="chat-messages">
+      <nav id="chat-tabs" class="chat-tabs" aria-label="Channel">
+        <button type="button" class="chat-tab is-active" data-channel="lami">👑 lami-saya</button>
+        <button type="button" class="chat-tab" data-channel="office">🏢 kantor</button>
+      </nav>
+      <div id="chat-messages" class="chat-messages" data-channel="lami">
         <!-- Messages appended here -->
       </div>
       <form id="chat-form" class="chat-input-bar">
@@ -245,7 +249,7 @@
   <script src="js/world.js?v=751b984b"></script>
   <script src="js/agents.js?v=23524db0"></script>
   <script src="js/office.js?v=177dd17b"></script>
-  <script src="js/ui.js?v=003de713"></script>
+  <script src="js/ui.js?v=bb79e660"></script>
   <script src="js/demo.js?v=bf192b75"></script>
   <script src="js/net.js?v=95287914"></script>
   <script src="js/main.js?v=04c7b64a"></script>

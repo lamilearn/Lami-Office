@@ -15,8 +15,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-WEB_JS = ROOT / "services" / "lami-office-react" / "web" / "js"
+ROOT = Path(__file__).resolve().parents[2]
+WEB_JS = ROOT / "web" / "js"
 CONFIG_JS = WEB_JS / "config.js"
 OFFICE_JS = WEB_JS / "office.js"
 
@@ -90,7 +90,7 @@ def load_furniture_from_office_js() -> list:
 
 
 def compare() -> list[str]:
-    sys.path.insert(0, str(ROOT / "services" / "lami-office-react"))
+    sys.path.insert(0, str(ROOT))
     import world  # noqa: E402
 
     snap = load_js_snapshot()

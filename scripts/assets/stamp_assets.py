@@ -19,7 +19,7 @@ import re
 import sys
 from pathlib import Path
 
-WEB = Path(__file__).resolve().parent.parent / "services" / "lami-office-react" / "web"
+WEB = Path(__file__).resolve().parents[2] / "web"
 INDEX = WEB / "index.html"
 
 # href="..." / src="..." for local css/js only (skip absolute and data: URLs).

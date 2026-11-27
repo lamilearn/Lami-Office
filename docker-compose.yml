@@ -1,7 +1,7 @@
 services:
   ai-office:
     build:
-      context: ./services/lami-office-react
+      context: .
       dockerfile: Dockerfile
     container_name: ${COMPOSE_PROJECT_NAME:-office}-ai-office
     restart: unless-stopped
@@ -23,6 +23,14 @@ services:
       - OFFICE_STATE_FILE=${OFFICE_STATE_FILE:-/data/office-state.json}
       - A2A_PEER_TOKENS=${A2A_PEER_TOKENS:-}
       - A2A_REPLY_TIMEOUT=${A2A_REPLY_TIMEOUT:-120}
+      - CHAT_ENABLED=${CHAT_ENABLED:-true}
+      - CHAT_PEER=${CHAT_PEER:-lami}
+      - CHAT_MAX_CHARS=${CHAT_MAX_CHARS:-600}
+      - CHAT_PER_MINUTE=${CHAT_PER_MINUTE:-4}
+      - CHAT_PER_HOUR=${CHAT_PER_HOUR:-20}
+      - CHAT_DAILY_CAP=${CHAT_DAILY_CAP:-300}
+      - CHAT_TIMEOUT=${CHAT_TIMEOUT:-60}
+      - CHAT_ASK_URL=${CHAT_ASK_URL:-}
       - PYTHONUNBUFFERED=1
       - ENVIRONMENT=${ENVIRONMENT:-production}
 

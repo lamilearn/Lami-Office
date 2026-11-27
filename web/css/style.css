@@ -380,6 +380,33 @@ html, body {
 }
 .chat-icon-btn:hover, .chat-close-btn:hover { background: rgba(0, 0, 0, 0.08); }
 
+/* Channel tabs (Discord-style). One message list, filtered by data-channel. */
+.chat-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #faebe0;
+  border-bottom: 2px solid var(--ink);
+  flex-shrink: 0;
+}
+.chat-tab {
+  flex: 1;
+  padding: 4px 8px;
+  font-family: var(--font-pixel);
+  font-size: 9px;
+  color: var(--ink-soft);
+  background: transparent;
+  border: 2px solid transparent;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.chat-tab:hover { background: rgba(0, 0, 0, 0.05); }
+.chat-tab.is-active {
+  color: var(--ink);
+  background: #ffffff;
+  border-color: var(--ink);
+}
+
 .chat-messages {
   flex: 1;
   overflow-y: auto;
@@ -388,6 +415,12 @@ html, body {
   flex-direction: column;
   gap: 10px;
   font-size: 12px;
+}
+/* Hide the other channel's messages. Filtering lives in CSS so no message is
+   ever cloned or moved; switching tabs is a single attribute write. */
+.chat-messages[data-channel="lami"] .chat-msg[data-ch="office"],
+.chat-messages[data-channel="office"] .chat-msg[data-ch="lami"] {
+  display: none;
 }
 .chat-messages::-webkit-scrollbar { width: 5px; }
 .chat-messages::-webkit-scrollbar-thumb { background: #d6c7b8; border-radius: 99px; }

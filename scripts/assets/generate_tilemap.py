@@ -24,8 +24,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-WEB = ROOT / "services" / "lami-office-react" / "web"
+ROOT = Path(__file__).resolve().parents[2]
+WEB = ROOT / "web"
 MAP_PATH = WEB / "assets" / "map" / "office.map.json"
 
 ROOM_IDS = ["boss", "research", "server", "engineering", "meeting", "pantry"]

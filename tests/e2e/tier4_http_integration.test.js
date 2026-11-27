@@ -14,7 +14,7 @@ const path = require('node:path');
 
 const HAVE_PY = H.pythonAvailable();
 const SKIP = HAVE_PY ? null : 'python3 is not available; HTTP integration suite skipped';
-const SERVER_SRC = path.join(H.REPO, 'services/lami-office-react/server.py');
+const SERVER_SRC = path.join(H.REPO, 'server.py');
 
 const LONG = { timeout: 30000 };
 

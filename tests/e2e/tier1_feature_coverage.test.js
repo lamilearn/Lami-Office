@@ -551,7 +551,7 @@ describe('Tier 1 — Feature 11: Desktop-First Viewport & Scaling', () => {
 
 describe('Tier 1 — Feature 12: Server Endpoints & Smoke Probes', () => {
   it('F12.1: Syntax check passes on all 11 frontend JavaScript files', () => {
-    const root = path.resolve(__dirname, '..', '..', 'services', 'lami-office-react', 'web', 'js');
+    const root = path.resolve(__dirname, '..', '..', 'web', 'js');
     const files = ['config.js', 'sprites.js', 'audio.js', 'tilemap.js', 'world.js', 'agents.js', 'office.js', 'ui.js', 'demo.js', 'net.js', 'main.js'];
 
     for (const f of files) {
@@ -641,7 +641,7 @@ describe('Tier 1 — Feature 7b: Live Map Path Integrity', () => {
   it('F7b.3: Every resident boss routine destination is reachable from its home desk', () => {
     const { LO, grid } = liveMap();
     const agentsSrc = fs.readFileSync(
-      path.resolve(__dirname, '..', '..', 'services', 'lami-office-react', 'web', 'js', 'agents.js'), 'utf8');
+      path.resolve(__dirname, '..', '..', 'web', 'js', 'agents.js'), 'utf8');
     let checked = 0;
     for (const [id, owner] of Object.entries(OWNER)) {
       const m = new RegExp(`id: '${id}',[\\s\\S]{0,260}?col: ([\\d.]+),\\s*row: ([\\d.]+),\\s*facing: '([^']*)'`).exec(agentsSrc);
@@ -705,8 +705,8 @@ describe('Tier 1 — Feature 13: Staff Roster & Shared Room Routines', () => {
 });
 
 describe('Tier 1 — Feature 14: Tilemap Floorplan & Collision Consistency', () => {
-  const MAP_PATH = path.resolve(__dirname, '..', '..', 'services', 'lami-office-react', 'web', 'assets', 'map', 'office.map.json');
-  const TILESET_PATH = path.resolve(__dirname, '..', '..', 'services', 'lami-office-react', 'web', 'assets', 'tiles', 'tileset.json');
+  const MAP_PATH = path.resolve(__dirname, '..', '..', 'web', 'assets', 'map', 'office.map.json');
+  const TILESET_PATH = path.resolve(__dirname, '..', '..', 'web', 'assets', 'tiles', 'tileset.json');
 
   function decodeLayer(layer, cols, rows) {
     const flat = [];

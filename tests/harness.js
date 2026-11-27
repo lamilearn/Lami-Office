@@ -373,7 +373,7 @@ function createBrowserEnvironment() {
 }
 
 function loadScriptIntoEnv(env, scriptRelativePath) {
-  const root = path.resolve(__dirname, '..', 'services', 'lami-office-react', 'web', 'js');
+  const root = path.resolve(__dirname, '..', 'web', 'js');
   const fullPath = path.resolve(root, scriptRelativePath);
   if (!fs.existsSync(fullPath)) {
     throw new Error(`Script file not found: ${fullPath}`);

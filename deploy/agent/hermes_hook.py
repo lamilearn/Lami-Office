@@ -11,11 +11,11 @@ Usage in Python code:
     hook.agent_done("sa1", ok=True)
 
 Usage from CLI / bash scripts:
-    python3 deploy/hermes_hook.py tool_start --tool terminal --summary "Menjalankan migrasi database"
-    python3 deploy/hermes_hook.py tool_end --tool terminal --ok
-    python3 deploy/hermes_hook.py status --status thinking
-    python3 deploy/hermes_hook.py spawn --agent-id sa1 --name "Budi" --task "Riset API endpoint"
-    python3 deploy/hermes_hook.py done --agent-id sa1 --ok
+    python3 deploy/agent/hermes_hook.py tool_start --tool terminal --summary "Menjalankan migrasi database"
+    python3 deploy/agent/hermes_hook.py tool_end --tool terminal --ok
+    python3 deploy/agent/hermes_hook.py status --status thinking
+    python3 deploy/agent/hermes_hook.py spawn --agent-id sa1 --name "Budi" --task "Riset API endpoint"
+    python3 deploy/agent/hermes_hook.py done --agent-id sa1 --ok
 """
 
 import sys

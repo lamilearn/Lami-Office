@@ -1,21 +1,20 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Smoke Test Verification Script for Lami AI Office Suite
-# Probes all 7 health and status endpoints across ai-office and lami-office-react.
+# Smoke test for the (single) office service.
+# Probes the endpoints a deploy must keep answering.
 #
-# Usage: ./scripts/smoke_test.sh [HOST] [AI_PORT] [LAMI_PORT]
-# Example: ./scripts/smoke_test.sh 192.168.3.33 8088 8090
+# Usage: ./scripts/ops/smoke_test.sh [HOST] [PORT]
+# Example: ./scripts/ops/smoke_test.sh 192.168.3.33 8090
 # ==============================================================================
 
 set -uo pipefail
 
 HOST="${1:-127.0.0.1}"
-AI_PORT="${2:-8088}"
-LAMI_PORT="${3:-8090}"
+PORT="${2:-8090}"
 TIMEOUT=10
 
 FAILED_TESTS=0
-TOTAL_TESTS=7
+TOTAL_TESTS=6
 
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -24,10 +23,8 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 echo -e "${BLUE}================================================================${NC}"
-echo -e "${BLUE} Starting Smoke Test Probes for Lami AI Office Suite${NC}"
-echo -e " Target Host   : ${YELLOW}${HOST}${NC}"
-echo -e " ai-office     : ${YELLOW}http://${HOST}:${AI_PORT}${NC}"
-echo -e " lami-office   : ${YELLOW}http://${HOST}:${LAMI_PORT}${NC}"
+echo -e "${BLUE} Starting Smoke Test Probes for Lami AI Office${NC}"
+echo -e " Target        : ${YELLOW}${HOST}:${PORT}${NC}"
 echo -e "${BLUE}================================================================${NC}"
 
 probe_endpoint() {
@@ -73,16 +70,16 @@ probe_endpoint() {
     fi
 }
 
-echo -e "\n${BLUE}--- Probing ai-office (Port ${AI_PORT}) ---${NC}"
-probe_endpoint 1 "ai-office" "/api/health" "http://${HOST}:${AI_PORT}/api/health" '"status"[[:space:]]*:[[:space:]]*"ok"'
-probe_endpoint 2 "ai-office" "/api/boss" "http://${HOST}:${AI_PORT}/api/boss" '"id"[[:space:]]*:[[:space:]]*"lami"'
-probe_endpoint 3 "ai-office" "/api/agents" "http://${HOST}:${AI_PORT}/api/agents" '"agents"[[:space:]]*:[[:space:]]*\['
-probe_endpoint 4 "ai-office" "GET / (HTML)" "http://${HOST}:${AI_PORT}/" '<title>|<html'
+# Port 443 goes through Cloudflare, so it must speak TLS.
+if [ "${PORT}" = "443" ]; then SCHEME="https"; else SCHEME="http"; fi
+base="${SCHEME}://${HOST}:${PORT}"
 
-echo -e "\n${BLUE}--- Probing lami-office-react (Port ${LAMI_PORT}) ---${NC}"
-probe_endpoint 5 "lami-office" "/healthz" "http://${HOST}:${LAMI_PORT}/healthz" '"ok"[[:space:]]*:[[:space:]]*true'
-probe_endpoint 6 "lami-office" "/api/config" "http://${HOST}:${LAMI_PORT}/api/config" '"mode"[[:space:]]*:[[:space:]]*"(live|demo)"'
-probe_endpoint 7 "lami-office" "GET / (HTML)" "http://${HOST}:${LAMI_PORT}/" '<title>|<html'
+probe_endpoint 1 "office" "/healthz"          "${base}/healthz"          '"ok"[[:space:]]*:[[:space:]]*true'
+probe_endpoint 2 "office" "/api/config"       "${base}/api/config"       '"mode"[[:space:]]*:[[:space:]]*"(live|demo)"'
+probe_endpoint 3 "office" "/api/world"        "${base}/api/world"        '"chars"[[:space:]]*:[[:space:]]*\['
+probe_endpoint 4 "office" "/api/roster"       "${base}/api/roster"       '"roster"'
+probe_endpoint 5 "office" "/api/integration"  "${base}/api/integration"  '"events_total"'
+probe_endpoint 6 "office" "GET / (HTML)"      "${base}/"                 '<title>|<html'
 
 echo -e "\n${BLUE}================================================================${NC}"
 if [ ${FAILED_TESTS} -eq 0 ]; then

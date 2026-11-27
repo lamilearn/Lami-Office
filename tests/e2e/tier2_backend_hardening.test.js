@@ -1,7 +1,7 @@
 /**
  * Tier 2 — Backend Hardening (negative testing regressions F-1..F-5)
  *
- * These lock in the failure-testing fixes on services/lami-office-react/server.py:
+ * These lock in the failure-testing fixes on server.py:
  *   F-1 ingest reports accepted vs rejected
  *   F-2 a corrupt Hermes DB must not kill the watcher
  *   F-3 a failed A2A send clears the peer's online flag
@@ -14,7 +14,7 @@ const { execFileSync } = require('node:child_process');
 const path = require('node:path');
 
 const REPO = path.resolve(__dirname, '..', '..');
-const SERVER_DIR = path.join(REPO, 'services', 'lami-office-react');
+const SERVER_DIR = REPO;
 
 function py(script, env = {}) {
   const out = execFileSync('python3', ['-c', script], {
@@ -216,7 +216,7 @@ describe('Tier 2 — Backend Hardening: Bridge Target (F-6)', () => {
 
   it('H6.1: The shipped bridge unit targets production, not staging', () => {
     const unit = fsx.readFileSync(
-      pathx.join(REPO, 'services/lami-office-react/deploy/hermes-bridge.service'), 'utf8');
+      pathx.join(REPO, 'deploy/agent/hermes-bridge.service'), 'utf8');
     const env = unit.split('\n').find((l) => l.startsWith('Environment=OFFICE_URL=')) || '';
     assert.ok(env.includes(':8090'), `bridge unit must target production (:8090), got: ${env}`);
     assert.ok(!env.includes(':13579'), 'bridge unit must not target staging by default');

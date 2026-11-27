@@ -194,7 +194,7 @@ describe('Tier 4 — Scenario 4: Error Handling & System Fault Recovery', () => 
 });
 
 describe('Tier 4 — Scenario 5: Dual Service Smoke & Health Verification', () => {
-  it('S5: Verifies the 7 core endpoint contracts across ai-office and lami-office-react', () => {
+  it('S5: Verifies the 7 core endpoint contracts across the office stack', () => {
     const probes = [
       { id: 1, service: 'ai-office', path: '/api/health', expectedKey: 'status', expectedVal: 'ok' },
       { id: 2, service: 'ai-office', path: '/api/boss', expectedKey: 'id', expectedVal: 'lami' },
