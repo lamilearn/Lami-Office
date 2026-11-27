@@ -1,263 +1,185 @@
-# Lami AI Office Suite
+# Lami AI Office
 
-Unified workspace & monorepo containing services for **AI Office** and **Lami Office**.
+A pixel-art office where AI agents visibly work. The office is a **server-authoritative
+simulation**: one shared world runs at 10 Hz on the server, every browser renders the
+same frames over SSE, and the floor keeps living when nobody is watching.
 
-## Structure
+Live: <https://office.fatihrumi.id>
 
 ```
-.
-├── docker-compose.yml       # The only compose file — run from here
-├── Makefile                 # Same commands as npm, for people without node
-├── package.json             # npm test / npm run assets:check
-├── .env.example             # Copy to .env.production|.env.development
-├── docs/
-│   ├── ARCHITECTURE.md      # Floorplan, interface contracts, deployment
-│   ├── TESTING.md           # E2E suite layout
-│   ├── CHANGELOG.md         # Release history
-│   └── SECURITY.md          # Threat model, secrets policy, reporting
-├── server.py                # stdlib HTTP + SSE, public chat proxy
-├── world.py                 # Server-authoritative 10 Hz simulation
-├── config.json              # Optional overrides (env wins)
-├── Dockerfile
-├── deploy/
-│   ├── agent/               # Runs on the Hermes hosts (.31, .91-.94)
-│   │   ├── hermes_bridge.py      # Tails state.db, POSTs events
-│   │   ├── hermes_hook.py        # Library/CLI for direct event pushes
-│   │   ├── hermes-bridge.service
-│   │   ├── metrics_agent.py      # /proc CPU/RAM/disk, port 8010
-│   │   ├── lami-metrics.service
-│   │   └── install_metrics_agent.sh
-│   └── office/              # Runs on the office host (.33)
-│       └── cloudflared-config.yml
-├── scripts/
-│   ├── assets/              # Generated artefacts + their guards
-│   │   ├── check_world_sync.py   # Fails when world.py drifts from config.js
-│   │   ├── generate_tileset.py   # Builds web/assets/tiles/tileset.png (+ --check)
-│   │   ├── generate_tilemap.py   # Builds web/assets/map/office.map.json (+ --check)
-│   │   └── stamp_assets.py       # Content-hash ?v= on every asset
-│   └── ops/                 # Operate a deployment
-│       ├── deploy_prod.sh        # Fast-forward master + rebuild (.33)
-│       ├── deploy_staging.sh     # Same for dev (.32)
-│       ├── push_to_github.sh     # Push dev (master needs ALLOW_MASTER_PUSH=1)
-│       └── smoke_test.sh         # Probes the deploy's health endpoints
-├── web/                     # index.html, css/style.css, js/*.js, assets/
-└── tests/                   # Zero-dependency E2E harness (378 tests)
+Python stdlib only · vanilla JS, no build step · 378 tests · zero runtime dependencies
 ```
 
-## Floorplan & Assets
+## What it does
 
-The office is one **single enclosed floor** (architect-plan style): six themed
-rooms sealed by shared partition walls around a central hallway, each pierced by
-a 2-tile doorway. It renders from a committed tilemap + tileset:
+- **One office, many viewers.** `world.py` owns every character's position. Browsers
+  receive `world` frames and interpolate; they never simulate independently, so two
+  visitors never see different floors.
+- **Live from Hermes.** A bridge on each agent host tails the Hermes transcript and
+  POSTs office events. Agents wake, walk to their desk, use tools, talk, and leave.
+- **Honest status.** The HUD reports `live` / `slow` / `idle` from the real age of the
+  last event. It does not claim to be busy when nothing is happening.
+- **Public chat.** Visitors can talk to Lami, rate-limited per IP with a daily budget.
+  The message is tagged untrusted and the agent answers read-only.
 
-- `web/assets/tiles/tileset.png` + `tileset.json`
-- `web/assets/map/office.map.json`
+## Quick start
 
-Both are generated from `web/js/config.js` (the single source of truth) and
-committed. Regenerate or verify them with:
+Docker is the supported path. The image is ~120 MB and needs no runtime install.
 
 ```bash
-npm run assets          # rebuild tileset.png + office.map.json
-npm run assets:check    # fail if committed assets drift from config.js
-```
-
-The renderer (`web/js/tilemap.js`) falls back to the procedural floorplan in
-`web/js/world.js` if the assets cannot be fetched.
-
-## Branching Strategy
-
-- **`master`**: Production release and stable baseline branch.
-- **`dev`**: Active development branch. All feature work and staging tests happen here.
-
-## Environment Profiles
-
-- **Production (`.env.production`)**:
-  - Ports: 8088 (host 8088), 8090 (host 8090)
-  - Project name: `office-prod`
-  - Mode: `live`
-- **Development / Staging (`.env.development`)**:
-  - Ports: 18088 (host 18088), 13579 (host 13579)
-  - Project name: `office-dev`
-  - Mode: `demo`
-
-## Getting Started
-
-To run services with Docker Compose:
-
-```bash
-# Production environment (standard ports 8088/8090)
+cp .env.example .env.production          # then fill in the secrets you need
 docker compose --env-file .env.production up -d --build
-
-# Development environment (isolated ports 18088/13579)
-docker compose --env-file .env.development up -d --build
+curl -s localhost:8090/healthz
 ```
 
-## A2A Peer Agents (LAN)
+Open <http://localhost:8090>. Add `?demo=1` to run the office without a server stream,
+`?vertical=1` for 9:16 framing.
 
-Four Hermes **A2A sidecars** are shown in their specialty rooms:
-
-| Agent | Host | Room | Protocol |
-|---|---|---|---|
-| Agent | Role | Host | Room | Protocol |
-|---|---|---|---|---|
-| Lami 👑 | Orchestrator | `192.168.3.31:9900` | Boss Office | official A2A v1.0 (Agent Card + JSON-RPC) |
-| Yuna 💰 | Finance | `192.168.3.91:8000` | Research Lab | A2A sidecar (mesh) |
-| Aurora 📐 | PM (mesh id `clark`) | `192.168.3.92:8000` | Meeting Room | A2A sidecar (mesh) |
-| Kira 🛡️ | Security | `192.168.3.93:8000` | Server Room | A2A sidecar (mesh) |
-| Cyro 🛠️ | Engineer / DevOps | `192.168.3.94:8000` | Engineering Pit | A2A sidecar (mesh) |
-
-The mesh sidecars live at `~ebi/a2a-mesh` (`hermes-a2a.service`) and share one
-secret token; it is stored **only** in `.env.development` / `.env.production` as
-`A2A_SECRET` (never committed). Read it on a sidecar with:
+Running `server.py` directly also works (Python 3.11+, no `pip install`):
 
 ```bash
-ssh ebi@192.168.3.91 'grep ^SECRET ~/a2a-mesh/a2a_daemon.py'
+python3 server.py            # serves web/ and the SSE stream on :8090
+python3 server.py --probe    # print which Hermes data this host can see
 ```
 
-Messages accepted by a sidecar are appended to
-`~ebi/a2a-mesh/logs/inbox_<date>.jsonl`; read them with `~/a2a-mesh/read_inbox.py`.
-There is no automatic poller feeding those inboxes into a Hermes turn yet.
+## Commands
 
-The dialect is auto-detected per peer: the official A2A endpoint is probed with
-`GET /.well-known/agent-card.json` and sent JSON-RPC `SendMessage`; anything else
-falls back to the legacy sidecar. Presence comes from the card or `GET /health` (polled every `A2A_POLL_INTERVAL`
-seconds); the office sidebar chip `🔗` opens a panel with status, latency and a
-message box.
+Everything has two entry points. `make` and `npm` run the same scripts; use whichever
+is installed.
 
-Sending messages needs the shared secret the sidecars expect in `x-a2a-token`:
+| Task | make | npm |
+|---|---|---|
+| Full test suite (378) | `make test` | `npm test` |
+| One tier (`1`–`4`) | `make test-tier1` | `npm run test:tier1` |
+| Syntax check all JS | `make syntax` | `npm run syntax` |
+| `world.py` vs `config.js` | `make guard` | `npm run guard` |
+| Verify committed assets | `make assets-check` | `npm run assets:check` |
+| Regenerate assets | `make assets` | `npm run assets` |
+| Probe a live deploy | `make smoke HOST=… PORT=…` | `npm run smoke` |
+| **Everything CI runs** | **`make check`** | — |
 
-```bash
-# .env.development / .env.production
-A2A_PEER_TOKENS=lami:<bearer-token>   # official A2A (192.168.3.31:9900)
-A2A_SECRET=<sidecar-token>            # legacy sidecars (.91-.94)
+`make check` is the gate: syntax, world-sync guard, asset hashes, then 378 tests.
+
+## Layout
+
+```
+server.py          stdlib HTTP + SSE, public chat proxy, A2A client
+world.py           the simulation: floorplan, A*, collision, characters, routines
+config.json        optional overrides (env vars win)
+web/               index.html, css/style.css, js/*.js (11 files), assets/
+deploy/agent/      bridge, hook, metrics agent, systemd units  → runs on .31, .91-.94
+deploy/office/     cloudflared tunnel config                    → runs on .33
+scripts/assets/    tileset + tilemap generators, hash stamper, world-sync guard
+scripts/ops/       deploy_prod, deploy_staging, push_to_github, smoke_test
+tests/             zero-dependency harness + 378 tests in four tiers
+docs/              ARCHITECTURE, TESTING, SECURITY, CI, CHANGELOG
 ```
 
-Leave it empty to keep presence-only mode. Endpoints:
+There are no hidden modules: `server.py` (2,087 lines) and `world.py` (2,205) are
+single files by choice, with segment separators. See
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#why-serverpy-is-one-file) for the reasoning —
+splitting them would break 11 assertions that grep specific blocks.
 
-```bash
-curl -s http://127.0.0.1:13579/api/a2a | jq      # roster + presence + can_send
-curl -s -X POST http://127.0.0.1:13579/api/a2a/send \
-  -H 'Content-Type: application/json' \
-  -d '{"peer":"yuna","text":"Status riset hari ini?"}' | jq
+## How the pieces talk
+
+```
+Hermes host (.31/.91-.94)          Office host (.33)              Browser
+┌──────────────────────┐        ┌────────────────────┐        ┌──────────┐
+│ hermes_bridge.py     │──POST─▶│ /api/event         │        │          │
+│  (tails state.db)    │        │        │           │        │          │
+│                      │        │     Hub.publish    │        │          │
+│ metrics_agent.py     │◀──poll─│ A2ARegistry        │        │          │
+│  (:8010 /proc)       │        │        │           │        │          │
+└──────────────────────┘        │   world.py @ 10 Hz │        │          │
+                                │        │           │──SSE──▶│ render   │
+┌──────────────────────┐        │   world frames     │        │ only     │
+│ A2A sidecars         │◀──A2A──│   ~5 Hz            │        │          │
+│  (Yuna, Aurora,      │        │                    │◀─POST──│ /api/chat│
+│   Kira, Cyro)        │        └────────────────────┘        └──────────┘
+└──────────────────────┘
 ```
 
-`POST /api/a2a/send` is accepted only from localhost/trusted LAN hosts and is
-always rejected for traffic arriving through the Cloudflare tunnel.
+Full interface contracts, the floorplan, and deployment details are in
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-Check the Hermes bridge wiring on the agent host:
+## Configuration
+
+Two axes, both set per environment file.
+
+**Public vs LAN.** `PUBLIC_MODE=live` serves real activity to tunnel visitors;
+`demo` gives them a local simulation and refuses `/events`. LAN clients are always
+treated as trusted and may POST ingest events and drive A2A peers.
+
+**Profiles.** `.env.production` (project `office-prod`, ports 8088/8090) and
+`.env.development` (project `office-dev`, ports 18088/13579). Secrets live in
+`.env.production.secrets` / `.env.development.secrets`, which are gitignored — compose
+is always invoked with both files:
 
 ```bash
-python3 deploy/hermes_bridge.py --endpoint http://192.168.3.32:13579 --verify
+docker compose --env-file .env.production --env-file .env.production.secrets up -d --build
 ```
 
-## Wiring Hermes to the office (bridge)
+Chat guardrails (`CHAT_PER_MINUTE`, `CHAT_PER_HOUR`, `CHAT_DAILY_CAP`, `CHAT_MAX_CHARS`)
+are documented in `.env.example`. Without `CHAT_ASK_URL` pointing at the Hermes shim,
+chat falls back to raw A2A, which the gateway rejects with 401.
 
-The bridge on the Hermes host (`192.168.3.31`) is what makes the office
-**real-time** — it tails `~/.hermes/state.db` and POSTs events to the office.
+## Testing
+
+378 tests, zero frameworks, ~80 s. Four tiers plus a world-parity suite:
+
+| Tier | What it covers |
+|---|---|
+| 1 | Every documented feature, including server↔client world parity |
+| 2 | Boundary cases: 0×0 viewports, obstacle traps, body limits, auth matrix |
+| 3 | Cross-feature: pathfinding through doors, drawer + resize, modal conflicts |
+| 4 | Real HTTP against a real `server.py` subprocess: SSE fan-out, A2A stubs, restart persistence |
+
+Layout and how to add a test: [docs/TESTING.md](docs/TESTING.md).
+
+## Deployment
+
+Production is a mirror of `master`; nobody edits code on that host.
 
 ```bash
-# which office gets fed (check this before enabling!)
-OFFICE_URL=http://192.168.3.33:8090     # production
-# OFFICE_URL=http://192.168.3.32:13579  # staging
+make deploy-prod                                    # fast-forward + rebuild + health wait
+HOST=192.168.3.33 PORT=8090 make smoke              # 6 probes, exit code is the verdict
+```
+Staging mirrors `dev` on `.32` and is the only place that runs untagged code.
+Branch rules and the release procedure:
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#deployment-production).
+
+### The bridge target pitfall
+
+The bridge makes the office real-time, and it can be aimed at the wrong office.
+This shipped as a real bug once: the bridge pointed at staging, so production
+looked permanently idle while agents were working.
+
+```bash
+# which office gets fed — check this before enabling the bridge
+OFFICE_URL=http://192.168.3.33:8090      # production
+# OFFICE_URL=http://192.168.3.32:13579   # staging
 ```
 
-Verify it end to end:
+Diagnose it with the event age, not with a glance at the floor:
 
 ```bash
-python3 deploy/hermes_bridge.py --endpoint http://192.168.3.33:8090 --verify
-systemctl --user status hermes-bridge
 curl -s http://192.168.3.33:8090/api/integration | jq .last_event_age_s
+systemctl --user status hermes-bridge
 ```
 
 If `last_event_age_s` keeps growing while agents are working, the bridge is
-aimed at the wrong office (this shipped as a bug once: the bridge pointed at
-staging, so production looked idle).
+aimed somewhere else. `watcher.stale: true` in the same payload means the
+mounted Hermes home has no fresh activity and the cross-host bridge (or
+`POST /api/event`) is the active path.
 
-## Live State
+## Security
 
-The office shows what the agents are doing **right now**, and that state is not
-lost when you reload the page or redeploy:
+Public traffic cannot ingest events or drive peers; both paths check
+`is_public()` before anything else. Secrets are uncommitted, text leaving the process
+is redacted, and the event schema is an allow-list. Known gaps — including a rotated
+token still present in `master`'s git history — are listed honestly in
+[docs/SECURITY.md](docs/SECURITY.md).
 
-- Agent identity is derived from the agent id, so `sa-abc123` always appears as
-  the same name and sprite.
-- A reload/subscribe rebuilds the current agents straight at their desks (no
-  entrance animation, no duplicate "joined the office" toasts) and fills the
-  activity ticker from the server's recent history.
-- The server persists `{stats, event feed, active agents}` to a JSON file and
-  replays it on boot, so a container restart keeps the floor populated.
+## License
 
-```bash
-# where the state lives (mounted as the office-state volume)
-OFFICE_STATE_FILE=/data/office-state.json
-```
-
-## Responsive Layout
-
-- **Desktop / tablet**: the whole floorplan is fit to the viewport. Opening the
-  chat drawer shrinks the canvas so the office re-centers beside it.
-- **Phones** (`(pointer: coarse)` or viewport `< 900px`): a pan/zoom camera fills
-  the screen width, auto-focuses the active agent, and supports drag-to-pan,
-  pinch-zoom and double-tap-to-reset. On-screen buttons: `⤢` fit, `👑` focus boss,
-  `＋ / －` zoom. Safe-area insets keep the HUD and panels clear of notches.
-
-## Smoke Testing
-
-To verify service health across all 7 endpoints:
-
-```bash
-# Test local instance
-./scripts/ops/smoke_test.sh 127.0.0.1 8090
-
-# Test remote host
-./scripts/ops/smoke_test.sh 192.168.3.33 8090
-```
-
-## Automated Tests
-
-```bash
-npm test              # full E2E suite (Tiers 1–4)
-npm run assets:check  # verify committed tileset/tilemap match config.js
-```
-
-## Hermes Integration (Cross-Host)
-
-The container can watch a Hermes home only when that home is on the same host
-(`/home/rumi/.hermes` mounted read-only). When Hermes runs on another machine
-(e.g. `192.168.3.31`), run the bundled bridge **on the Hermes host**:
-
-```bash
-# 1. On the office host: pick a shared secret and start the stack
-export INGEST_TOKEN="$(openssl rand -hex 16)"
-docker compose --env-file .env.development up -d --build
-
-# 2. On the Hermes host (stdlib only, no install):
-python3 deploy/hermes_bridge.py \
-  --endpoint http://192.168.3.32:13579 \
-  --token "$INGEST_TOKEN" \
-  --boss-session <main-session-id>
-```
-
-What the bridge does: tails `~/.hermes/state.db` read-only, turns tool calls
-into `tool_start` / `tool_end` / `agent_spawn` / `message` / `agent_done`
-events and POSTs them to `/api/event` with `X-Office-Token`.
-
-Useful flags: `--probe` (show parsed events, send nothing), `--once`,
-`--include-cron`, `--dry-run`, `--poll 1.0`, `--timeout 90`.
-
-Check wiring at any time:
-
-```bash
-curl -s http://127.0.0.1:13579/api/integration | jq
-```
-
-`watcher.stale: true` means the mounted Hermes home has no fresh activity and
-the cross-host bridge (or `POST /api/event`) is the active path.
-
-To keep the bridge running on the Hermes host, copy
-`deploy/hermes-bridge.service` to
-`~/.config/systemd/user/hermes-bridge.service`, adjust the paths/token, then:
-
-```bash
-systemctl --user daemon-reload
-systemctl --user enable --now hermes-bridge
-```
+No license file yet. Treat this as all-rights-reserved until one is added.
