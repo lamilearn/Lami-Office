@@ -251,3 +251,76 @@ fails when a hash is stale.
 - Per-room wall palette: each room's `wall`/`wallDark` in `config.js` is baked into its own tileset variants (`wall_face_<room>`, `wall_top_<room>`, `wall_side_l_<room>`, `wall_side_r_<room>`, `window_<room>`). `generate_tilemap.py` tags every wall and window with its room id, and `web/js/tilemap.js` resolves the matching variant, so every room is visually distinct. The shared building perimeter keeps the neutral `wall_face`/`wall_top`.
 - Asset Generators (stdlib Python): `scripts/assets/generate_tileset.py`, `scripts/assets/generate_tilemap.py` (both support `--check`).
 - Smoke Tests: `scripts/ops/smoke_test.sh`
+
+## Chat Drawer & UI Entry Points
+
+The drawer (`#chat-drawer`) is split into two channels that filter the same DOM
+list by `data-ch` — no message is cloned when you switch:
+
+| Channel | Content | Source |
+|---|---|---|
+| 👑 `lami-saya` | your messages and Lami's replies | `POST /api/chat` (server holds the token) |
+| 🏢 `kantor` | staff activity, spawns, tool calls, system notices | SSE `/events` |
+
+Slash commands accepted in the input bar (all implemented in `web/js/ui.js`):
+
+| Command | Effect |
+|---|---|
+| `/help` | list commands |
+| `/status` | office health, staff count, coins |
+| `/agents` | every staff member's position and current task |
+| `/wb`, `/whiteboard [tasks\|tools\|team]` | open the meeting-room whiteboard modal |
+| `/context [0-100]` | inspect/simulate the LLM context window |
+| `/event [pizza\|flicker\|coffee\|printer]` | fire one of the scripted office events |
+| `/time [day\|sunset\|night\|auto]` | switch the sky/time theme |
+| `/the-office` | Easter egg: rename the floor to Dunder Mifflin Scranton |
+| `/clear` | wipe the visible channel only |
+
+URL flags:
+
+- `?vertical=1` — 9:16 camera framing for screen recording
+- `?demo=1` — force local simulation, ignore the server stream
+- `?noloader=1` — skip the loading screen
+- `?sound=1` — start with audio unmuted
+
+## Cloudflare Tunnel (office.fatihrumi.id)
+
+The tunnel runs on the office host (`.33`) from [`deploy/office/cloudflared-config.yml`](deploy/office/cloudflared-config.yml).
+
+```bash
+cloudflared tunnel login
+cloudflared tunnel create lami-office
+cloudflared tunnel route dns lami-office office.fatihrumi.id
+# put the TUNNEL_ID into the credentials-file path, then:
+cloudflared tunnel --config deploy/office/cloudflared-config.yml run lami-office
+```
+
+Public traffic arrives with `CF-Connecting-IP`/`CF-Ray`, which is what
+`Handler.is_public()` keys off — see `PUBLIC_MODE` in `.env.production`.
+
+## Direct event hook (alternative to the bridge)
+
+[`deploy/agent/hermes_hook.py`](deploy/agent/hermes_hook.py) pushes events
+without tailing the database:
+
+```python
+from deploy.agent.hermes_hook import OfficeHook
+
+hook = OfficeHook("http://127.0.0.1:8090")
+hook.tool_start(agent_id="lami", tool="code", summary="Edit auth controller")
+hook.tool_end(agent_id="lami", tool="code", ok=True)
+hook.spawn_agent(agent_id="sa1", name="Budi", task="Riset API")
+hook.agent_done(agent_id="sa1", ok=True, result="Selesai")
+```
+
+From a shell:
+
+```bash
+python3 deploy/agent/hermes_hook.py tool_start --tool terminal --summary "Migrasi database"
+python3 deploy/agent/hermes_hook.py tool_end --tool terminal --ok
+python3 deploy/agent/hermes_hook.py status --status thinking
+```
+
+`auto-watcher` is still available when Hermes runs on the same host: point
+`sqlite_path` / `sessions_glob` at its state (see `config.json`) and check it
+with `python3 server.py --probe`.

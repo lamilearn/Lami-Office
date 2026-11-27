@@ -15,7 +15,6 @@ Unified workspace & monorepo containing services for **AI Office** and **Lami Of
 ├── world.py                 # Server-authoritative 10 Hz simulation
 ├── config.json              # Optional overrides (env wins)
 ├── Dockerfile
-├── SERVICE.md               # How the app itself works
 ├── deploy/
 │   ├── agent/               # Runs on the Hermes hosts (.31, .91-.94)
 │   │   ├── hermes_bridge.py      # Tails state.db, POSTs events
@@ -36,7 +35,7 @@ Unified workspace & monorepo containing services for **AI Office** and **Lami Of
 │       ├── deploy_prod.sh        # Fast-forward master + rebuild (.33)
 │       ├── deploy_staging.sh     # Same for dev (.32)
 │       ├── push_to_github.sh     # Push dev (master needs ALLOW_MASTER_PUSH=1)
-│       └── smoke_test.sh         # Probes all 7 health endpoints
+│       └── smoke_test.sh         # Probes the deploy's health endpoints
 ├── web/                     # index.html, css/style.css, js/*.js, assets/
 └── tests/                   # Zero-dependency E2E harness (378 tests)
 ```
@@ -203,10 +202,10 @@ To verify service health across all 7 endpoints:
 
 ```bash
 # Test local instance
-./scripts/ops/smoke_test.sh 127.0.0.1 8088 8090
+./scripts/ops/smoke_test.sh 127.0.0.1 8090
 
 # Test remote host
-./scripts/ops/smoke_test.sh 192.168.3.33 8088 8090
+./scripts/ops/smoke_test.sh 192.168.3.33 8090
 ```
 
 ## Automated Tests
