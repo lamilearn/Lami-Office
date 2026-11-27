@@ -654,8 +654,8 @@ describe('Tier 1 — Feature 20: Mesh Sidecar Roles & Recipient Mapping', () => 
   });
 
   it('F20.3: No sidecar secret is committed to the repository', () => {
-    const tracked = ['README.md', 'PROJECT.md', '.env.example', 'docker-compose.yml',
-      'server.py'];
+    const tracked = ['README.md', 'docs/ARCHITECTURE.md', 'docs/TESTING.md',
+      '.env.example', 'docker-compose.yml', 'server.py'];
     for (const f of tracked) {
       const txt = fsx.readFileSync(pathx.join(REPO, f), 'utf8');
       assert.ok(!/a2a_secret_mesh_ebi_2026/.test(txt), `${f} must not contain the mesh secret`);

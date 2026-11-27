@@ -1,7 +1,7 @@
 /**
  * Lami AI Office — Specification Oracle & Reference Model
  * Authoritative mathematical formulas, geometry models, and requirement models
- * derived strictly from ORIGINAL_REQUEST.md and PROJECT.md.
+ * derived strictly from ORIGINAL_REQUEST.md and docs/ARCHITECTURE.md.
  */
 
 const ORACLE = {

@@ -7,10 +7,14 @@ Unified workspace & monorepo containing services for **AI Office** and **Lami Of
 ```
 .
 ├── docker-compose.yml       # The only compose file — run from here
+├── Makefile                 # Same commands as npm, for people without node
 ├── package.json             # npm test / npm run assets:check
 ├── .env.example             # Copy to .env.production|.env.development
-├── PROJECT.md               # Architecture + interface contracts
-├── TEST_INFRA.md            # E2E suite layout
+├── docs/
+│   ├── ARCHITECTURE.md      # Floorplan, interface contracts, deployment
+│   ├── TESTING.md           # E2E suite layout
+│   ├── CHANGELOG.md         # Release history
+│   └── SECURITY.md          # Threat model, secrets policy, reporting
 ├── server.py                # stdlib HTTP + SSE, public chat proxy
 ├── world.py                 # Server-authoritative 10 Hz simulation
 ├── config.json              # Optional overrides (env wins)

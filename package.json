@@ -10,10 +10,12 @@
     "test:tier4": "node tests/run_all_e2e.js --tier=4",
     "test:json": "node tests/run_all_e2e.js --json",
     "test:smoke": "node tests/run_all_e2e.js --smoke",
-    "smoke": "bash scripts/smoke_test.sh",
-    "assets": "python3 scripts/generate_tileset.py && python3 scripts/generate_tilemap.py",
-    "assets:check": "python3 scripts/generate_tileset.py --check && python3 scripts/generate_tilemap.py --check && python3 scripts/stamp_assets.py --check",
-    "assets:stamp": "python3 scripts/stamp_assets.py"
+    "smoke": "bash scripts/ops/smoke_test.sh",
+    "guard": "python3 scripts/assets/check_world_sync.py",
+    "assets": "python3 scripts/assets/generate_tileset.py && python3 scripts/assets/generate_tilemap.py",
+    "assets:check": "python3 scripts/assets/generate_tileset.py --check && python3 scripts/assets/generate_tilemap.py --check && python3 scripts/assets/stamp_assets.py --check",
+    "assets:stamp": "python3 scripts/assets/stamp_assets.py",
+    "syntax": "node -c web/js/config.js && node -c web/js/sprites.js && node -c web/js/audio.js && node -c web/js/tilemap.js && node -c web/js/world.js && node -c web/js/agents.js && node -c web/js/office.js && node -c web/js/ui.js && node -c web/js/demo.js && node -c web/js/net.js && node -c web/js/main.js"
   },
   "keywords": [
     "ai-office",

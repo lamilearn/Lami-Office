@@ -3,7 +3,7 @@
 ## 1. Overview
 This document describes the end-to-end (E2E) testing infrastructure, harness architecture, test suites, and execution methodology for the 2D Top-Down / RPG Office Suite (single service).
 
-The testing track uses an opaque-box, requirement-driven 4-tier testing methodology strictly derived from `ORIGINAL_REQUEST.md` (R1, R2, R3) and `PROJECT.md` (§ Feature Inventory & Interface Contracts).
+The testing track uses an opaque-box, requirement-driven 4-tier testing methodology strictly derived from `ORIGINAL_REQUEST.md` (R1, R2, R3) and `docs/ARCHITECTURE.md` (§ Feature Inventory & Interface Contracts).
 
 ---
 
