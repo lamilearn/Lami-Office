@@ -13,7 +13,6 @@
     const canvas = document.getElementById('office');
     const office = new LO.Office(canvas);
     LO.office = office;
-    LO.currentOffice = office;
 
     // 2b. Load the floorplan tilemap + tileset. The renderer falls back to the
     //     procedural floorplan until (or unless) the assets arrive.
