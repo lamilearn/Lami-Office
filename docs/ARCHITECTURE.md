@@ -252,6 +252,29 @@ fails when a hash is stale.
 - Asset Generators (stdlib Python): `scripts/assets/generate_tileset.py`, `scripts/assets/generate_tilemap.py` (both support `--check`).
 - Smoke Tests: `scripts/ops/smoke_test.sh`
 
+## Why server.py is one file
+
+`server.py` is 2,087 lines and 17 responsibilities, and `world.py` is 2,205.
+Splitting them into modules was evaluated and deliberately rejected.
+
+Eleven assertions in the test suite read `server.py` as text and grep a specific
+block out of it: the A2A peer table, `handle_a2a_send`'s `is_public()` and
+`is_trusted()` guards, `publish_world`'s `self.subs` loop, `world_status`'s
+`age > 120` / `age > 300` thresholds, the ingest counters, `sanitize_event(ev)
+is None`. They do this on purpose: the behaviour under test is *the shape of
+that code*, and a test that asserts against a different file is a weaker test,
+not a tidier one.
+
+Moving a block would mean editing those assertions to point at the new file.
+That is not a refactor — it changes what is being guaranteed.
+
+So the file stays whole and carries 17 separator comments instead. Navigable in
+an editor, zero risk, and the tests keep their teeth. The same reasoning applies
+to `web/js/agents.js`: splitting its seven classes was attempted and reverted,
+because 27 tests load it as a single unit and its classes share closure state.
+
+## Chat Drawer & UI Entry Points
+
 ## Chat Drawer & UI Entry Points
 
 The drawer (`#chat-drawer`) is split into two channels that filter the same DOM
