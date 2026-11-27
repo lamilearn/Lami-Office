@@ -1,6 +1,6 @@
 /**
  * Tier 1: Feature Coverage Test Suite (>=5 tests per feature)
- * Validates opaque-box requirements for all 12 core features from PROJECT.md
+ * Validates opaque-box requirements for all 12 core features from docs/ARCHITECTURE.md
  * and ORIGINAL_REQUEST.md.
  */
 
