@@ -332,6 +332,55 @@
 
       this.chatMessages.appendChild(msg);
       this.scrollChatToEnd();
+      return msg;
+    }
+
+    // Chat dengan Lami: lewat proxy server (/api/chat) yang memegang token A2A,
+    // rate limit, dan batas panjang. Balasan agent selalu di-escape sebelum
+    // masuk innerHTML.
+    escChat(s) {
+      return String(s).replace(/[&<>"']/g, (c) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[c]));
+    }
+
+    chatSessionId() {
+      try {
+        let sid = sessionStorage.getItem('lami-chat-session');
+        if (!sid) {
+          sid = 'w' + Math.random().toString(36).slice(2, 10);
+          sessionStorage.setItem('lami-chat-session', sid);
+        }
+        return sid;
+      } catch (err) {
+        return 'anon';
+      }
+    }
+
+    async sendChatToLami(text) {
+      const bubble = this.appendChatMessage('Boss Lami', 'CEO', '<i>mengetik…</i>', '👑', '#ffd25e');
+      const fail = (msg) => {
+        if (bubble && bubble.remove) bubble.remove();
+        this.appendChatMessage('Sistem', 'Chat', this.escChat(msg), '✨', '#c0392b', false, true);
+      };
+      try {
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, session: this.chatSessionId() })
+        });
+        let data = {};
+        try { data = await res.json(); } catch (err) { data = {}; }
+        if (!res.ok || !data.reply) {
+          return fail(data.error || 'Lami belum bisa dihubungi sekarang.');
+        }
+        if (bubble && bubble.remove) bubble.remove();
+        this.appendChatMessage('Boss Lami', 'CEO', this.escChat(data.reply), '👑', '#ffd25e');
+        const office = window.LO?.office;
+        if (office && office.lami) office.lami.cheer();
+      } catch (err) {
+        fail('Jaringan bermasalah, coba lagi.');
+      }
     }
 
     handleChatSubmit() {
@@ -340,7 +389,7 @@
       this.chatInput.value = '';
 
       // Tampilkan pesan user
-      this.appendChatMessage('Kamu', 'User', text, '👤', '#1976d2', true);
+      this.appendChatMessage('Kamu', 'User', this.escChat(text), '👤', '#1976d2', true);
 
       // Handle Slash Commands
       if (text.startsWith('/')) {
@@ -348,21 +397,8 @@
         return;
       }
 
-      // Friendly AI reply from team / Boss Lami
-      setTimeout(() => {
-        const office = window.LO?.office;
-        const replies = [
-          'Siap laksanakan! Semua divisi on-track. 💪',
-          'Kantor adem ayem, target hari ini aman terkendali! 👑',
-          'Sip! Mau kopi gayo dulu di pantry 1F? ☕',
-          'Mantap pol, semangat kerjanya! ✨',
-          'Server adem 17°C, jaringan 10 Gbps ngebut tanpa drop! 🖥️',
-          'Fitur kodingan baru udah di-approve merge 👍'
-        ];
-        const rep = replies[Math.floor(Math.random() * replies.length)];
-        this.appendChatMessage('Boss Lami', 'CEO', rep, '👑', '#ffd25e');
-        if (office && office.lami) office.lami.cheer();
-      }, 600);
+      // Chatbot: kirim ke Lami lewat proxy server (token A2A tetap di server)
+      this.sendChatToLami(text);
     }
 
     handleSlashCommand(cmdStr) {
