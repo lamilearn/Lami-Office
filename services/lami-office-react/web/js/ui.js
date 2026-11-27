@@ -157,17 +157,33 @@
         }
         if (this.chatClear) {
           this.chatClear.addEventListener('click', () => {
-            this.chatMessages.innerHTML = '';
-            this.appendChatMessage('Sistem', 'Kantor', 'Riwayat chat telah dibersihkan. 🧹', '✨', '#1f9d5c', false, true);
+            // Only wipe the channel being viewed, so clearing #kantor keeps your
+            // Lami thread intact (and vice versa).
+            const chan = this.chatChannel || 'lami';
+            for (const el of this.chatMessages.querySelectorAll(`.chat-msg[data-ch="${chan}"]`)) {
+              el.remove();
+            }
+            this.appendChatMessage('Sistem', 'Kantor', 'Riwayat channel ini telah dibersihkan. 🧹', '✨', '#1f9d5c', false, true, null, chan);
           });
         }
+        this.chatTabs = this.chatDrawer.querySelectorAll('.chat-tab');
+        this.chatChannelName = document.getElementById('chat-channel-name');
+        for (const btn of this.chatTabs) {
+          btn.addEventListener('click', () => {
+            this.switchChatChannel(btn.dataset.channel);
+            if (this.chatChannelName) {
+              this.chatChannelName.textContent = btn.dataset.channel === 'office' ? 'kantor' : 'lami-saya';
+            }
+          });
+        }
+        this.switchChatChannel('lami');
         this.chatForm.addEventListener('submit', (e) => {
           e.preventDefault();
           this.handleChatSubmit();
         });
 
-        // Greeting message in Slack chat
-        this.appendChatMessage('Boss Lami', 'CEO', 'Selamat datang di Lami Corp! Ketik <code>/help</code> untuk melihat daftar perintah santai. 👑✨', '👑', '#ffd25e');
+        // Greeting lands in #kantor: it is an announcement, not a DM with Lami.
+        this.appendChatMessage('Boss Lami', 'CEO', 'Selamat datang di Lami Corp! Buka tab <b>👑 lami-saya</b> untuk mengobrol dengan Lami, atau ketik <code>/help</code> untuk perintah.', '👑', '#ffd25e', false, false, null, 'office');
 
         this.setupChatSheet();
       }
@@ -308,11 +324,15 @@
       }
     }
 
-    appendChatMessage(sender, role, text, icon = '💬', color = '#555', isUser = false, isSystem = false, tsMs = null) {
+    // `channel` splits the drawer into Discord-style tabs: 'lami' is the private
+    // thread with Boss Lami, 'office' is everything the staff does. One DOM list,
+    // filtered in CSS, so a message never has to be moved or cloned.
+    appendChatMessage(sender, role, text, icon = '💬', color = '#555', isUser = false, isSystem = false, tsMs = null, channel = 'office') {
       if (!this.chatMessages) return;
 
       const msg = document.createElement('div');
       msg.className = `chat-msg ${isUser ? 'user' : ''} ${isSystem ? 'system' : ''}`;
+      msg.dataset.ch = channel;
 
       const now = tsMs ? new Date(tsMs) : new Date();
       const pad = (n) => String(n).padStart(2, '0');
@@ -333,6 +353,25 @@
       this.chatMessages.appendChild(msg);
       this.scrollChatToEnd();
       return msg;
+    }
+
+    // Switch the visible channel. Unread counts reset on switch.
+    switchChatChannel(name = 'lami') {
+      this.chatChannel = name === 'office' ? 'office' : 'lami';
+      if (this.chatMessages) this.chatMessages.dataset.channel = this.chatChannel;
+      if (this.chatTabs) {
+        for (const btn of this.chatTabs) {
+          btn.classList.toggle('is-active', btn.dataset.channel === this.chatChannel);
+        }
+      }
+      const unread = this.chatUnread || (this.chatUnread = { lami: 0, office: 0 });
+      unread[this.chatChannel] = 0;
+      if (this.chatInput) {
+        this.chatInput.placeholder = this.chatChannel === 'lami'
+          ? 'Tanya Lami...'
+          : 'Ketik /help untuk perintah';
+      }
+      this.scrollChatToEnd();
     }
 
     // Chat dengan Lami: lewat proxy server (/api/chat) yang memegang token A2A,
@@ -358,10 +397,10 @@
     }
 
     async sendChatToLami(text) {
-      const bubble = this.appendChatMessage('Boss Lami', 'CEO', '<i>mengetik…</i>', '👑', '#ffd25e');
+      const bubble = this.appendChatMessage('Boss Lami', 'CEO', '<i>mengetik…</i>', '👑', '#ffd25e', false, false, null, 'lami');
       const fail = (msg) => {
         if (bubble && bubble.remove) bubble.remove();
-        this.appendChatMessage('Sistem', 'Chat', this.escChat(msg), '✨', '#c0392b', false, true);
+        this.appendChatMessage('Sistem', 'Chat', this.escChat(msg), '✨', '#c0392b', false, true, null, 'lami');
       };
       try {
         const res = await fetch('/api/chat', {
@@ -375,7 +414,7 @@
           return fail(data.error || 'Lami belum bisa dihubungi sekarang.');
         }
         if (bubble && bubble.remove) bubble.remove();
-        this.appendChatMessage('Boss Lami', 'CEO', this.escChat(data.reply), '👑', '#ffd25e');
+        this.appendChatMessage('Boss Lami', 'CEO', this.escChat(data.reply), '👑', '#ffd25e', false, false, null, 'lami');
         const office = window.LO?.office;
         if (office && office.lami) office.lami.cheer();
       } catch (err) {
@@ -388,8 +427,9 @@
       if (!text) return;
       this.chatInput.value = '';
 
-      // Tampilkan pesan user
-      this.appendChatMessage('Kamu', 'User', this.escChat(text), '👤', '#1976d2', true);
+      // Tampilkan pesan user. Typed into the Lami tab -> it belongs to that thread.
+      const chan = this.chatChannel || 'lami';
+      this.appendChatMessage('Kamu', 'User', this.escChat(text), '👤', '#1976d2', true, false, null, chan);
 
       // Handle Slash Commands
       if (text.startsWith('/')) {
